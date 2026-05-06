@@ -1,0 +1,163 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    body {
+        @apply bg-pitch-950 text-slate-100;
+    }
+
+    ::-webkit-scrollbar {
+        @apply w-1.5 h-1.5;
+    }
+    ::-webkit-scrollbar-track {
+        @apply bg-pitch-900;
+    }
+    ::-webkit-scrollbar-thumb {
+        @apply bg-slate-600 rounded-full;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        @apply bg-slate-500;
+    }
+}
+
+@layer components {
+    .card {
+        @apply bg-pitch-900 border border-slate-800 rounded-xl;
+    }
+
+    .card-hover {
+        @apply card transition-all duration-200 hover:border-slate-600 hover:shadow-lg hover:shadow-black/30;
+    }
+
+    .btn-primary {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white
+               hover:bg-emerald-500 active:bg-emerald-700 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-pitch-950;
+    }
+
+    .btn-secondary {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-200
+               hover:bg-slate-600 active:bg-slate-800 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-pitch-950;
+    }
+
+    .btn-danger {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg bg-red-700 px-4 py-2.5 text-sm font-semibold text-white
+               hover:bg-red-600 active:bg-red-800 transition-colors duration-150 focus:outline-none;
+    }
+
+    .btn-ghost {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-400
+               hover:text-slate-200 hover:bg-slate-800 transition-colors duration-150 focus:outline-none;
+    }
+
+    .btn-sm {
+        @apply px-3 py-1.5 text-xs;
+    }
+
+    .input-field {
+        @apply w-full rounded-lg bg-pitch-800 border-slate-700 text-slate-100 placeholder-slate-500
+               focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors;
+    }
+
+    /* Override browser autofill light background on dark inputs */
+    .input-field:-webkit-autofill,
+    .input-field:-webkit-autofill:hover,
+    .input-field:-webkit-autofill:focus,
+    .input-field:-webkit-autofill:active {
+        -webkit-box-shadow: 0 0 0 100px #0f2140 inset !important;
+        -webkit-text-fill-color: #f1f5f9 !important;
+        caret-color: #f1f5f9;
+    }
+
+    .select-field {
+        @apply w-full rounded-lg bg-pitch-800 border-slate-700 text-slate-100
+               focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors;
+    }
+
+    .label {
+        @apply block text-sm font-medium text-slate-300 mb-1.5;
+    }
+
+    .badge {
+        @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+    }
+
+    .badge-green {
+        @apply badge bg-emerald-900/60 text-emerald-400 ring-1 ring-emerald-500/30;
+    }
+
+    .badge-amber {
+        @apply badge bg-amber-900/60 text-amber-400 ring-1 ring-amber-500/30;
+    }
+
+    .badge-red {
+        @apply badge bg-red-900/60 text-red-400 ring-1 ring-red-500/30;
+    }
+
+    .badge-slate {
+        @apply badge bg-slate-800 text-slate-400 ring-1 ring-slate-600/30;
+    }
+
+    .badge-blue {
+        @apply badge bg-blue-900/60 text-blue-400 ring-1 ring-blue-500/30;
+    }
+
+    .tab-btn {
+        @apply relative py-3 px-1 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors duration-150;
+    }
+
+    .tab-btn.active {
+        @apply text-emerald-400;
+    }
+
+    .tab-btn.active::after {
+        content: '';
+        @apply absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500 rounded-full;
+    }
+
+    .stat-card {
+        @apply card p-5 flex flex-col gap-1;
+    }
+
+    .stat-value {
+        @apply text-3xl font-bold text-white;
+    }
+
+    .stat-label {
+        @apply text-sm text-slate-400;
+    }
+
+    .rank-1 { @apply text-amber-400 font-bold; }
+    .rank-2 { @apply text-slate-300 font-bold; }
+    .rank-3 { @apply text-amber-700 font-bold; }
+
+    .match-live {
+        @apply animate-pulse-slow;
+    }
+
+    .team-crest {
+        @apply w-10 h-10 object-contain drop-shadow-sm;
+    }
+
+    .score-display {
+        @apply text-3xl font-black text-white tabular-nums;
+    }
+
+    .alert-success {
+        @apply rounded-lg bg-emerald-900/40 border border-emerald-500/30 p-3 text-sm text-emerald-400;
+    }
+
+    .alert-error {
+        @apply rounded-lg bg-red-900/40 border border-red-500/30 p-3 text-sm text-red-400;
+    }
+
+    .alert-info {
+        @apply rounded-lg bg-blue-900/40 border border-blue-500/30 p-3 text-sm text-blue-400;
+    }
+
+    .divider {
+        @apply border-slate-800;
+    }
+
+    [x-cloak] { display: none !important; }
+}
