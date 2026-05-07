@@ -12,4 +12,8 @@ return [
     'rate_limit' => [
         'free_requests_per_minute' => 10,
     ],
+    'match_details' => [
+        'sync_limit_per_minute' => 8,
+        'stale_minutes' => 15,
+    ],
 ];

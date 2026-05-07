@@ -143,6 +143,17 @@
         @apply text-3xl font-black text-white tabular-nums;
     }
 
+    .score-input {
+        -moz-appearance: textfield;
+        appearance: textfield;
+    }
+
+    .score-input::-webkit-outer-spin-button,
+    .score-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
     .alert-success {
         @apply rounded-lg bg-emerald-900/40 border border-emerald-500/30 p-3 text-sm text-emerald-400;
     }
@@ -157,6 +168,22 @@
 
     .divider {
         @apply border-slate-800;
+    }
+
+    .sortable-card-item {
+        @apply transition-all duration-200;
+    }
+
+    .sortable-ghost-card {
+        @apply opacity-35 ring-1 ring-emerald-500/40;
+    }
+
+    .sortable-chosen-card {
+        @apply ring-1 ring-emerald-500/60 bg-slate-800/80;
+    }
+
+    .sortable-drag-card {
+        @apply shadow-2xl shadow-black/50 ring-1 ring-emerald-400/50;
     }
 
     [x-cloak] { display: none !important; }

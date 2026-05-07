@@ -96,6 +96,7 @@ class PoolShow extends Component
     }
 
     #[On('echo:matches,MatchUpdated')]
+    #[On('echo:matches,MatchDetailUpdated')]
     public function refreshMatches(): void
     {
         $this->pool->refresh();

@@ -102,7 +102,8 @@
                                 $statusBadgeClass = 'bg-slate-900/40 text-slate-500 border-slate-700/40';
                                 $statusLabel = $isLiveTicker ? 'Ao vivo' : ($isFinishedTicker ? 'Encerrado' : 'Agendado');
                             @endphp
-                            <div class="shrink-0 w-[240px] rounded-md border border-slate-700 bg-pitch-900/70 px-2.5 py-1.5">
+                            <a href="{{ route('pools.matches.show', ['pool' => $pool->slug, 'match' => $matchTicker->id]) }}"
+                               class="shrink-0 w-[240px] rounded-md border border-slate-700 bg-pitch-900/70 px-2.5 py-1.5 hover:border-emerald-500/40 transition-colors block">
                                 <div class="flex items-center gap-2">
                                     <div class="flex items-center gap-1.5 min-w-0 flex-1">
                                         @if($matchTicker->homeTeam?->crest)
@@ -135,7 +136,7 @@
                                         </span>
                                     </div>
                                 </div>
-                            </div>
+                            </a>
                             @endforeach
 
                             @if($duplicateTickerItems)
@@ -146,7 +147,8 @@
                                     $statusBadgeClass = 'bg-slate-900/40 text-slate-500 border-slate-700/40';
                                     $statusLabel = $isLiveTicker ? 'Ao vivo' : ($isFinishedTicker ? 'Encerrado' : 'Agendado');
                                 @endphp
-                                <div class="shrink-0 w-[240px] rounded-md border border-slate-700 bg-pitch-900/70 px-2.5 py-1.5">
+                                <a href="{{ route('pools.matches.show', ['pool' => $pool->slug, 'match' => $matchTicker->id]) }}"
+                                   class="shrink-0 w-[240px] rounded-md border border-slate-700 bg-pitch-900/70 px-2.5 py-1.5 hover:border-emerald-500/40 transition-colors block">
                                     <div class="flex items-center gap-2">
                                         <div class="flex items-center gap-1.5 min-w-0 flex-1">
                                             @if($matchTicker->homeTeam?->crest)
@@ -179,7 +181,7 @@
                                             </span>
                                         </div>
                                     </div>
-                                </div>
+                                </a>
                                 @endforeach
                             @endif
                         </div>
@@ -202,7 +204,7 @@
         }
         .ticker-track {
             width: max-content;
-            animation: live-score-ticker 28s linear infinite;
+            animation: live-score-ticker 90s linear infinite;
         }
         @keyframes live-score-ticker {
             from { transform: translateX(0); }
@@ -230,7 +232,7 @@
             </div>
             <div class="stat-card">
                 <span class="stat-value text-emerald-400">{{ $predictedCount }}</span>
-                <span class="stat-label">Palpites</span>
+                <span class="stat-label">Meus palpites</span>
             </div>
             <div class="stat-card">
                 <span class="stat-value text-amber-400">{{ $pool->activeMembers()->count() }}</span>
@@ -291,6 +293,11 @@
         </div>
 
         {{-- Groups --}}
+        <div class="flex items-center justify-between gap-3">
+            <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Meus palpites por grupo e rodada</h2>
+            <span class="text-xs text-slate-500">{{ $predictedCount }} preenchido(s)</span>
+        </div>
+
         @forelse($groupedMatches as $group => $matches)
         <div>
             <div class="flex items-center gap-3 mb-3">
@@ -338,6 +345,10 @@
                             <span class="text-[11px] text-slate-600">
                                 {{ $match->local_date?->format('d/m H:i') ?? $match->utc_date->format('d/m H:i') }}
                             </span>
+                            <a href="{{ route('pools.matches.show', ['pool' => $pool->slug, 'match' => $match->id]) }}"
+                               class="text-[11px] text-emerald-400 hover:text-emerald-300 transition-colors">
+                                Ver jogo
+                            </a>
                             @php
                             $badgeClass = match($predStatus) {
                                 'aberto' => 'badge-green',
@@ -422,29 +433,33 @@
                     {{-- Prediction input --}}
                     @if(!$isLocked || $prediction)
                     <div class="border-t border-slate-800 px-3 py-2 bg-slate-900/30">
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="text-xs text-slate-500 shrink-0">Meu palpite:</span>
-                            <form wire:submit="savePrediction({{ $match->id }})" class="flex items-center gap-1.5 flex-1 min-w-[170px]">
-                                <input type="number" min="0" max="30"
-                                       wire:model="scores.{{ $match->id }}.home"
-                                       @if($isLocked) disabled @endif
-                                       class="w-10 text-center rounded-md text-xs font-bold tabular-nums
-                                              {{ $isLocked
-                                                 ? 'bg-slate-800/50 border-slate-700 text-slate-400 cursor-not-allowed'
-                                                 : 'bg-pitch-800 border-slate-700 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500' }}
-                                              border py-1 transition-colors">
-                                <span class="text-slate-600 font-bold text-xs">×</span>
-                                <input type="number" min="0" max="30"
-                                       wire:model="scores.{{ $match->id }}.away"
-                                       @if($isLocked) disabled @endif
-                                       class="w-10 text-center rounded-md text-xs font-bold tabular-nums
-                                              {{ $isLocked
-                                                 ? 'bg-slate-800/50 border-slate-700 text-slate-400 cursor-not-allowed'
-                                                 : 'bg-pitch-800 border-slate-700 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500' }}
-                                              border py-1 transition-colors">
+                        <div class="flex items-center gap-2">
+                            <form wire:submit="savePrediction({{ $match->id }})" class="flex w-full items-center gap-2 whitespace-nowrap">
+                                <span class="text-xs text-slate-500 shrink-0">Meu palpite:</span>
+                                <div class="flex flex-1 items-center justify-center gap-1.5 min-w-[96px]">
+                                    <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2"
+                                           oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,2)"
+                                           wire:model="scores.{{ $match->id }}.home"
+                                           @if($isLocked) disabled @endif
+                                           class="score-input w-10 text-center rounded-md text-xs font-bold tabular-nums
+                                                  {{ $isLocked
+                                                     ? 'bg-slate-800/50 border-slate-700 text-slate-400 cursor-not-allowed'
+                                                     : 'bg-pitch-800 border-slate-700 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500' }}
+                                                  border py-1 transition-colors">
+                                    <span class="text-slate-600 font-bold text-xs">×</span>
+                                    <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2"
+                                           oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,2)"
+                                           wire:model="scores.{{ $match->id }}.away"
+                                           @if($isLocked) disabled @endif
+                                           class="score-input w-10 text-center rounded-md text-xs font-bold tabular-nums
+                                                  {{ $isLocked
+                                                     ? 'bg-slate-800/50 border-slate-700 text-slate-400 cursor-not-allowed'
+                                                     : 'bg-pitch-800 border-slate-700 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500' }}
+                                                  border py-1 transition-colors">
+                                </div>
                                 @if(!$isLocked)
                                 <button type="submit"
-                                        class="btn-primary !px-2.5 !py-1 text-xs"
+                                        class="btn-primary !px-2.5 !py-1 text-xs ml-auto"
                                         wire:loading.attr="disabled" wire:target="savePrediction({{ $match->id }})">
                                     <svg wire:loading wire:target="savePrediction({{ $match->id }})" class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>

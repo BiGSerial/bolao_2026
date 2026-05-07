@@ -5,6 +5,7 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class FootballMatch extends Model
 {
@@ -38,6 +39,11 @@ class FootballMatch extends Model
     public function awayTeam(): BelongsTo
     {
         return $this->belongsTo(Team::class, 'away_team_id');
+    }
+
+    public function detail(): HasOne
+    {
+        return $this->hasOne(FootballMatchDetail::class, 'football_match_id');
     }
 
     public function isFinished(): bool

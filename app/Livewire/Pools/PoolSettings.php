@@ -24,7 +24,7 @@ class PoolSettings extends Component
     public string $instructions = '';
     public string $visibility = 'invite_only';
     public bool $allow_prediction_changes = true;
-    public int $prediction_lock_minutes = 120;
+    public int $prediction_lock_minutes = 10;
     public bool $allow_pending_member_predictions = true;
     public string $status = 'active';
 
@@ -61,12 +61,14 @@ class PoolSettings extends Component
         if ($sector === '') {
             $this->sectorFeedbackType = 'error';
             $this->sectorFeedback = 'Digite o nome do setor antes de adicionar.';
+            $this->notify('error', 'Setor inválido', $this->sectorFeedback);
             return;
         }
 
         if (collect($this->sectors)->contains(fn (string $item) => mb_strtolower($item) === mb_strtolower($sector))) {
             $this->sectorFeedbackType = 'error';
             $this->sectorFeedback = 'Esse setor já foi adicionado.';
+            $this->notify('error', 'Setor duplicado', $this->sectorFeedback);
             return;
         }
 
@@ -74,6 +76,7 @@ class PoolSettings extends Component
         $this->newSector = '';
         $this->sectorFeedbackType = 'success';
         $this->sectorFeedback = 'Setor adicionado.';
+        $this->notify('success', 'Setor adicionado', "Setor \"{$sector}\" adicionado.");
     }
 
     public function removeSector(int $index): void
@@ -83,23 +86,28 @@ class PoolSettings extends Component
         $this->sectors = array_values($this->sectors);
         $this->sectorFeedbackType = 'success';
         $this->sectorFeedback = $removed ? "Setor \"{$removed}\" removido." : 'Setor removido.';
+        $this->notify('success', 'Setor removido', $this->sectorFeedback);
     }
 
     public function addTieBreaker(): void
     {
         $criterion = trim($this->newTieBreaker);
         if ($criterion === '' || in_array($criterion, $this->tieBreakers, true) || ! in_array($criterion, self::AVAILABLE_TIE_BREAKERS, true)) {
+            $this->notify('error', 'Critério inválido', 'Selecione um critério válido que ainda não tenha sido adicionado.');
             return;
         }
 
         $this->tieBreakers[] = $criterion;
         $this->newTieBreaker = '';
+        $this->notify('success', 'Critério adicionado', $this->tieBreakerLabels()[$criterion] ?? $criterion);
     }
 
     public function removeTieBreaker(int $index): void
     {
+        $removed = $this->tieBreakers[$index] ?? null;
         array_splice($this->tieBreakers, $index, 1);
         $this->tieBreakers = array_values($this->tieBreakers);
+        $this->notify('success', 'Critério removido', $removed ? ($this->tieBreakerLabels()[$removed] ?? $removed) : 'Critério removido.');
     }
 
     public function reorderTieBreakers(string $item, int $position): void
@@ -118,6 +126,7 @@ class PoolSettings extends Component
         array_splice($this->tieBreakers, $from, 1);
         array_splice($this->tieBreakers, $to, 0, [$value]);
         $this->tieBreakers = array_values($this->tieBreakers);
+        $this->notify('success', 'Ordem atualizada', 'Prioridade de desempate atualizada.');
     }
 
     public function save(PoolRankingService $rankingService): void
@@ -130,7 +139,7 @@ class PoolSettings extends Component
             'instructions' => ['nullable', 'string', 'max:3000'],
             'visibility' => ['required', 'in:private,invite_only,public'],
             'allow_prediction_changes' => ['boolean'],
-            'prediction_lock_minutes' => ['required', 'integer', 'min:120'],
+            'prediction_lock_minutes' => ['required', 'integer', 'min:10'],
             'allow_pending_member_predictions' => ['boolean'],
             'status' => ['required', 'in:active,blocked,archived'],
             'sectors' => ['array', 'max:30'],
@@ -155,6 +164,7 @@ class PoolSettings extends Component
         $rankingService->recalculate($this->pool->fresh());
 
         session()->flash('status', 'Configurações atualizadas com sucesso.');
+        $this->notify('success', 'Configurações salvas', 'As alterações do bolão foram aplicadas.');
     }
 
     private function assertManager(): void
@@ -207,5 +217,10 @@ class PoolSettings extends Component
             'correct_away_goals' => 'Mais gols do visitante corretos',
             'predictions_counted' => 'Mais palpites válidos',
         ];
+    }
+
+    private function notify(string $icon, string $title, string $text): void
+    {
+        $this->dispatch('swal:toast', compact('icon', 'title', 'text'));
     }
 }

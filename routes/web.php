@@ -12,6 +12,7 @@ use App\Livewire\Management\MyPoolsManager;
 use App\Livewire\Pools\PoolCreate;
 use App\Livewire\Pools\PoolIndex;
 use App\Livewire\Pools\PoolMembers;
+use App\Livewire\Pools\PoolMatchShow;
 use App\Livewire\Pools\PoolSettings;
 use App\Livewire\Pools\PoolShow;
 use Illuminate\Support\Facades\Route;
@@ -32,6 +33,7 @@ Route::middleware(['auth', 'password.changed'])->group(function (): void {
     Route::get('/boloes/criar', PoolCreate::class)->name('pools.create');
     Route::get('/gerenciar', MyPoolsManager::class)->name('management.pools');
     Route::get('/boloes/{pool:slug}', PoolShow::class)->name('pools.show');
+    Route::get('/boloes/{pool:slug}/jogos/{match}', PoolMatchShow::class)->name('pools.matches.show');
     Route::get('/boloes/{pool:slug}/membros', PoolMembers::class)->name('pools.members');
     Route::get('/boloes/{pool:slug}/configuracoes', PoolSettings::class)->name('pools.settings');
 });

@@ -38,14 +38,14 @@ class PoolRankingService
             ->selectRaw('
                 predictions.user_id,
                 SUM(predictions.points) as points_total,
-                SUM(CASE WHEN predictions.home_score = football_matches.home_score AND predictions.away_score = football_matches.away_score THEN 1 ELSE 0 END) as exact_scores,
+                SUM(CASE WHEN predictions.home_score = football_matches.home_score_full_time AND predictions.away_score = football_matches.away_score_full_time THEN 1 ELSE 0 END) as exact_scores,
                 SUM(CASE
-                    WHEN (football_matches.home_score > football_matches.away_score AND predictions.home_score > predictions.away_score)
-                      OR (football_matches.home_score < football_matches.away_score AND predictions.home_score < predictions.away_score)
-                      OR (football_matches.home_score = football_matches.away_score AND predictions.home_score = predictions.away_score)
+                    WHEN (football_matches.home_score_full_time > football_matches.away_score_full_time AND predictions.home_score > predictions.away_score)
+                      OR (football_matches.home_score_full_time < football_matches.away_score_full_time AND predictions.home_score < predictions.away_score)
+                      OR (football_matches.home_score_full_time = football_matches.away_score_full_time AND predictions.home_score = predictions.away_score)
                     THEN 1 ELSE 0 END) as correct_results,
-                SUM(CASE WHEN predictions.home_score = football_matches.home_score THEN 1 ELSE 0 END) as correct_home_goals,
-                SUM(CASE WHEN predictions.away_score = football_matches.away_score THEN 1 ELSE 0 END) as correct_away_goals,
+                SUM(CASE WHEN predictions.home_score = football_matches.home_score_full_time THEN 1 ELSE 0 END) as correct_home_goals,
+                SUM(CASE WHEN predictions.away_score = football_matches.away_score_full_time THEN 1 ELSE 0 END) as correct_away_goals,
                 COUNT(*) as predictions_counted
             ')
             ->groupBy('predictions.user_id')

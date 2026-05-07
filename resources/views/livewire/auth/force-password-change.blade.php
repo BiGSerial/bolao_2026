@@ -11,19 +11,38 @@
     <form wire:submit="save" class="space-y-4">
         <div>
             <label class="block text-sm mb-1">Senha atual</label>
-            <input type="password" wire:model.blur="current_password" class="w-full rounded border-gray-300" />
+            <input
+                type="password"
+                wire:model.blur="current_password"
+                autocomplete="current-password"
+                class="input-field"
+                placeholder="Digite sua senha atual"
+            />
             @error('current_password') <p class="text-sm text-red-600 mt-1">{{ $message }}</p> @enderror
         </div>
 
         <div>
             <label class="block text-sm mb-1">Nova senha</label>
-            <input type="password" wire:model.blur="password" class="w-full rounded border-gray-300" />
+            <input
+                type="password"
+                wire:model.blur="password"
+                autocomplete="new-password"
+                class="input-field"
+                placeholder="Digite a nova senha"
+            />
             @error('password') <p class="text-sm text-red-600 mt-1">{{ $message }}</p> @enderror
         </div>
 
         <div>
             <label class="block text-sm mb-1">Confirmar nova senha</label>
-            <input type="password" wire:model.blur="password_confirmation" class="w-full rounded border-gray-300" />
+            <input
+                type="password"
+                wire:model.blur="password_confirmation"
+                autocomplete="new-password"
+                class="input-field"
+                placeholder="Repita a nova senha"
+            />
+            @error('password_confirmation') <p class="text-sm text-red-600 mt-1">{{ $message }}</p> @enderror
         </div>
 
         <button

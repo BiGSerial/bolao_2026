@@ -11,3 +11,8 @@ Schedule::command('worldcup:sync-group-stage')
     ->everyMinute()
     ->withoutOverlapping()
     ->runInBackground();
+
+Schedule::command('worldcup:sync-match-details --limit='.config('football-data.match_details.sync_limit_per_minute', 8))
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->runInBackground();

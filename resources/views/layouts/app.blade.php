@@ -41,6 +41,7 @@
             <p class="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Principal</p>
 
             <a href="{{ route('dashboard') }}"
+               @click="sidebarOpen = false"
                class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
                       {{ request()->routeIs('dashboard') ? 'bg-emerald-600/20 text-emerald-400 ring-1 ring-emerald-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
                 <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -51,6 +52,7 @@
             </a>
 
             <a href="{{ route('pools.index') }}"
+               @click="sidebarOpen = false"
                class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
                       {{ request()->routeIs('pools.*') ? 'bg-emerald-600/20 text-emerald-400 ring-1 ring-emerald-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
                 <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -68,6 +70,7 @@
             @endphp
             @if($isManagedPool)
             <a href="{{ route('management.pools') }}"
+               @click="sidebarOpen = false"
                class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
                       {{ request()->routeIs('management.*') ? 'bg-emerald-600/20 text-emerald-400 ring-1 ring-emerald-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
                 <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -97,6 +100,7 @@
                 <p class="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Administração</p>
 
                 <a href="{{ route('admin.users.approval') }}"
+                   @click="sidebarOpen = false"
                    class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
                           {{ request()->routeIs('admin.users.*') ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -107,6 +111,7 @@
                 </a>
 
                 <a href="{{ route('admin.api.sync') }}"
+                   @click="sidebarOpen = false"
                    class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
                           {{ request()->routeIs('admin.api.*') ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -117,6 +122,7 @@
                 </a>
 
                 <a href="{{ route('admin.matches.manual-correction') }}"
+                   @click="sidebarOpen = false"
                    class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
                           {{ request()->routeIs('admin.matches.*') ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -156,6 +162,7 @@
                  x-transition:enter-end="opacity-100 translate-y-0"
                  class="mt-1 rounded-lg bg-pitch-800 border border-slate-700 py-1 shadow-xl">
                 <a href="{{ route('profile.edit') }}"
+                   @click="sidebarOpen = false"
                    class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors rounded-md mx-1">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

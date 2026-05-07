@@ -50,6 +50,6 @@ class Pool extends Model
 
     public function predictionLockMinutes(): int
     {
-        return max(120, (int) $this->prediction_lock_minutes);
+        return max(10, (int) $this->prediction_lock_minutes);
     }
 }

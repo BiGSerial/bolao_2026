@@ -106,9 +106,9 @@
 
             <div>
                 <label class="label">Bloquear palpites (minutos antes do jogo)</label>
-                <input type="number" min="120" wire:model="prediction_lock_minutes"
+                <input type="number" min="10" wire:model="prediction_lock_minutes"
                        class="input-field">
-                <p class="mt-1 text-xs text-slate-600">Mínimo: 120 minutos (2 horas)</p>
+                <p class="mt-1 text-xs text-slate-600">Mínimo: 10 minutos</p>
                 @error('prediction_lock_minutes') <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p> @enderror
             </div>
 
@@ -163,20 +163,22 @@
                     Sem desempate configurado. O ranking usará apenas pontuação total.
                 </div>
                 @else
-                <div wire:sort="reorderTieBreakers" class="space-y-2">
+                <div
+                    wire:sort="reorderTieBreakers"
+                    class="space-y-2"
+                >
                     @foreach($tieBreakers as $index => $criterion)
                     <div wire:key="create-tie-breaker-{{ $criterion }}"
                          wire:sort:item="{{ $criterion }}"
                          wire:transition
-                         class="flex items-center justify-between gap-3 rounded-lg border border-slate-700 bg-slate-800/40 p-3">
+                         class="sortable-card-item cursor-grab active:cursor-grabbing flex items-center justify-between gap-3 rounded-lg border border-slate-700 bg-slate-800/40 p-3">
                         <div class="flex items-center gap-3 min-w-0">
-                            <button type="button" wire:sort:handle
-                                    class="text-slate-500 hover:text-slate-300 transition-colors cursor-grab active:cursor-grabbing"
-                                    title="Arrastar para reordenar">
+                            <span class="text-slate-500 hover:text-slate-300 transition-colors"
+                                  title="Arraste para reordenar">
                                 <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                                     <path d="M7 4a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm10-13.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm-1.5 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm1.5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z"/>
                                 </svg>
-                            </button>
+                            </span>
                             <span class="text-xs rounded-md bg-emerald-900/30 text-emerald-300 px-2 py-0.5">
                                 Prioridade {{ $index + 1 }}
                             </span>
@@ -216,3 +218,22 @@
         </div>
     </form>
 </div>
+
+@script
+<script>
+    $wire.on('swal:toast', (payload) => {
+        const data = Array.isArray(payload) ? payload[0] : payload;
+
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            timer: 2200,
+            timerProgressBar: true,
+            showConfirmButton: false,
+            icon: data?.icon ?? 'info',
+            title: data?.title ?? 'Aviso',
+            text: data?.text ?? ''
+        });
+    });
+</script>
+@endscript

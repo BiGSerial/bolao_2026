@@ -64,4 +64,9 @@ class FootballDataClient
             'season' => config('football-data.world_cup.season'),
         ]);
     }
+
+    public function worldCupMatchDetail(int $externalMatchId): array
+    {
+        return $this->get('/matches/'.$externalMatchId);
+    }
 }

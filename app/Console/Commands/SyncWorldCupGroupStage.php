@@ -88,8 +88,16 @@ class SyncWorldCupGroupStage extends Command
 
     private function shouldSyncNow(): bool
     {
-        return FootballMatch::query()
-            ->where('stage', config('football-data.world_cup.stage'))
+        $baseQuery = FootballMatch::query()
+            ->where('stage', config('football-data.world_cup.stage'));
+
+        // Primeira carga: se ainda não existe nenhum jogo da fase no banco,
+        // precisa sincronizar para popular datas/partidas.
+        if (! $baseQuery->exists()) {
+            return true;
+        }
+
+        return (clone $baseQuery)
             ->whereBetween('utc_date', [
                 now()->utc()->subHours(1),
                 now()->utc()->addHours(4),
