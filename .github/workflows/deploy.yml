@@ -15,44 +15,69 @@ jobs:
   deploy:
     name: Deploy para VPS
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Configurar SSH
         run: |
+          set -e
+
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/bolaocopa_key
           chmod 600 ~/.ssh/bolaocopa_key
 
+          VPS_HOST="${{ secrets.VPS_HOST }}"
           VPS_PORT="${{ secrets.VPS_PORT }}"
           VPS_PORT="${VPS_PORT:-22}"
 
-          ssh-keyscan -p "$VPS_PORT" -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+          if [ -z "$VPS_HOST" ]; then
+            echo "Erro: secret VPS_HOST não configurado."
+            exit 1
+          fi
+
+          echo "Usando VPS_HOST=$VPS_HOST"
+          echo "Usando VPS_PORT=$VPS_PORT"
+
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
       - name: Deploy na VPS
-          run: |
+        run: |
+          set -e
+
+          VPS_HOST="${{ secrets.VPS_HOST }}"
+          VPS_USER="${{ secrets.VPS_USER }}"
           VPS_PORT="${{ secrets.VPS_PORT }}"
           VPS_PORT="${VPS_PORT:-22}"
+
+          if [ -z "$VPS_HOST" ]; then
+            echo "Erro: secret VPS_HOST não configurado."
+            exit 1
+          fi
+
+          if [ -z "$VPS_USER" ]; then
+            echo "Erro: secret VPS_USER não configurado."
+            exit 1
+          fi
 
           ssh \
             -i ~/.ssh/bolaocopa_key \
             -p "$VPS_PORT" \
-            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" << 'EOF'
+            "$VPS_USER@$VPS_HOST" << 'EOF'
               set -e
 
-              echo "== Projeto =="
+              echo "== Acessando projeto Laravel =="
               cd /srv/apps/bolaocopa/src
 
-              echo "== Atualizando código =="
+              echo "== Atualizando código pelo Git =="
               git fetch origin main
               git reset --hard origin/main
 
-              echo "== Indo para compose externo =="
+              echo "== Voltando para compose externo =="
               cd /srv/apps/bolaocopa
 
-              echo "== Buildando imagens =="
+              echo "== Buildando imagens PHP =="
               docker compose build app reverb queue scheduler
 
               echo "== Instalando dependências PHP =="
@@ -67,13 +92,13 @@ jobs:
                 --user "$(id -u):$(id -g)" \
                 app npm ci
 
-              echo "== Buildando assets =="
+              echo "== Buildando assets Vite =="
               docker compose run --rm \
                 -e NPM_CONFIG_CACHE=/tmp/npm-cache \
                 --user "$(id -u):$(id -g)" \
                 app npm run build
 
-              echo "== Limpando cache antigo do Laravel =="
+              echo "== Removendo cache antigo do Laravel =="
               rm -f src/bootstrap/cache/*.php
 
               echo "== Limpando caches via Artisan =="
@@ -95,23 +120,25 @@ jobs:
               echo "== Otimizando Laravel =="
               docker compose exec -T --user "$(id -u):$(id -g)" app php artisan optimize
 
-              echo "== Reiniciando workers/Reverb =="
+              echo "== Reiniciando queue, scheduler e Reverb =="
               docker compose restart queue scheduler reverb
 
-              echo "== Status =="
+              echo "== Status final dos containers =="
               docker compose ps
           EOF
 
       - name: Health check externo
         run: |
-          sleep 5
+          set -e
+
+          sleep 8
 
           STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" https://bolao.woti.com.br/login)
 
           echo "HTTP status: $STATUS"
 
           if [ "$STATUS" != "200" ]; then
-            echo "Health check falhou."
+            echo "Health check falhou. Esperado: 200. Recebido: $STATUS"
             exit 1
           fi
 
