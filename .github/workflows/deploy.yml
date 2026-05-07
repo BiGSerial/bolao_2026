@@ -1,0 +1,112 @@
+name: Deploy Bolao 2026
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-bolao-2026
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy para VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Configurar SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/bolaocopa_key
+          chmod 600 ~/.ssh/bolaocopa_key
+
+          ssh-keyscan -p "${{ secrets.VPS_PORT }}" -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy na VPS
+        run: |
+          ssh \
+            -i ~/.ssh/bolaocopa_key \
+            -p "${{ secrets.VPS_PORT }}" \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" << 'EOF'
+              set -e
+
+              echo "== Projeto =="
+              cd /srv/apps/bolaocopa/src
+
+              echo "== Atualizando código =="
+              git fetch origin main
+              git reset --hard origin/main
+
+              echo "== Indo para compose externo =="
+              cd /srv/apps/bolaocopa
+
+              echo "== Buildando imagens =="
+              docker compose build app reverb queue scheduler
+
+              echo "== Instalando dependências PHP =="
+              docker compose run --rm \
+                -e COMPOSER_HOME=/tmp/composer \
+                --user "$(id -u):$(id -g)" \
+                app composer install --no-dev --optimize-autoloader --no-interaction
+
+              echo "== Instalando dependências JS =="
+              docker compose run --rm \
+                -e NPM_CONFIG_CACHE=/tmp/npm-cache \
+                --user "$(id -u):$(id -g)" \
+                app npm ci
+
+              echo "== Buildando assets =="
+              docker compose run --rm \
+                -e NPM_CONFIG_CACHE=/tmp/npm-cache \
+                --user "$(id -u):$(id -g)" \
+                app npm run build
+
+              echo "== Limpando cache antigo do Laravel =="
+              rm -f src/bootstrap/cache/*.php
+
+              echo "== Limpando caches via Artisan =="
+              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan config:clear
+              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan route:clear
+              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan view:clear
+              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan cache:clear
+
+              echo "== Rodando migrations =="
+              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan migrate --force
+
+              echo "== Ajustando permissões =="
+              chmod -R ug+rw src/storage src/bootstrap/cache || true
+              chmod -R a+rX src/public || true
+
+              echo "== Subindo containers =="
+              docker compose up -d --remove-orphans
+
+              echo "== Otimizando Laravel =="
+              docker compose exec -T --user "$(id -u):$(id -g)" app php artisan optimize
+
+              echo "== Reiniciando workers/Reverb =="
+              docker compose restart queue scheduler reverb
+
+              echo "== Status =="
+              docker compose ps
+          EOF
+
+      - name: Health check externo
+        run: |
+          sleep 5
+
+          STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" https://bolao.woti.com.br/login)
+
+          echo "HTTP status: $STATUS"
+
+          if [ "$STATUS" != "200" ]; then
+            echo "Health check falhou."
+            exit 1
+          fi
+
+          echo "Deploy OK."
