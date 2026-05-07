@@ -45,4 +45,28 @@
             @endif
         </div>
     </form>
+
+    @if (session('status') === 'password-updated' || $errors->updatePassword->any())
+        @push('scripts')
+            <script>
+                @if (session('status') === 'password-updated')
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Senha atualizada',
+                        text: 'Sua senha foi alterada com sucesso.',
+                        confirmButtonText: 'Entendi'
+                    });
+                @elseif ($errors->updatePassword->any())
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Erro ao atualizar senha',
+                        html: @json($errors->updatePassword->all()).map((message) => (
+                            `<div>${Swal.escapeHtml(message)}</div>`
+                        )).join(''),
+                        confirmButtonText: 'Entendi'
+                    });
+                @endif
+            </script>
+        @endpush
+    @endif
 </section>

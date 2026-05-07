@@ -2,12 +2,6 @@
     <h1 class="text-2xl font-semibold mb-2">Troca obrigatoria de senha</h1>
     <p class="text-sm text-gray-600 mb-6">No primeiro acesso, voce precisa definir uma nova senha.</p>
 
-    @if (session('status'))
-        <div class="mb-4 rounded border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800">
-            {{ session('status') }}
-        </div>
-    @endif
-
     @if ($errors->any())
         <div class="mb-4 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
             Verifique os campos e tente novamente.
@@ -42,4 +36,32 @@
             <span wire:loading wire:target="save">Salvando...</span>
         </button>
     </form>
+
+    @script
+    <script>
+        $wire.on('swal:alert', (payload) => {
+            const data = Array.isArray(payload) ? payload[0] : payload;
+            Swal.fire({
+                icon: data?.icon ?? 'info',
+                title: data?.title ?? 'Aviso',
+                text: data?.text ?? '',
+                confirmButtonText: 'Entendi'
+            });
+        });
+
+        $wire.on('swal:password-changed', (payload) => {
+            const data = Array.isArray(payload) ? payload[0] : payload;
+            Swal.fire({
+                icon: 'success',
+                title: data?.title ?? 'Senha alterada com sucesso',
+                text: data?.text ?? '',
+                confirmButtonText: 'Continuar'
+            }).then(() => {
+                if (data?.redirect) {
+                    window.location.href = data.redirect;
+                }
+            });
+        });
+    </script>
+    @endscript
 </div>

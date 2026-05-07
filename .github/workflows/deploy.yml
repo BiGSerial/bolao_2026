@@ -80,23 +80,31 @@ jobs:
               echo "== Buildando imagens PHP =="
               docker compose build app reverb queue scheduler
 
+              echo "== Validando Node/NPM no container app =="
+              docker compose run --rm app sh -lc 'node -v && npm -v'
+
               echo "== Instalando dependências PHP =="
               docker compose run --rm \
                 -e COMPOSER_HOME=/tmp/composer \
                 --user "$(id -u):$(id -g)" \
-                app composer install --no-dev --optimize-autoloader --no-interaction
+                app composer install --no-dev --optimize-autoloader --prefer-dist --no-interaction
 
               echo "== Instalando dependências JS =="
               docker compose run --rm \
                 -e NPM_CONFIG_CACHE=/tmp/npm-cache \
+                -e NODE_ENV=development \
                 --user "$(id -u):$(id -g)" \
-                app npm ci
+                app npm ci --include=dev
 
               echo "== Buildando assets Vite =="
               docker compose run --rm \
                 -e NPM_CONFIG_CACHE=/tmp/npm-cache \
+                -e NODE_ENV=development \
                 --user "$(id -u):$(id -g)" \
                 app npm run build
+
+              echo "== Validando manifest do Vite =="
+              test -f src/public/build/manifest.json
 
               echo "== Removendo cache antigo do Laravel =="
               rm -f src/bootstrap/cache/*.php
@@ -106,6 +114,11 @@ jobs:
               docker compose run --rm --user "$(id -u):$(id -g)" app php artisan route:clear
               docker compose run --rm --user "$(id -u):$(id -g)" app php artisan view:clear
               docker compose run --rm --user "$(id -u):$(id -g)" app php artisan cache:clear
+              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan optimize:clear
+
+              echo "== Publicando assets do Laravel/Livewire =="
+              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan vendor:publish --tag=laravel-assets --force || true
+              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan livewire:publish --assets --force || true
 
               echo "== Rodando migrations =="
               docker compose run --rm --user "$(id -u):$(id -g)" app php artisan migrate --force
@@ -134,11 +147,18 @@ jobs:
           sleep 8
 
           STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" https://bolao.woti.com.br/login)
+          LIVEWIRE_STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" https://bolao.woti.com.br/livewire/livewire.js)
 
           echo "HTTP status: $STATUS"
+          echo "Livewire JS status: $LIVEWIRE_STATUS"
 
           if [ "$STATUS" != "200" ]; then
             echo "Health check falhou. Esperado: 200. Recebido: $STATUS"
+            exit 1
+          fi
+
+          if [ "$LIVEWIRE_STATUS" != "200" ]; then
+            echo "Health check Livewire falhou. Esperado: 200. Recebido: $LIVEWIRE_STATUS"
             exit 1
           fi
 
