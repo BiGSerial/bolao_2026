@@ -146,10 +146,21 @@ jobs:
 
           sleep 8
 
-          STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" https://bolao.woti.com.br/login)
-          LIVEWIRE_STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" https://bolao.woti.com.br/livewire/livewire.js)
+          BASE_URL="https://bolao.woti.com.br"
+          LOGIN_HTML="$(curl -k -sS "$BASE_URL/login")"
+          STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" "$BASE_URL/login")
+
+          LIVEWIRE_PATH="$(printf '%s' "$LOGIN_HTML" | grep -oE '/livewire-[^"]+/livewire(\.min)?\.js\?id=[^"]+' | head -n1 || true)"
+
+          if [ -z "$LIVEWIRE_PATH" ]; then
+            echo "Health check Livewire falhou. Não foi possível localizar script do Livewire no HTML do login."
+            exit 1
+          fi
+
+          LIVEWIRE_STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" "$BASE_URL$LIVEWIRE_PATH")
 
           echo "HTTP status: $STATUS"
+          echo "Livewire path detectado: $LIVEWIRE_PATH"
           echo "Livewire JS status: $LIVEWIRE_STATUS"
 
           if [ "$STATUS" != "200" ]; then
