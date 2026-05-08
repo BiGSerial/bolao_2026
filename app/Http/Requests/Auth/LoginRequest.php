@@ -50,6 +50,15 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        if (Auth::user()?->status !== 'active') {
+            Auth::logout();
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'email' => 'Sua conta está sem acesso à plataforma. Contate o administrador.',
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 

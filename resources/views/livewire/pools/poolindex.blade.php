@@ -61,13 +61,32 @@
                     'blocked' => 'Bloqueado',
                     default => ucfirst($membership->status),
                 };
+                $ranking = $myRankings->get($membership->pool_id);
+                $rankingBadge = match(true) {
+                    ($ranking?->position ?? 9999) === 1 => 'bg-amber-900/40 text-amber-300 ring-amber-500/30',
+                    ($ranking?->position ?? 9999) === 2 => 'bg-slate-700/60 text-slate-200 ring-slate-500/30',
+                    ($ranking?->position ?? 9999) === 3 => 'bg-orange-900/40 text-orange-300 ring-orange-500/30',
+                    default => 'bg-blue-900/30 text-blue-300 ring-blue-500/30',
+                };
                 @endphp
                 <a href="{{ route('pools.show', $membership->pool->slug) }}"
-                   class="card-hover p-4 block group">
+                   class="card-hover p-4 block group"
+                   x-data="{ copied: false }">
                     <div class="flex items-start justify-between gap-2 mb-3">
-                        <h3 class="font-semibold text-slate-100 group-hover:text-white transition-colors truncate">
-                            {{ $membership->pool->name }}
-                        </h3>
+                        <div class="min-w-0">
+                            <h3 class="font-semibold text-slate-100 group-hover:text-white transition-colors truncate">
+                                {{ $membership->pool->name }}
+                            </h3>
+                            @if($ranking)
+                            <span class="mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 {{ $rankingBadge }}">
+                                Ranking #{{ $ranking->position }} · {{ $ranking->points_total }} pts
+                            </span>
+                            @else
+                            <span class="mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 bg-slate-800 text-slate-400 ring-slate-600/40">
+                                Ranking pendente
+                            </span>
+                            @endif
+                        </div>
                         <span class="{{ $statusColor }} shrink-0">{{ $statusLabel }}</span>
                     </div>
 
@@ -87,9 +106,22 @@
 
                     <div class="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
                         @if(in_array($membership->role, ['owner', 'manager']))
-                        <span class="text-xs text-slate-500">
-                            Código: <span class="font-mono text-emerald-400">{{ $membership->pool->invite_code }}</span>
-                        </span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-slate-500">
+                                Código: <span class="font-mono text-emerald-400">{{ $membership->pool->invite_code }}</span>
+                            </span>
+                            <button type="button"
+                                    @click.prevent.stop="navigator.clipboard.writeText('{{ $membership->pool->invite_code }}').then(() => { copied = true; setTimeout(() => copied = false, 1400); })"
+                                    class="inline-flex items-center justify-center rounded-md p-1 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/30 transition-colors"
+                                    title="Copiar código de convite">
+                                <svg x-show="!copied" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                </svg>
+                                <svg x-show="copied" x-cloak class="w-3.5 h-3.5 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                            </button>
+                        </div>
                         @else
                         <span class="text-xs text-slate-600">—</span>
                         @endif
@@ -163,10 +195,14 @@
                         @if($pool->description)
                         <p class="text-xs text-slate-500 mt-1 line-clamp-2">{{ $pool->description }}</p>
                         @endif
-                        <a href="{{ route('pools.show', $pool->slug) }}"
-                           class="mt-2 text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1">
-                            Entrar →
-                        </a>
+                        <button type="button"
+                                wire:click="requestPublicEntry({{ $pool->id }})"
+                                wire:loading.attr="disabled"
+                                wire:target="requestPublicEntry({{ $pool->id }})"
+                                class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-60">
+                            <span wire:loading.remove wire:target="requestPublicEntry({{ $pool->id }})">Solicitar entrada →</span>
+                            <span wire:loading wire:target="requestPublicEntry({{ $pool->id }})">Enviando...</span>
+                        </button>
                     </div>
                     @endforeach
                 </div>

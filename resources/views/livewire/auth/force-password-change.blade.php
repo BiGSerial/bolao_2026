@@ -1,4 +1,5 @@
-<div class="max-w-xl mx-auto p-6">
+<div class="max-w-xl mx-auto p-6"
+     x-data="{ currentPassword: '', newPassword: '', confirmPassword: '' }">
     <h1 class="text-2xl font-semibold mb-2">Troca obrigatoria de senha</h1>
     <p class="text-sm text-gray-600 mb-6">No primeiro acesso, voce precisa definir uma nova senha.</p>
 
@@ -8,12 +9,12 @@
         </div>
     @endif
 
-    <form wire:submit="save" class="space-y-4">
+    <div class="space-y-4">
         <div>
             <label class="block text-sm mb-1">Senha atual</label>
             <input
                 type="password"
-                wire:model.blur="current_password"
+                x-model="currentPassword"
                 autocomplete="current-password"
                 class="input-field"
                 placeholder="Digite sua senha atual"
@@ -25,7 +26,7 @@
             <label class="block text-sm mb-1">Nova senha</label>
             <input
                 type="password"
-                wire:model.blur="password"
+                x-model="newPassword"
                 autocomplete="new-password"
                 class="input-field"
                 placeholder="Digite a nova senha"
@@ -37,7 +38,7 @@
             <label class="block text-sm mb-1">Confirmar nova senha</label>
             <input
                 type="password"
-                wire:model.blur="password_confirmation"
+                x-model="confirmPassword"
                 autocomplete="new-password"
                 class="input-field"
                 placeholder="Repita a nova senha"
@@ -46,15 +47,16 @@
         </div>
 
         <button
-            type="submit"
-            class="inline-flex items-center px-4 py-2 rounded bg-indigo-600 text-white font-medium hover:bg-indigo-500 disabled:opacity-50"
+            type="button"
+            @click="$wire.save(currentPassword, newPassword, confirmPassword)"
             wire:loading.attr="disabled"
             wire:target="save"
+            class="inline-flex items-center px-4 py-2 rounded bg-indigo-600 text-white font-medium hover:bg-indigo-500 disabled:opacity-50"
         >
             <span wire:loading.remove wire:target="save">Confirmar nova senha</span>
             <span wire:loading wire:target="save">Salvando...</span>
         </button>
-    </form>
+    </div>
 
     @script
     <script>

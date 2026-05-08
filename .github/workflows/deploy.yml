@@ -74,6 +74,19 @@ jobs:
               git fetch origin main
               git reset --hard origin/main
 
+              echo "== Calculando versão da aplicação =="
+              if git describe --tags --exact-match >/dev/null 2>&1; then
+                APP_VERSION="$(git describe --tags --exact-match)"
+              else
+                APP_VERSION="$(git rev-parse --abbrev-ref HEAD)-$(git rev-parse --short HEAD)"
+              fi
+              echo "APP_VERSION=$APP_VERSION"
+              if grep -q '^APP_VERSION=' src/.env; then
+                sed -i "s/^APP_VERSION=.*/APP_VERSION=$APP_VERSION/" src/.env
+              else
+                echo "APP_VERSION=$APP_VERSION" >> src/.env
+              fi
+
               echo "== Voltando para compose externo =="
               cd /srv/apps/bolaocopa
 

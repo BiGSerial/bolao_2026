@@ -4,16 +4,23 @@ namespace App\Livewire\Pools;
 
 use App\Enums\PoolMemberRole;
 use App\Models\Pool;
+use App\Models\PoolInvite;
 use App\Models\PoolMember;
+use App\Notifications\PoolInviteNotification;
+use App\Services\Email\EmailDispatchGuard;
 use App\Services\Pools\PoolMembershipService;
 use DomainException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
 use Livewire\Component;
 
 class PoolMembers extends Component
 {
     public Pool $pool;
     public string $filterStatus = '';
+    public string $invite_email = '';
+    public string $invite_sector = '';
 
     public function mount(Pool $pool): void
     {
@@ -67,6 +74,57 @@ class PoolMembers extends Component
         session()->flash('status', 'Setor atualizado com sucesso.');
     }
 
+    public function sendInvite(EmailDispatchGuard $emailGuard): void
+    {
+        $this->assertManager();
+
+        $data = $this->validate([
+            'invite_email' => ['required', 'email', 'max:255'],
+            'invite_sector' => ['nullable', 'string', 'max:80'],
+        ], [
+            'invite_email.required' => 'Informe o e-mail do convidado.',
+            'invite_email.email' => 'Informe um e-mail válido.',
+        ]);
+
+        $allowedSectors = is_array($this->pool->sectors) ? $this->pool->sectors : [];
+        $sector = trim((string) ($data['invite_sector'] ?? ''));
+        if ($sector !== '' && ! in_array($sector, $allowedSectors, true)) {
+            session()->flash('error', 'Setor inválido para este bolão.');
+            return;
+        }
+
+        $recipientEmail = mb_strtolower(trim($data['invite_email']));
+        $senderLimit = (int) config('email-limits.limits.pool_invite_sender_hour', 20);
+        $recipientLimit = (int) config('email-limits.limits.pool_invite_recipient_day', 3);
+
+        if (! $emailGuard->attempt('pool_invite_sender', (string) Auth::id(), $senderLimit, 3600)) {
+            session()->flash('error', 'Limite de convites por hora atingido ou cota mensal de e-mails esgotada.');
+            return;
+        }
+
+        if (! $emailGuard->attempt('pool_invite_recipient', $recipientEmail, $recipientLimit, 86400)) {
+            session()->flash('error', 'Este e-mail já recebeu muitos convites recentemente. Tente novamente mais tarde.');
+            return;
+        }
+
+        $invite = PoolInvite::create([
+            'pool_id' => $this->pool->id,
+            'invited_by' => (int) Auth::id(),
+            'email' => $recipientEmail,
+            'sector' => $sector !== '' ? $sector : null,
+            'token' => Str::random(48),
+            'status' => 'pending',
+            'expires_at' => now()->addDays(7),
+        ]);
+
+        $invite->load('pool');
+        Notification::route('mail', $invite->email)->notify(new PoolInviteNotification($invite));
+
+        $this->invite_email = '';
+        $this->invite_sector = '';
+        session()->flash('status', 'Convite enviado com sucesso.');
+    }
+
     private function findMember(int $memberId): PoolMember
     {
         return $this->pool->members()->whereKey($memberId)->firstOrFail();
@@ -87,6 +145,9 @@ class PoolMembers extends Component
 
     private function assertManager(): PoolMember
     {
+        $isAdmin = (bool) Auth::user()?->is_admin;
+        abort_if(! $isAdmin && $this->pool->status !== 'active', 403);
+
         $member = $this->pool->members()->where('user_id', Auth::id())->first();
         abort_if(! $member, 403);
         abort_unless(in_array($member->role, [PoolMemberRole::Owner->value, PoolMemberRole::Manager->value], true), 403);
@@ -96,7 +157,7 @@ class PoolMembers extends Component
     public function render()
     {
         $query = $this->pool->members()
-            ->with('user:id,name,area,email,phone')
+            ->with('user:id,name,display_name,area,email')
             ->orderByRaw("case role when 'owner' then 0 when 'manager' then 1 else 2 end")
             ->orderBy('id');
 

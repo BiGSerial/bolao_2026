@@ -155,7 +155,7 @@ $cardInfo = function (string $card): array {
                 </div>
                 <div class="text-center min-w-0 px-1">
                     <p class="text-[13px] sm:text-sm font-bold text-slate-100 truncate leading-tight">
-                        {{ $match->homeTeam?->name ?? '—' }}
+                        {{ $match->homeTeam?->localized_name ?? '—' }}
                     </p>
                     <span class="text-[10px] font-semibold uppercase tracking-widest text-blue-400/70">Casa</span>
                 </div>
@@ -221,7 +221,7 @@ $cardInfo = function (string $card): array {
                 </div>
                 <div class="text-center min-w-0 px-1">
                     <p class="text-[13px] sm:text-sm font-bold text-slate-100 truncate leading-tight">
-                        {{ $match->awayTeam?->name ?? '—' }}
+                        {{ $match->awayTeam?->localized_name ?? '—' }}
                     </p>
                     <span class="text-[10px] font-semibold uppercase tracking-widest text-rose-400/70">Visitante</span>
                 </div>

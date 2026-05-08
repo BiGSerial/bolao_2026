@@ -6,6 +6,7 @@ use App\Models\FootballMatch;
 use App\Models\Pool;
 use App\Models\PoolMember;
 use App\Models\PoolRanking;
+use App\Models\Standing;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -56,8 +57,26 @@ class Home extends Component
             ->limit(5)
             ->get();
 
+        $groupStandings = Standing::query()
+            ->where('stage', config('football-data.world_cup.stage'))
+            ->where('type', 'TOTAL')
+            ->with([
+                'rows' => fn ($q) => $q->with('team:id,name,short_name,tla,crest')
+                    ->orderByRaw('case when position is null then 1 else 0 end')
+                    ->orderBy('position')
+                    ->orderByDesc('points')
+                    ->orderByDesc('goal_difference')
+                    ->orderByDesc('goals_for'),
+            ])
+            ->orderByRaw('case when group_name is null then 1 else 0 end')
+            ->orderBy('group_name')
+            ->get()
+            ->groupBy(fn (Standing $standing) => $standing->group_name ?: 'Classificação Geral')
+            ->map(fn ($items) => $items->first())
+            ->values();
+
         return view('livewire.dashboard.home', compact(
-            'myMemberships', 'myRankings', 'upcoming', 'live', 'recent'
+            'myMemberships', 'myRankings', 'upcoming', 'live', 'recent', 'groupStandings'
         ));
     }
 }

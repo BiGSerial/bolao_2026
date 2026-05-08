@@ -12,7 +12,10 @@ class CalculatePredictionsForMatchJob implements ShouldQueue
 {
     use Queueable;
 
-    public function __construct(public int $footballMatchId) {}
+    public function __construct(public int $footballMatchId)
+    {
+        $this->onQueue(config('queue-priority.jobs.scoring', 'scoring'));
+    }
 
     public function handle(PredictionScoringService $service): void
     {

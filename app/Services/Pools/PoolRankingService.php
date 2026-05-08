@@ -51,7 +51,7 @@ class PoolRankingService
             ->groupBy('predictions.user_id')
             ->orderByDesc('points_total');
 
-        foreach ($this->resolveTieBreakers($pool->tie_breakers ?? null) as $criterion) {
+        foreach ($this->resolveTieBreakers($pool->tie_breakers ?? null, $pool) as $criterion) {
             $rows->orderByDesc($criterion);
         }
 
@@ -59,7 +59,23 @@ class PoolRankingService
             ->get();
 
         $position = 1;
+        $index = 0;
+        $previousKey = null;
+        $activeTieBreakers = $this->resolveTieBreakers($pool->tie_breakers ?? null, $pool);
+
         foreach ($rows as $row) {
+            $index++;
+            $currentKey = [
+                (int) $row->points_total,
+            ];
+            foreach ($activeTieBreakers as $criterion) {
+                $currentKey[] = (int) ($row->{$criterion} ?? 0);
+            }
+
+            if ($previousKey !== null && $currentKey !== $previousKey) {
+                $position = $index;
+            }
+
             DB::table('pool_rankings')->insert([
                 'pool_id' => $pool->id,
                 'user_id' => $row->user_id,
@@ -69,11 +85,13 @@ class PoolRankingService
                 'correct_home_goals' => $row->correct_home_goals,
                 'correct_away_goals' => $row->correct_away_goals,
                 'predictions_counted' => $row->predictions_counted,
-                'position' => $position++,
+                'position' => $position,
                 'last_calculated_at' => now(),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+
+            $previousKey = $currentKey;
         }
     }
 
@@ -81,20 +99,59 @@ class PoolRankingService
      * @param  mixed  $raw
      * @return string[]
      */
-    private function resolveTieBreakers(mixed $raw): array
+    private function resolveTieBreakers(mixed $raw, Pool $pool): array
     {
+        $allowedForPool = $this->allowedTieBreakersForPool($pool);
+
         if (! is_array($raw) || empty($raw)) {
-            return self::DEFAULT_TIE_BREAKERS;
+            return array_values(array_filter(
+                self::DEFAULT_TIE_BREAKERS,
+                fn (string $item) => in_array($item, $allowedForPool, true)
+            ));
         }
 
         $valid = [];
         foreach ($raw as $item) {
             $criterion = (string) $item;
-            if (in_array($criterion, self::ALLOWED_TIE_BREAKERS, true) && ! in_array($criterion, $valid, true)) {
+            if (
+                in_array($criterion, self::ALLOWED_TIE_BREAKERS, true) &&
+                in_array($criterion, $allowedForPool, true) &&
+                ! in_array($criterion, $valid, true)
+            ) {
                 $valid[] = $criterion;
             }
         }
 
-        return ! empty($valid) ? $valid : self::DEFAULT_TIE_BREAKERS;
+        if (! empty($valid)) {
+            return $valid;
+        }
+
+        return array_values(array_filter(
+            self::DEFAULT_TIE_BREAKERS,
+            fn (string $item) => in_array($item, $allowedForPool, true)
+        ));
+    }
+
+    /**
+     * @return string[]
+     */
+    private function allowedTieBreakersForPool(Pool $pool): array
+    {
+        $allowed = ['predictions_counted'];
+
+        if ((int) ($pool->points_exact_score ?? 5) > 0) {
+            $allowed[] = 'exact_scores';
+        }
+
+        if ((int) ($pool->points_correct_result ?? 3) > 0) {
+            $allowed[] = 'correct_results';
+        }
+
+        if ((int) ($pool->points_correct_goals ?? 1) > 0) {
+            $allowed[] = 'correct_home_goals';
+            $allowed[] = 'correct_away_goals';
+        }
+
+        return $allowed;
     }
 }

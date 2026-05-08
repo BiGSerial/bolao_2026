@@ -13,6 +13,10 @@ use Illuminate\Support\Facades\DB;
 
 class SyncWorldCupMatchesService
 {
+    public function __construct(private readonly TeamCrestCacheService $crestCache)
+    {
+    }
+
     public function sync(array $payload): Collection
     {
         return DB::transaction(function () use ($payload): Collection {
@@ -31,12 +35,22 @@ class SyncWorldCupMatchesService
             foreach ($payload['matches'] as $matchPayload) {
                 $home = Team::updateOrCreate(
                     ['provider' => 'football_data', 'external_id' => $matchPayload['homeTeam']['id']],
-                    ['name' => $matchPayload['homeTeam']['name'] ?? 'TBD', 'short_name' => $matchPayload['homeTeam']['shortName'] ?? null, 'tla' => $matchPayload['homeTeam']['tla'] ?? null, 'crest' => $matchPayload['homeTeam']['crest'] ?? null]
+                    [
+                        'name' => $matchPayload['homeTeam']['name'] ?? 'TBD',
+                        'short_name' => $matchPayload['homeTeam']['shortName'] ?? null,
+                        'tla' => $matchPayload['homeTeam']['tla'] ?? null,
+                        'crest' => $this->crestCache->cache($matchPayload['homeTeam']['crest'] ?? null, $matchPayload['homeTeam']['id'] ?? null),
+                    ]
                 );
 
                 $away = Team::updateOrCreate(
                     ['provider' => 'football_data', 'external_id' => $matchPayload['awayTeam']['id']],
-                    ['name' => $matchPayload['awayTeam']['name'] ?? 'TBD', 'short_name' => $matchPayload['awayTeam']['shortName'] ?? null, 'tla' => $matchPayload['awayTeam']['tla'] ?? null, 'crest' => $matchPayload['awayTeam']['crest'] ?? null]
+                    [
+                        'name' => $matchPayload['awayTeam']['name'] ?? 'TBD',
+                        'short_name' => $matchPayload['awayTeam']['shortName'] ?? null,
+                        'tla' => $matchPayload['awayTeam']['tla'] ?? null,
+                        'crest' => $this->crestCache->cache($matchPayload['awayTeam']['crest'] ?? null, $matchPayload['awayTeam']['id'] ?? null),
+                    ]
                 );
 
                 $existing = FootballMatch::query()->where('provider', 'football_data')->where('external_id', $matchPayload['id'])->first();

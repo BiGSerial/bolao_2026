@@ -40,6 +40,11 @@ class ManualMatchCorrection extends Component
         unset($this->editing[$matchId]);
     }
 
+    private const ALLOWED_STATUSES = [
+        'TIMED', 'SCHEDULED', 'IN_PLAY', 'PAUSED',
+        'FINISHED', 'POSTPONED', 'CANCELLED', 'SUSPENDED', 'AWARDED',
+    ];
+
     public function saveCorrection(int $matchId): void
     {
         $this->assertAdmin();
@@ -49,15 +54,21 @@ class ManualMatchCorrection extends Component
 
         $h = max(0, min(30, (int) $data['home']));
         $a = max(0, min(30, (int) $data['away']));
+        $status = $data['status'] ?? '';
+
+        if (! in_array($status, self::ALLOWED_STATUSES, true)) {
+            session()->flash('error', 'Status de jogo inválido.');
+            return;
+        }
 
         $match = FootballMatch::findOrFail($matchId);
         $match->update([
             'home_score_full_time' => $h,
             'away_score_full_time' => $a,
-            'status' => $data['status'],
+            'status'               => $status,
         ]);
 
-        if ($match->status === 'FINISHED') {
+        if ($status === 'FINISHED') {
             CalculatePredictionsForMatchJob::dispatch($match->id);
             Pool::query()->pluck('id')->each(fn (int $id) => RecalculatePoolRankingsJob::dispatch($id));
         }

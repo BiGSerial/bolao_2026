@@ -13,7 +13,12 @@ class MatchDetailUpdated implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public FootballMatch $match) {}
+    public string $queue;
+
+    public function __construct(public FootballMatch $match)
+    {
+        $this->queue = config('queue-priority.broadcast.events', 'broadcast');
+    }
 
     public function broadcastOn(): Channel
     {
@@ -34,4 +39,3 @@ class MatchDetailUpdated implements ShouldBroadcast
         ];
     }
 }
-

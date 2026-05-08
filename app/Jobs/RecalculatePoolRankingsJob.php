@@ -12,7 +12,10 @@ class RecalculatePoolRankingsJob implements ShouldQueue
 {
     use Queueable;
 
-    public function __construct(public int $poolId) {}
+    public function __construct(public int $poolId)
+    {
+        $this->onQueue(config('queue-priority.jobs.ranking', 'ranking'));
+    }
 
     public function handle(PoolRankingService $service): void
     {

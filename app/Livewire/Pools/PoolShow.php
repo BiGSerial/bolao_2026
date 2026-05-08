@@ -7,6 +7,7 @@ use App\Models\Pool;
 use App\Models\PoolMember;
 use App\Models\Prediction;
 use App\Models\Team;
+use Illuminate\Support\Collection;
 use App\Services\Predictions\PredictionService;
 use DomainException;
 use Illuminate\Support\Facades\Auth;
@@ -109,6 +110,9 @@ class PoolShow extends Component
 
     private function assertMember(): PoolMember
     {
+        $isAdmin = (bool) Auth::user()?->is_admin;
+        abort_if(! $isAdmin && $this->pool->status !== 'active', 403);
+
         $member = $this->pool->members()->where('user_id', Auth::id())->first();
         abort_if(! $member, 403);
         return $member;
@@ -187,18 +191,51 @@ class PoolShow extends Component
         }
 
         $rankings = $this->pool->rankings()
-            ->with('user:id,name,area')
+            ->with('user:id,name,display_name,area')
             ->orderBy('position')
             ->get();
 
-        $myRanking = $rankings->firstWhere('user_id', $userId);
+        $rankingRows = $rankings->isEmpty()
+            ? $this->buildProvisionalRankingRows()
+            : $rankings;
+
+        $myRanking = $rankingRows->firstWhere('user_id', $userId);
 
         $totalMatches = $matches->count();
         $predictedCount = $predictions->count();
 
+        $rankingColumns = [
+            'exact_scores' => (int) ($this->pool->points_exact_score ?? 5) > 0,
+            'correct_results' => (int) ($this->pool->points_correct_result ?? 3) > 0,
+            'correct_goals' => (int) ($this->pool->points_correct_goals ?? 1) > 0,
+        ];
+
         return view('livewire.pools.poolshow', compact(
             'member', 'groupedMatches', 'predictions', 'statusLabels',
-            'predictionStatuses', 'rankings', 'myRanking', 'totalMatches', 'predictedCount', 'nearestTickerMatches'
+            'predictionStatuses', 'rankings', 'rankingRows', 'rankingColumns', 'myRanking', 'totalMatches', 'predictedCount', 'nearestTickerMatches'
         ));
+    }
+
+    private function buildProvisionalRankingRows(): Collection
+    {
+        return $this->pool->members()
+            ->where('status', 'active')
+            ->with('user:id,name,display_name,area')
+            ->get()
+            ->sortBy(fn (PoolMember $member) => mb_strtolower((string) ($member->user?->public_name ?? $member->user?->name ?? '')))
+            ->values()
+            ->map(function (PoolMember $member) {
+                return (object) [
+                    'user_id' => $member->user_id,
+                    'user' => $member->user,
+                    'position' => 1,
+                    'points_total' => 0,
+                    'exact_scores' => 0,
+                    'correct_results' => 0,
+                    'correct_home_goals' => 0,
+                    'correct_away_goals' => 0,
+                    'predictions_counted' => 0,
+                ];
+            });
     }
 }

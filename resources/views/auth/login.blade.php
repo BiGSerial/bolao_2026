@@ -48,6 +48,13 @@
             </a>
         </p>
         @endif
+
+        <p class="text-center text-xs text-slate-500 pt-2">
+            Ao entrar, você concorda com os
+            <button type="button" @click="openLegal('eula')" class="text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer">Termos de Uso</button>
+            e a
+            <button type="button" @click="openLegal('privacy')" class="text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer">Política de Privacidade</button>.
+        </p>
     </form>
 
     @if (session('register_success') || session('status'))
@@ -57,7 +64,7 @@
                     Swal.fire({
                         icon: 'success',
                         title: 'Cadastro realizado com sucesso!',
-                        text: 'Sua conta foi criada e está aguardando aprovação do administrador.',
+                        text: 'Enviamos sua senha temporária por e-mail. Sua conta está aguardando aprovação do administrador.',
                         confirmButtonText: 'Entendi'
                     });
                 @elseif (session('status'))

@@ -14,7 +14,12 @@ class PoolRankingUpdated implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public Pool $pool) {}
+    public string $queue;
+
+    public function __construct(public Pool $pool)
+    {
+        $this->queue = config('queue-priority.broadcast.events', 'broadcast');
+    }
 
     public function broadcastOn(): PrivateChannel
     {

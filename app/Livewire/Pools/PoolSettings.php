@@ -4,6 +4,7 @@ namespace App\Livewire\Pools;
 
 use App\Enums\PoolMemberRole;
 use App\Models\Pool;
+use App\Services\Predictions\PredictionScoringService;
 use App\Services\Pools\PoolRankingService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
@@ -26,6 +27,9 @@ class PoolSettings extends Component
     public bool $allow_prediction_changes = true;
     public int $prediction_lock_minutes = 10;
     public bool $allow_pending_member_predictions = true;
+    public int $points_exact_score = 5;
+    public int $points_correct_result = 3;
+    public int $points_correct_goals = 1;
     public string $status = 'active';
 
     /** @var string[] */
@@ -49,9 +53,16 @@ class PoolSettings extends Component
         $this->allow_prediction_changes = (bool) $pool->allow_prediction_changes;
         $this->prediction_lock_minutes = (int) $pool->prediction_lock_minutes;
         $this->allow_pending_member_predictions = (bool) $pool->allow_pending_member_predictions;
+        $this->points_exact_score = (int) ($pool->points_exact_score ?? 5);
+        $this->points_correct_result = (int) ($pool->points_correct_result ?? 3);
+        $this->points_correct_goals = (int) ($pool->points_correct_goals ?? 1);
         $this->status = $pool->status;
         $this->sectors = $pool->sectors ?? [];
         $this->tieBreakers = $this->sanitizeTieBreakers($pool->tie_breakers ?? []);
+        $this->tieBreakers = array_values(array_filter(
+            $this->tieBreakers,
+            fn (string $item) => in_array($item, $this->enabledTieBreakerCriteria(), true)
+        ));
     }
 
     public function addSector(): void
@@ -92,7 +103,12 @@ class PoolSettings extends Component
     public function addTieBreaker(): void
     {
         $criterion = trim($this->newTieBreaker);
-        if ($criterion === '' || in_array($criterion, $this->tieBreakers, true) || ! in_array($criterion, self::AVAILABLE_TIE_BREAKERS, true)) {
+        if (
+            $criterion === '' ||
+            in_array($criterion, $this->tieBreakers, true) ||
+            ! in_array($criterion, self::AVAILABLE_TIE_BREAKERS, true) ||
+            ! in_array($criterion, $this->enabledTieBreakerCriteria(), true)
+        ) {
             $this->notify('error', 'Critério inválido', 'Selecione um critério válido que ainda não tenha sido adicionado.');
             return;
         }
@@ -129,7 +145,7 @@ class PoolSettings extends Component
         $this->notify('success', 'Ordem atualizada', 'Prioridade de desempate atualizada.');
     }
 
-    public function save(PoolRankingService $rankingService): void
+    public function save(PoolRankingService $rankingService, PredictionScoringService $scoringService): void
     {
         $this->assertManager();
 
@@ -141,12 +157,21 @@ class PoolSettings extends Component
             'allow_prediction_changes' => ['boolean'],
             'prediction_lock_minutes' => ['required', 'integer', 'min:10'],
             'allow_pending_member_predictions' => ['boolean'],
+            'points_exact_score' => ['required', 'integer', 'min:0', 'max:20'],
+            'points_correct_result' => ['required', 'integer', 'min:0', 'max:20'],
+            'points_correct_goals' => ['required', 'integer', 'min:0', 'max:20'],
             'status' => ['required', 'in:active,blocked,archived'],
             'sectors' => ['array', 'max:30'],
             'sectors.*' => ['string', 'max:80'],
             'tieBreakers' => ['array', 'max:5'],
             'tieBreakers.*' => ['string', 'in:'.implode(',', self::AVAILABLE_TIE_BREAKERS)],
         ]);
+
+        $enabledTieBreakers = $this->enabledTieBreakerCriteria();
+        $data['tieBreakers'] = array_values(array_filter(
+            $data['tieBreakers'] ?? [],
+            fn (string $item) => in_array($item, $enabledTieBreakers, true)
+        ));
 
         $this->pool->update([
             'name' => $data['name'],
@@ -156,12 +181,17 @@ class PoolSettings extends Component
             'allow_prediction_changes' => $data['allow_prediction_changes'],
             'prediction_lock_minutes' => $data['prediction_lock_minutes'],
             'allow_pending_member_predictions' => $data['allow_pending_member_predictions'],
+            'points_exact_score' => $data['points_exact_score'],
+            'points_correct_result' => $data['points_correct_result'],
+            'points_correct_goals' => $data['points_correct_goals'],
             'status' => $data['status'],
             'sectors' => !empty($data['sectors']) ? array_values($data['sectors']) : null,
-            'tie_breakers' => !empty($data['tieBreakers']) ? array_values($data['tieBreakers']) : null,
+            'tie_breakers' => !empty($data['tieBreakers']) ? $data['tieBreakers'] : null,
         ]);
 
-        $rankingService->recalculate($this->pool->fresh());
+        $freshPool = $this->pool->fresh();
+        $scoringService->recalculatePool($freshPool);
+        $rankingService->recalculate($freshPool);
 
         session()->flash('status', 'Configurações atualizadas com sucesso.');
         $this->notify('success', 'Configurações salvas', 'As alterações do bolão foram aplicadas.');
@@ -169,6 +199,9 @@ class PoolSettings extends Component
 
     private function assertManager(): void
     {
+        $isAdmin = (bool) Auth::user()?->is_admin;
+        abort_if(! $isAdmin && $this->pool->status !== 'active', 403);
+
         $member = $this->pool->members()->where('user_id', Auth::id())->first();
         abort_if(! $member, 403);
         abort_unless(in_array($member->role, [PoolMemberRole::Owner->value, PoolMemberRole::Manager->value], true), 403);
@@ -176,10 +209,15 @@ class PoolSettings extends Component
 
     public function render()
     {
-        $availableTieBreakers = collect(self::AVAILABLE_TIE_BREAKERS)
+        $availableTieBreakers = collect($this->enabledTieBreakerCriteria())
             ->reject(fn (string $key) => in_array($key, $this->tieBreakers, true))
             ->values()
             ->all();
+
+        $this->tieBreakers = array_values(array_filter(
+            $this->tieBreakers,
+            fn (string $item) => in_array($item, $this->enabledTieBreakerCriteria(), true)
+        ));
 
         return view('livewire.pools.poolsettings', [
             'availableTieBreakers' => $availableTieBreakers,
@@ -217,6 +255,31 @@ class PoolSettings extends Component
             'correct_away_goals' => 'Mais gols do visitante corretos',
             'predictions_counted' => 'Mais palpites válidos',
         ];
+    }
+
+    /**
+     * @return string[]
+     */
+    private function enabledTieBreakerCriteria(): array
+    {
+        $enabled = [];
+
+        if ($this->points_exact_score > 0) {
+            $enabled[] = 'exact_scores';
+        }
+
+        if ($this->points_correct_result > 0) {
+            $enabled[] = 'correct_results';
+        }
+
+        if ($this->points_correct_goals > 0) {
+            $enabled[] = 'correct_home_goals';
+            $enabled[] = 'correct_away_goals';
+        }
+
+        $enabled[] = 'predictions_counted';
+
+        return $enabled;
     }
 
     private function notify(string $icon, string $title, string $text): void

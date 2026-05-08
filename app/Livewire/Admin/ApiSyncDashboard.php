@@ -9,6 +9,7 @@ use App\Models\FootballMatch;
 use App\Models\Pool;
 use App\Services\FootballData\FootballDataClient;
 use App\Services\FootballData\SyncWorldCupMatchesService;
+use App\Services\FootballData\SyncWorldCupStandingsService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -27,7 +28,11 @@ class ApiSyncDashboard extends Component
         $this->assertAdmin();
     }
 
-    public function triggerSync(FootballDataClient $client, SyncWorldCupMatchesService $syncService): void
+    public function triggerSync(
+        FootballDataClient $client,
+        SyncWorldCupMatchesService $syncService,
+        SyncWorldCupStandingsService $standingsSyncService
+    ): void
     {
         $this->assertAdmin();
 
@@ -37,6 +42,8 @@ class ApiSyncDashboard extends Component
         try {
             $payload = $client->worldCupGroupStageMatches();
             $changed = $syncService->sync($payload);
+            $standingsPayload = $client->worldCupStandings();
+            $standingsCount = $standingsSyncService->sync($standingsPayload);
 
             foreach ($changed as $match) {
                 if ($match->status === 'FINISHED') {
@@ -56,12 +63,15 @@ class ApiSyncDashboard extends Component
                 'records_total' => count($payload['matches'] ?? []),
                 'records_changed' => $changed->count(),
                 'message' => 'Sync manual via painel admin.',
-                'meta' => ['stage' => config('football-data.world_cup.stage')],
+                'meta' => [
+                    'stage' => config('football-data.world_cup.stage'),
+                    'standings_synced' => $standingsCount,
+                ],
                 'synced_at' => now(),
             ]);
 
             $this->syncSuccess = true;
-            $this->syncMessage = "Sync concluído. {$changed->count()} jogo(s) alterado(s) de ".count($payload['matches'] ?? []).' total.';
+            $this->syncMessage = "Sync concluído. {$changed->count()} jogo(s) alterado(s) de ".count($payload['matches'] ?? [])." total. {$standingsCount} grupo(s) de classificação sincronizado(s).";
         } catch (Throwable $e) {
             ApiSyncLog::create([
                 'provider' => 'football_data',

@@ -17,6 +17,7 @@
             ['active',    'Ativos',     'text-emerald-400','border-emerald-800/30 bg-emerald-900/10'],
             ['suspended', 'Suspensos',  'text-slate-400',  'border-slate-700/30 bg-slate-800/20'],
             ['rejected',  'Rejeitados', 'text-red-400',    'border-red-800/30 bg-red-900/10'],
+            ['banned',    'Banidos',    'text-rose-400',   'border-rose-800/30 bg-rose-900/10'],
         ] as [$status, $label, $color, $bg])
         <button wire:click="$set('filterStatus', '{{ $filterStatus === $status ? '' : $status }}')"
                 class="card border p-4 text-left transition-all
@@ -55,7 +56,7 @@
                     <tr class="border-b border-slate-800">
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Usuário</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">E-mail</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden lg:table-cell">Telefone</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden lg:table-cell">Apelido</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden lg:table-cell">Cadastro</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Admin</th>
@@ -71,6 +72,7 @@
                             'pending'   => 'badge-amber',
                             'suspended' => 'badge-slate',
                             'rejected'  => 'badge-red',
+                            'banned'    => 'badge-red',
                             default     => 'badge-slate',
                         };
                         $statusLabel = match($user->status) {
@@ -78,6 +80,7 @@
                             'pending'   => 'Aguardando',
                             'suspended' => 'Suspenso',
                             'rejected'  => 'Rejeitado',
+                            'banned'    => 'Banido',
                             default     => ucfirst($user->status),
                         };
                     @endphp
@@ -103,7 +106,7 @@
                             </div>
                         </td>
                         <td class="px-4 py-3.5 text-sm text-slate-400 hidden md:table-cell">{{ $user->email }}</td>
-                        <td class="px-4 py-3.5 text-sm text-slate-400 hidden lg:table-cell">{{ $user->phone ?? '—' }}</td>
+                        <td class="px-4 py-3.5 text-sm text-slate-400 hidden lg:table-cell">{{ $user->display_name ?? '—' }}</td>
                         <td class="px-4 py-3.5 text-xs text-slate-500 hidden lg:table-cell">
                             {{ $user->created_at->format('d/m/Y H:i') }}
                         </td>
@@ -142,6 +145,16 @@
                                     <span wire:loading wire:target="suspend({{ $user->id }})">Suspendendo...</span>
                                 </button>
                                 @endif
+                                @if($user->status !== 'banned')
+                                <button wire:click="ban({{ $user->id }})"
+                                        wire:confirm="Banir {{ addslashes($user->name) }} da plataforma?"
+                                        wire:loading.attr="disabled"
+                                        wire:target="ban({{ $user->id }})"
+                                        class="inline-flex items-center rounded-md bg-rose-700/30 px-2 py-1 text-xs font-medium text-rose-300 ring-1 ring-rose-500/30 hover:bg-rose-700/50 transition-colors disabled:opacity-60">
+                                    <span wire:loading.remove wire:target="ban({{ $user->id }})">Banir</span>
+                                    <span wire:loading wire:target="ban({{ $user->id }})">Banindo...</span>
+                                </button>
+                                @endif
                                 @if(! in_array($user->status, ['rejected']))
                                 <button wire:click="reject({{ $user->id }})"
                                         wire:confirm="Rejeitar {{ addslashes($user->name) }}?"
@@ -152,6 +165,21 @@
                                     <span wire:loading wire:target="reject({{ $user->id }})">Rejeitando...</span>
                                 </button>
                                 @endif
+                                <button wire:click="resendTemporaryPassword({{ $user->id }})"
+                                        wire:loading.attr="disabled"
+                                        wire:target="resendTemporaryPassword({{ $user->id }})"
+                                        class="inline-flex items-center rounded-md bg-blue-700/30 px-2 py-1 text-xs font-medium text-blue-300 ring-1 ring-blue-500/30 hover:bg-blue-700/50 transition-colors disabled:opacity-60">
+                                    <span wire:loading.remove wire:target="resendTemporaryPassword({{ $user->id }})">Reenviar senha</span>
+                                    <span wire:loading wire:target="resendTemporaryPassword({{ $user->id }})">Enviando...</span>
+                                </button>
+                                <button wire:click="destroyUserData({{ $user->id }})"
+                                        wire:confirm="Excluir todos os dados de {{ addslashes($user->name) }}? Esta ação é irreversível."
+                                        wire:loading.attr="disabled"
+                                        wire:target="destroyUserData({{ $user->id }})"
+                                        class="inline-flex items-center rounded-md bg-red-800/40 px-2 py-1 text-xs font-medium text-red-300 ring-1 ring-red-600/40 hover:bg-red-800/60 transition-colors disabled:opacity-60">
+                                    <span wire:loading.remove wire:target="destroyUserData({{ $user->id }})">Remover dados</span>
+                                    <span wire:loading wire:target="destroyUserData({{ $user->id }})">Removendo...</span>
+                                </button>
                             </div>
                             @endif
                         </td>

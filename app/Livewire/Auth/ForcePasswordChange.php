@@ -3,7 +3,7 @@
 namespace App\Livewire\Auth;
 
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -11,16 +11,11 @@ use Livewire\Component;
 #[Layout('layouts.app')]
 class ForcePasswordChange extends Component
 {
-    public string $current_password = '';
-    public string $password = '';
-    public string $password_confirmation = '';
-
-    public function save(): void
+    public function save(string $currentPassword, string $password, string $passwordConfirmation): void
     {
         $user = auth()->user();
 
         if (! $user) {
-            $this->addError('current_password', 'Sua sessao expirou. Entre novamente.');
             $this->dispatch('swal:alert', [
                 'icon' => 'error',
                 'title' => 'Sessão expirada',
@@ -29,34 +24,45 @@ class ForcePasswordChange extends Component
             return;
         }
 
-        try {
-            $this->validate([
+        $validator = Validator::make(
+            [
+                'current_password'      => $currentPassword,
+                'password'              => $password,
+                'password_confirmation' => $passwordConfirmation,
+            ],
+            [
                 'current_password' => ['required', 'current_password'],
-                'password' => ['required', 'confirmed', Password::defaults()],
-            ], [
-                'current_password.required' => 'Informe sua senha atual.',
+                'password'         => ['required', 'confirmed', Password::defaults()],
+            ],
+            [
+                'current_password.required'         => 'Informe sua senha atual.',
                 'current_password.current_password' => 'A senha atual esta incorreta.',
-                'password.required' => 'Informe a nova senha.',
-                'password.confirmed' => 'A confirmacao da nova senha nao confere.',
-            ]);
-        } catch (ValidationException $exception) {
+                'password.required'                 => 'Informe a nova senha.',
+                'password.confirmed'                => 'A confirmacao da nova senha nao confere.',
+            ]
+        );
+
+        if ($validator->fails()) {
             $this->dispatch('swal:alert', [
-                'icon' => 'error',
+                'icon'  => 'error',
                 'title' => 'Erro ao trocar senha',
-                'text' => $exception->validator->errors()->first() ?: 'Verifique os campos e tente novamente.',
+                'text'  => $validator->errors()->first() ?: 'Verifique os campos e tente novamente.',
             ]);
-            throw $exception;
+            foreach ($validator->errors()->toArray() as $field => $messages) {
+                $this->addError($field, $messages[0]);
+            }
+            return;
         }
 
         $user->update([
-            'password' => Hash::make($this->password),
+            'password'             => Hash::make($password),
             'must_change_password' => false,
-            'password_changed_at' => now(),
+            'password_changed_at'  => now(),
         ]);
 
         $this->dispatch('swal:password-changed', [
-            'title' => 'Senha alterada com sucesso',
-            'text' => 'Você será redirecionado para o dashboard.',
+            'title'    => 'Senha alterada com sucesso',
+            'text'     => 'Você será redirecionado para o dashboard.',
             'redirect' => route('dashboard'),
         ]);
     }

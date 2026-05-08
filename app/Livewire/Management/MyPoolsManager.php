@@ -138,7 +138,7 @@ class MyPoolsManager extends Component
 
         if ($selectedPool) {
             $query = $selectedPool->members()
-                ->with('user:id,name,area,email,phone')
+                ->with('user:id,name,display_name,area,email')
                 ->orderByRaw("case role when 'owner' then 0 when 'manager' then 1 else 2 end")
                 ->orderBy('status')
                 ->orderBy('id');

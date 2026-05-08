@@ -140,9 +140,36 @@
 
             <div class="rounded-xl border border-slate-700/70 bg-pitch-900/40 p-4 space-y-4">
                 <div>
+                    <h3 class="text-sm font-semibold text-slate-200">Regras de Pontuação do Ranking</h3>
+                    <p class="mt-1 text-xs text-slate-500">
+                        Defina os pontos do seu grupo para cada tipo de acerto.
+                    </p>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-3">
+                    <div>
+                        <label class="label">Resultado + placar</label>
+                        <input type="number" min="0" max="20" wire:model="points_exact_score" class="input-field">
+                        @error('points_exact_score') <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="label">Resultado (vencedor/empate)</label>
+                        <input type="number" min="0" max="20" wire:model="points_correct_result" class="input-field">
+                        @error('points_correct_result') <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="label">Gols de um time</label>
+                        <input type="number" min="0" max="20" wire:model="points_correct_goals" class="input-field">
+                        <p class="mt-1 text-xs text-slate-600">Valor aplicado para mandante e visitante.</p>
+                        @error('points_correct_goals') <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p> @enderror
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-slate-700/70 bg-pitch-900/40 p-4 space-y-4">
+                <div>
                     <h3 class="text-sm font-semibold text-slate-200">Critérios de desempate</h3>
                     <p class="mt-1 text-xs text-slate-500">
-                        Opcional. Arraste para definir a prioridade de desempate no ranking.
+                        Opcional. Apenas critérios com pontuação maior que zero aparecem aqui.
                     </p>
                 </div>
 

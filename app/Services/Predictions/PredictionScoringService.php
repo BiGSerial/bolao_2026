@@ -2,10 +2,23 @@
 
 namespace App\Services\Predictions;
 
+use App\Models\Pool;
 use App\Models\Prediction;
 
 class PredictionScoringService
 {
+    public function recalculatePool(Pool $pool): void
+    {
+        Prediction::query()
+            ->where('pool_id', $pool->id)
+            ->whereHas('footballMatch', fn ($q) => $q
+                ->where('status', 'FINISHED')
+                ->where('stage', $pool->stage))
+            ->chunkById(200, function ($predictions): void {
+                $predictions->each(fn (Prediction $prediction) => $this->calculate($prediction));
+            });
+    }
+
     public function calculate(Prediction $prediction): void
     {
         $prediction->loadMissing(['pool', 'footballMatch']);
@@ -30,20 +43,23 @@ class PredictionScoringService
         }
 
         $exact = $prediction->home_score === $homeReal && $prediction->away_score === $awayReal;
+        $exactScorePoints = max(0, (int) ($pool->points_exact_score ?? 5));
+        $correctResultPoints = max(0, (int) ($pool->points_correct_result ?? 3));
+        $correctGoalsPoints = max(0, (int) ($pool->points_correct_goals ?? 1));
         $points = 0;
         if ($exact) {
-            $points = 5;
+            $points = $exactScorePoints;
         } else {
             $realResult = $this->resultOf($homeReal, $awayReal);
             $predResult = $this->resultOf($prediction->home_score, $prediction->away_score);
             if ($realResult === $predResult) {
-                $points += 3;
+                $points += $correctResultPoints;
             }
             if ($prediction->home_score === $homeReal) {
-                $points++;
+                $points += $correctGoalsPoints;
             }
             if ($prediction->away_score === $awayReal) {
-                $points++;
+                $points += $correctGoalsPoints;
             }
         }
 

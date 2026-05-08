@@ -117,6 +117,9 @@ class PoolMatchShow extends Component
 
     private function assertMember(): PoolMember
     {
+        $isAdmin = (bool) Auth::user()?->is_admin;
+        abort_if(! $isAdmin && $this->pool->status !== 'active', 403);
+
         $member = $this->pool->members()->where('user_id', Auth::id())->first();
         abort_if(! $member, 403);
         return $member;

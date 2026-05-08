@@ -7,7 +7,9 @@
     <title>{{ config('app.name', 'Bolão Copa') }}{{ isset($title) ? ' — '.$title : '' }}</title>
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800&display=swap" rel="stylesheet" />
+    <style>[x-cloak]{display:none!important}</style>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
 </head>
@@ -110,6 +112,17 @@
                     Usuários
                 </a>
 
+                <a href="{{ route('admin.pools.control') }}"
+                   @click="sidebarOpen = false"
+                   class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
+                          {{ request()->routeIs('admin.pools.*') ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M3 7h18M3 12h18M3 17h18"/>
+                    </svg>
+                    Grupos
+                </a>
+
                 <a href="{{ route('admin.api.sync') }}"
                    @click="sidebarOpen = false"
                    class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
@@ -130,6 +143,17 @@
                               d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                     </svg>
                     Correção Manual
+                </a>
+
+                <a href="{{ route('admin.legal.index') }}"
+                   @click="sidebarOpen = false"
+                   class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
+                          {{ request()->routeIs('admin.legal.*') ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    Jurídico
                 </a>
             </div>
             @endif
@@ -170,6 +194,18 @@
                     </svg>
                     Meu Perfil
                 </a>
+                <a href="{{ route('legal.terms') }}"
+                   class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors rounded-md mx-1">
+                    Termos de Uso
+                </a>
+                <a href="{{ route('legal.privacy-policy') }}"
+                   class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors rounded-md mx-1">
+                    Política de Privacidade
+                </a>
+                <a href="{{ route('about') }}"
+                   class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors rounded-md mx-1">
+                    Sobre
+                </a>
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
                     <button type="submit"
@@ -186,10 +222,17 @@
 
         {{-- Copyright --}}
         <div class="shrink-0 px-4 pb-3 pt-1 text-center">
+            <p class="text-xs text-slate-500 leading-snug mb-2">
+                Plataforma recreativa de organização de palpites esportivos entre usuários.
+            </p>
+            <div class="mb-2 flex flex-wrap items-center justify-center gap-2 text-xs">
+                <a href="{{ route('legal.terms') }}" class="text-emerald-400 hover:text-emerald-300 transition-colors">Termos</a>
+                <a href="{{ route('legal.privacy-policy') }}" class="text-emerald-400 hover:text-emerald-300 transition-colors">Privacidade</a>
+                <a href="{{ route('about') }}" class="text-emerald-400 hover:text-emerald-300 transition-colors">Sobre</a>
+            </div>
             <p class="text-xs text-slate-600 leading-snug">
-                &copy; {{ date('Y') }} Will Oliveira<br>
-                <a href="mailto:woliveiravix@gmail.com"
-                   class="hover:text-slate-400 transition-colors">woliveiravix@gmail.com</a>
+                &copy; {{ date('Y') }} VixForge Sistemas<br>
+                <span class="text-slate-700">Versão {{ config('app.version') }}</span>
             </p>
         </div>
     </aside>

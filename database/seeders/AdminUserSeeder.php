@@ -16,8 +16,8 @@ class AdminUserSeeder extends Seeder
 
         $user->forceFill([
             'name' => env('DEFAULT_ADMIN_NAME', 'Administrador'),
+            'display_name' => env('DEFAULT_ADMIN_DISPLAY_NAME', 'Administrador'),
             'area' => 'Administracao',
-            'phone' => env('DEFAULT_ADMIN_PHONE', '5500000000000'),
             'status' => 'active',
             'is_admin' => true,
             'must_change_password' => true,

@@ -1,0 +1,12 @@
+{
+    "Reset Password Notification": "Notificação de redefinição de senha",
+    "You are receiving this email because we received a password reset request for your account.": "Você está recebendo este e-mail porque solicitou a redefinição da senha da sua conta.",
+    "Reset Password": "Redefinir senha",
+    "This password reset link will expire in :count minutes.": "Este link de recuperação expira em :count minutos.",
+    "If you did not request a password reset, no further action is required.": "Se você não solicitou a redefinição de senha, nenhuma ação adicional é necessária.",
+    "Email Password Reset Link": "Enviar link de recuperação",
+    "Forgot your password? No problem. Just let us know your email address and we will email you a password reset link that will allow you to choose a new one.": "Esqueceu sua senha? Sem problemas. Informe seu e-mail e enviaremos um link para você criar uma nova senha.",
+    "Password": "Senha",
+    "Confirm Password": "Confirmar senha",
+    "Email": "E-mail"
+}

@@ -21,28 +21,33 @@
         </div>
 
         <div>
-            <label class="label">Telefone <span class="text-red-400">*</span></label>
-            <input type="text" wire:model.live="phone"
-                   maxlength="15" inputmode="numeric"
-                   placeholder="(11) 99999-9999"
+            <label class="label">Apelido (nome de exibição) <span class="text-red-400">*</span></label>
+            <input type="text" wire:model.blur="display_name"
+                   maxlength="80" autocomplete="nickname"
+                   placeholder="Como seu nome vai aparecer no bolão"
                    class="input-field">
-            @error('phone') <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p> @enderror
+            @error('display_name') <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p> @enderror
         </div>
 
-        <div>
-            <label class="label">Senha <span class="text-red-400">*</span></label>
-            <input type="password" wire:model.blur="password"
-                   autocomplete="new-password" placeholder="Mínimo 8 caracteres"
-                   class="input-field">
-            @error('password') <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p> @enderror
-        </div>
+        {{-- Aceite dos termos --}}
+        <div class="pt-3 border-t border-slate-800 space-y-2">
+            <label class="flex items-start gap-2.5 cursor-pointer group">
+                <input type="checkbox" wire:model="acceptEula"
+                       class="mt-0.5 w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500/40 focus:ring-offset-0 cursor-pointer shrink-0">
+                <span class="text-xs text-slate-400 group-hover:text-slate-200 transition-colors select-none leading-relaxed">
+                    Li e aceito os <button type="button" @click="openLegal('eula')" class="text-emerald-400 hover:underline">Termos de Uso</button>
+                </span>
+            </label>
+            @error('acceptEula') <p class="ml-6 text-xs text-red-400">{{ $message }}</p> @enderror
 
-        <div>
-            <label class="label">Confirmar senha <span class="text-red-400">*</span></label>
-            <input type="password" wire:model.blur="password_confirmation"
-                   autocomplete="new-password" placeholder="Repita a senha"
-                   class="input-field">
-            @error('password_confirmation') <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p> @enderror
+            <label class="flex items-start gap-2.5 cursor-pointer group">
+                <input type="checkbox" wire:model="acceptPrivacy"
+                       class="mt-0.5 w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500/40 focus:ring-offset-0 cursor-pointer shrink-0">
+                <span class="text-xs text-slate-400 group-hover:text-slate-200 transition-colors select-none leading-relaxed">
+                    Li e aceito a <button type="button" @click="openLegal('privacy')" class="text-emerald-400 hover:underline">Política de Privacidade</button>
+                </span>
+            </label>
+            @error('acceptPrivacy') <p class="ml-6 text-xs text-red-400">{{ $message }}</p> @enderror
         </div>
 
         <button type="submit"
@@ -60,6 +65,7 @@
             Já tem conta?
             <a href="{{ route('login') }}" class="text-emerald-400 hover:text-emerald-300 transition-colors">Entrar</a>
         </p>
+
     </form>
 
     @script

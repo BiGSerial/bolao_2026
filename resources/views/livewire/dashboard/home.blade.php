@@ -48,7 +48,7 @@
                         </div>
                         @endif
                         <span class="text-xs font-medium text-slate-300 text-center leading-tight">
-                            {{ $match->homeTeam?->short_name ?? $match->homeTeam?->name ?? 'A definir' }}
+                            {{ $match->homeTeam?->localized_name ?? 'A definir' }}
                         </span>
                     </div>
 
@@ -70,7 +70,7 @@
                         </div>
                         @endif
                         <span class="text-xs font-medium text-slate-300 text-center leading-tight">
-                            {{ $match->awayTeam?->short_name ?? $match->awayTeam?->name ?? 'A definir' }}
+                            {{ $match->awayTeam?->localized_name ?? 'A definir' }}
                         </span>
                     </div>
                 </div>
@@ -83,61 +83,158 @@
     <div class="grid gap-6 lg:grid-cols-3">
         {{-- Próximos jogos --}}
         <div class="lg:col-span-2 space-y-4">
-            <h2 class="text-base font-semibold text-white">Próximos Jogos</h2>
+            <div class="grid gap-4 xl:grid-cols-2">
+                <div class="space-y-4">
+                    <h2 class="text-base font-semibold text-white">Próximos Jogos</h2>
 
-            @if($upcoming->isEmpty())
-            <div class="card p-8 text-center">
-                <p class="text-slate-500 text-sm">Nenhum jogo agendado no momento.</p>
-            </div>
-            @else
-            <div class="space-y-2">
-                @foreach($upcoming as $match)
-                <div class="card-hover p-4">
-                    <div class="flex items-center justify-between gap-4">
-                        <div class="flex items-center gap-3 flex-1">
-                            @if($match->homeTeam?->crest)
-                            <img src="{{ $match->homeTeam->crest }}" alt="{{ $match->homeTeam->tla }}"
-                                 class="h-8 w-8 object-contain" loading="lazy">
-                            @else
-                            <div class="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-400">
-                                {{ $match->homeTeam?->tla ?? '?' }}
-                            </div>
-                            @endif
-                            <span class="text-sm font-medium text-slate-200">
-                                {{ $match->homeTeam?->short_name ?? 'A definir' }}
-                            </span>
-                        </div>
-
-                        <div class="flex flex-col items-center shrink-0">
-                            <span class="text-xs font-semibold text-slate-400 bg-slate-800 rounded px-2 py-0.5">VS</span>
-                            <span class="text-xs text-slate-500 mt-1">
-                                {{ $match->local_date?->format('d/m H:i') ?? $match->utc_date->format('d/m H:i') }}
-                            </span>
-                        </div>
-
-                        <div class="flex items-center gap-3 flex-1 justify-end">
-                            <span class="text-sm font-medium text-slate-200">
-                                {{ $match->awayTeam?->short_name ?? 'A definir' }}
-                            </span>
-                            @if($match->awayTeam?->crest)
-                            <img src="{{ $match->awayTeam->crest }}" alt="{{ $match->awayTeam->tla }}"
-                                 class="h-8 w-8 object-contain" loading="lazy">
-                            @else
-                            <div class="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-400">
-                                {{ $match->awayTeam?->tla ?? '?' }}
-                            </div>
-                            @endif
-                        </div>
+                    @if($upcoming->isEmpty())
+                    <div class="card p-8 text-center">
+                        <p class="text-slate-500 text-sm">Nenhum jogo agendado no momento.</p>
                     </div>
-                    @if($match->group_name)
-                    <div class="mt-2 flex justify-center">
-                        <span class="text-xs text-slate-600">{{ $match->group_name }}</span>
+                    @else
+                    <div class="space-y-2">
+                        @foreach($upcoming as $match)
+                        <div class="card-hover p-4">
+                            <div class="flex items-center justify-between gap-4">
+                                <div class="flex items-center gap-3 flex-1">
+                                    @if($match->homeTeam?->crest)
+                                    <img src="{{ $match->homeTeam->crest }}" alt="{{ $match->homeTeam->tla }}"
+                                         class="h-8 w-8 object-contain" loading="lazy">
+                                    @else
+                                    <div class="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-400">
+                                        {{ $match->homeTeam?->tla ?? '?' }}
+                                    </div>
+                                    @endif
+                                    <span class="text-sm font-medium text-slate-200">
+                                        {{ $match->homeTeam?->localized_name ?? 'A definir' }}
+                                    </span>
+                                </div>
+
+                                <div class="flex flex-col items-center shrink-0">
+                                    <span class="text-xs font-semibold text-slate-400 bg-slate-800 rounded px-2 py-0.5">VS</span>
+                                    <span class="text-xs text-slate-500 mt-1">
+                                        {{ $match->local_date?->format('d/m H:i') ?? $match->utc_date->format('d/m H:i') }}
+                                    </span>
+                                </div>
+
+                                <div class="flex items-center gap-3 flex-1 justify-end">
+                                    <span class="text-sm font-medium text-slate-200">
+                                        {{ $match->awayTeam?->localized_name ?? 'A definir' }}
+                                    </span>
+                                    @if($match->awayTeam?->crest)
+                                    <img src="{{ $match->awayTeam->crest }}" alt="{{ $match->awayTeam->tla }}"
+                                         class="h-8 w-8 object-contain" loading="lazy">
+                                    @else
+                                    <div class="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-400">
+                                        {{ $match->awayTeam?->tla ?? '?' }}
+                                    </div>
+                                    @endif
+                                </div>
+                            </div>
+                            @if($match->group_name)
+                            <div class="mt-2 flex justify-center">
+                                <span class="text-xs text-slate-600">{{ $match->group_name }}</span>
+                            </div>
+                            @endif
+                        </div>
+                        @endforeach
                     </div>
                     @endif
                 </div>
-                @endforeach
+
+                <div class="space-y-4">
+                    <h2 class="text-base font-semibold text-white">Classificação dos Grupos</h2>
+                    @if($groupStandings->isEmpty())
+                    <div class="card p-8 text-center">
+                        <p class="text-slate-500 text-sm">Classificação indisponível no momento.</p>
+                    </div>
+                    @else
+                    <div class="space-y-3 max-h-[32rem] overflow-y-auto pr-1">
+                        @foreach($groupStandings as $standing)
+                        @php
+                            $orderedRows = $standing->rows->sort(function ($a, $b) {
+                                $aPosition = $a->position ?? PHP_INT_MAX;
+                                $bPosition = $b->position ?? PHP_INT_MAX;
+                                if ($aPosition !== $bPosition) {
+                                    return $aPosition <=> $bPosition;
+                                }
+
+                                $criteria = [
+                                    ['points', true],
+                                    ['goal_difference', true],
+                                    ['goals_for', true],
+                                ];
+
+                                foreach ($criteria as [$field, $desc]) {
+                                    $aValue = (int) ($a->{$field} ?? 0);
+                                    $bValue = (int) ($b->{$field} ?? 0);
+                                    if ($aValue !== $bValue) {
+                                        return $desc ? ($bValue <=> $aValue) : ($aValue <=> $bValue);
+                                    }
+                                }
+
+                                $aName = mb_strtolower((string) ($a->team?->localized_name ?? ''));
+                                $bName = mb_strtolower((string) ($b->team?->localized_name ?? ''));
+
+                                return $aName <=> $bName;
+                            })->values();
+                        @endphp
+                        <div class="card p-0 overflow-hidden">
+                            <div class="px-3 py-2 border-b border-slate-800 bg-slate-900/40 flex items-center justify-between">
+                                <div class="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                                    {{ $standing->group_name }}
+                                </div>
+                                <div class="text-[10px] text-slate-500">Critério FIFA</div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full text-xs">
+                                    <thead>
+                                        <tr class="text-[10px] text-slate-500 border-b border-slate-800">
+                                            <th class="px-2 py-2 text-center font-medium">#</th>
+                                            <th class="px-2 py-2 text-left font-medium">Time</th>
+                                            <th class="px-2 py-2 text-right font-medium">PJ</th>
+                                            <th class="px-2 py-2 text-right font-medium">V</th>
+                                            <th class="px-2 py-2 text-right font-medium">E</th>
+                                            <th class="px-2 py-2 text-right font-medium">D</th>
+                                            <th class="px-2 py-2 text-right font-medium">GP</th>
+                                            <th class="px-2 py-2 text-right font-medium">GC</th>
+                                            <th class="px-2 py-2 text-right font-medium">SG</th>
+                                            <th class="px-2 py-2 text-right font-semibold text-slate-300">PTS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-800/60">
+                                        @foreach($orderedRows as $row)
+                                        @php
+                                            $teamDisplayName = $row->team?->localized_name ?? 'Equipe';
+                                        @endphp
+                                        <tr class="hover:bg-slate-800/30 transition-colors">
+                                            <td class="px-2 py-2 text-center font-semibold {{ (int) $row->position <= 2 ? 'text-emerald-400' : 'text-slate-500' }}">
+                                                {{ $row->position ?? '—' }}
+                                            </td>
+                                            <td class="px-2 py-2 text-slate-200 truncate max-w-[9rem]" title="{{ $row->team?->name }}">
+                                                {{ $teamDisplayName }}
+                                            </td>
+                                            <td class="px-2 py-2 text-right text-slate-500">{{ $row->played_games }}</td>
+                                            <td class="px-2 py-2 text-right text-slate-500">{{ $row->won }}</td>
+                                            <td class="px-2 py-2 text-right text-slate-500">{{ $row->draw }}</td>
+                                            <td class="px-2 py-2 text-right text-slate-500">{{ $row->lost }}</td>
+                                            <td class="px-2 py-2 text-right text-slate-500">{{ $row->goals_for }}</td>
+                                            <td class="px-2 py-2 text-right text-slate-500">{{ $row->goals_against }}</td>
+                                            <td class="px-2 py-2 text-right {{ (int) $row->goal_difference > 0 ? 'text-emerald-400' : ((int) $row->goal_difference < 0 ? 'text-red-400' : 'text-slate-500') }}">
+                                                {{ (int) $row->goal_difference > 0 ? '+' : '' }}{{ $row->goal_difference }}
+                                            </td>
+                                            <td class="px-2 py-2 text-right font-bold text-white">{{ $row->points }}</td>
+                                        </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        @endforeach
+                    </div>
+                    @endif
+                </div>
             </div>
-            @endif
 
             {{-- Últimos resultados --}}
             @if($recent->isNotEmpty())
@@ -155,7 +252,7 @@
                                 {{ $match->homeTeam?->tla ?? '?' }}
                             </div>
                             @endif
-                            <span class="text-sm text-slate-300">{{ $match->homeTeam?->short_name ?? 'A definir' }}</span>
+                            <span class="text-sm text-slate-300">{{ $match->homeTeam?->localized_name ?? 'A definir' }}</span>
                         </div>
 
                         <div class="flex items-center gap-2 shrink-0">
@@ -165,7 +262,7 @@
                         </div>
 
                         <div class="flex items-center gap-3 flex-1 justify-end">
-                            <span class="text-sm text-slate-300">{{ $match->awayTeam?->short_name ?? 'A definir' }}</span>
+                            <span class="text-sm text-slate-300">{{ $match->awayTeam?->localized_name ?? 'A definir' }}</span>
                             @if($match->awayTeam?->crest)
                             <img src="{{ $match->awayTeam->crest }}" alt="{{ $match->awayTeam->tla }}"
                                  class="h-7 w-7 object-contain" loading="lazy">

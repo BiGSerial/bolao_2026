@@ -9,6 +9,7 @@ use App\Models\FootballMatch;
 use App\Models\Pool;
 use App\Services\FootballData\FootballDataClient;
 use App\Services\FootballData\SyncWorldCupMatchesService;
+use App\Services\FootballData\SyncWorldCupStandingsService;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\RequestException;
 use Throwable;
@@ -18,7 +19,11 @@ class SyncWorldCupGroupStage extends Command
     protected $signature = 'worldcup:sync-group-stage {--force : Ignora janela inteligente e sincroniza agora}';
     protected $description = 'Sincroniza jogos e placares da fase de grupos da Copa 2026.';
 
-    public function handle(FootballDataClient $client, SyncWorldCupMatchesService $syncService): int
+    public function handle(
+        FootballDataClient $client,
+        SyncWorldCupMatchesService $syncService,
+        SyncWorldCupStandingsService $standingsSyncService
+    ): int
     {
         if (! $this->option('force') && ! $this->shouldSyncNow()) {
             ApiSyncLog::create([
@@ -37,6 +42,8 @@ class SyncWorldCupGroupStage extends Command
         try {
             $payload = $client->worldCupGroupStageMatches();
             $changed = $syncService->sync($payload);
+            $standingsPayload = $client->worldCupStandings();
+            $standingsCount = $standingsSyncService->sync($standingsPayload);
 
             foreach ($changed as $match) {
                 if ($match->status === 'FINISHED') {
@@ -60,11 +67,12 @@ class SyncWorldCupGroupStage extends Command
                     'status' => 'success',
                     'stage' => config('football-data.world_cup.stage'),
                     'result_set' => data_get($payload, 'resultSet'),
+                    'standings_synced' => $standingsCount,
                 ],
                 'synced_at' => now(),
             ]);
 
-            $this->info('Sincronizacao concluida. Jogos alterados: '.$changed->count());
+            $this->info('Sincronizacao concluida. Jogos alterados: '.$changed->count().' | Grupos sincronizados: '.$standingsCount);
             return self::SUCCESS;
         } catch (Throwable $e) {
             $httpStatus = $e instanceof RequestException ? $e->response?->status() : null;

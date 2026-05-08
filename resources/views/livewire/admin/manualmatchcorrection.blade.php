@@ -69,11 +69,11 @@
                                 <img src="{{ $match->homeTeam->crest }}" class="h-6 w-6 object-contain" loading="lazy">
                                 @endif
                                 <span class="text-sm text-slate-200 font-medium">
-                                    {{ $match->homeTeam?->short_name ?? $match->homeTeam?->name ?? '?' }}
+                                    {{ $match->homeTeam?->localized_name ?? '?' }}
                                 </span>
                                 <span class="text-slate-600 text-xs">vs</span>
                                 <span class="text-sm text-slate-200 font-medium">
-                                    {{ $match->awayTeam?->short_name ?? $match->awayTeam?->name ?? '?' }}
+                                    {{ $match->awayTeam?->localized_name ?? '?' }}
                                 </span>
                                 @if($match->awayTeam?->crest)
                                 <img src="{{ $match->awayTeam->crest }}" class="h-6 w-6 object-contain" loading="lazy">

@@ -32,6 +32,37 @@
         @endforeach
     </div>
 
+    <div class="card p-4 mb-6">
+        <h2 class="text-sm font-semibold text-slate-300 mb-3">Convidar por e-mail</h2>
+        <form wire:submit="sendInvite" class="grid gap-3 md:grid-cols-3">
+            <div class="md:col-span-2">
+                <label class="label">E-mail do convidado</label>
+                <input type="email" wire:model.blur="invite_email" placeholder="email@dominio.com" class="input-field">
+                @error('invite_email') <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p> @enderror
+            </div>
+
+            <div>
+                <label class="label">Setor (opcional)</label>
+                @if($pool->sectors && count($pool->sectors) > 0)
+                <select wire:model="invite_sector" class="select-field">
+                    <option value="">Sem setor</option>
+                    @foreach($pool->sectors as $sector)
+                    <option value="{{ $sector }}">{{ $sector }}</option>
+                    @endforeach
+                </select>
+                @else
+                <input type="text" wire:model.blur="invite_sector" placeholder="Opcional" class="input-field">
+                @endif
+            </div>
+
+            <div class="md:col-span-3">
+                <button type="submit" class="btn-primary">
+                    Enviar convite
+                </button>
+            </div>
+        </form>
+    </div>
+
     @if(session('status'))
     <div class="alert-success mb-4">{{ session('status') }}</div>
     @endif
@@ -59,7 +90,7 @@
                     <tr class="border-b border-slate-800">
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Participante</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">Email</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden lg:table-cell">Telefone</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden lg:table-cell">Apelido</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Setor</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Papel</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
@@ -110,7 +141,7 @@
                             {{ $member->user?->email ?? '—' }}
                         </td>
                         <td class="px-4 py-3.5 text-sm text-slate-400 hidden lg:table-cell">
-                            {{ $member->user?->phone ?? '—' }}
+                            {{ $member->user?->display_name ?? '—' }}
                         </td>
                         <td class="px-4 py-3.5">
                             @if($pool->sectors && count($pool->sectors) > 0)

@@ -9,7 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -32,30 +32,30 @@ class RegisteredUserController extends Controller
     {
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'display_name' => ['required', 'string', 'max:80'],
             'area' => ['nullable', 'string', 'max:100'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
-            'phone' => ['nullable', 'string', 'max:30'],
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ], [
             'name.required' => 'Informe seu nome completo.',
             'name.max' => 'O nome não pode ter mais de 255 caracteres.',
+            'display_name.required' => 'Informe seu apelido.',
+            'display_name.max' => 'O apelido não pode ter mais de 80 caracteres.',
             'area.max' => 'A área/setor não pode ter mais de 100 caracteres.',
             'email.required' => 'Informe seu e-mail.',
             'email.email' => 'Informe um e-mail válido.',
             'email.unique' => 'Este e-mail já está cadastrado.',
             'email.max' => 'O e-mail não pode ter mais de 255 caracteres.',
-            'phone.max' => 'O telefone não pode ter mais de 30 caracteres.',
-            'password.required' => 'Informe uma senha.',
-            'password.confirmed' => 'As senhas não conferem.',
-            'password.min' => 'A senha deve ter no mínimo :min caracteres.',
         ]);
+
+        $temporaryPassword = Str::password(12, symbols: false);
 
         $user = User::create([
             'name' => $request->name,
+            'display_name' => $request->display_name,
             'area' => $request->area,
             'email' => $request->email,
-            'phone' => $request->phone,
-            'password' => Hash::make($request->password),
+            'password' => Hash::make($temporaryPassword),
+            'must_change_password' => true,
         ]);
 
         event(new Registered($user));

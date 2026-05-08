@@ -1,9 +1,26 @@
-<div class="animate-fade-in" wire:poll.30s="refreshMatches">
+<div class="animate-fade-in"
+     wire:poll.30s="refreshMatches"
+     x-data="{
+         touchStartX: 0,
+         touchEndX: 0,
+         swipe() {
+             const diff = this.touchStartX - this.touchEndX;
+             if (Math.abs(diff) < 50) return;
+             const tabs = ['jogos', 'ranking', 'resumo'];
+             const i = tabs.indexOf($wire.activeTab);
+             if (diff > 0 && i < tabs.length - 1) $wire.setTab(tabs[i + 1]);
+             else if (diff < 0 && i > 0) $wire.setTab(tabs[i - 1]);
+         }
+     }"
+     @touchstart.passive="touchStartX = $event.changedTouches[0].screenX"
+     @touchend.passive="touchEndX = $event.changedTouches[0].screenX; swipe()">
 
     {{-- Pool Header --}}
     <div class="border-b border-slate-800 bg-pitch-900/50 backdrop-blur-sm sticky top-0 z-20">
-        <div class="px-4 sm:px-6 lg:px-8 py-4">
-            <div class="flex items-start justify-between gap-4">
+        <div class="px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+
+            {{-- Header row --}}
+            <div class="flex items-center justify-between gap-3">
                 <div class="flex items-center gap-3 min-w-0">
                     <a href="{{ route('pools.index') }}"
                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors">
@@ -12,8 +29,8 @@
                         </svg>
                     </a>
                     <div class="min-w-0">
-                        <h1 class="text-lg font-bold text-white truncate">{{ $pool->name }}</h1>
-                        <p class="text-xs text-slate-400 flex items-center gap-2">
+                        <h1 class="text-base sm:text-lg font-bold text-white truncate">{{ $pool->name }}</h1>
+                        <p class="text-xs text-slate-400 hidden sm:flex items-center gap-2">
                             <span>{{ ucfirst($member->status) }}</span>
                             @if($pool->instructions)
                             <button wire:click="$toggle('showInstructions')" class="text-emerald-400 hover:text-emerald-300 transition-colors">
@@ -24,18 +41,19 @@
                     </div>
                 </div>
 
+                {{-- Posição + Pontos: compactos no mobile, maiores no desktop --}}
+                @if($myRanking)
                 <div class="flex items-center gap-2 shrink-0">
-                    @if($myRanking)
-                    <div class="hidden sm:flex flex-col items-center rounded-lg bg-slate-800 px-3 py-1.5">
-                        <span class="text-xs text-slate-500">Minha posição</span>
-                        <span class="text-lg font-black text-white">#{{ $myRanking->position ?? '—' }}</span>
+                    <div class="flex flex-col items-center rounded-lg bg-slate-800 px-2.5 sm:px-3 py-1 sm:py-1.5">
+                        <span class="pool-stat-label">Posição</span>
+                        <span class="pool-stat-value">#{{ $myRanking->position ?? '—' }}</span>
                     </div>
-                    <div class="hidden sm:flex flex-col items-center rounded-lg bg-slate-800 px-3 py-1.5">
-                        <span class="text-xs text-slate-500">Pontos</span>
-                        <span class="text-lg font-black text-emerald-400">{{ $myRanking->points_total }}</span>
+                    <div class="flex flex-col items-center rounded-lg bg-slate-800 px-2.5 sm:px-3 py-1 sm:py-1.5">
+                        <span class="pool-stat-label">Pts</span>
+                        <span class="pool-stat-value text-emerald-400">{{ $myRanking->points_total }}</span>
                     </div>
-                    @endif
                 </div>
+                @endif
             </div>
 
             {{-- Instructions panel --}}
@@ -46,8 +64,8 @@
             </div>
             @endif
 
-            {{-- Tabs --}}
-            <div class="flex gap-6 mt-3 border-b border-slate-800 -mb-4">
+            {{-- Tabs desktop --}}
+            <div class="pool-tabs-desktop gap-6 mt-3 border-b border-slate-800 -mb-4">
                 @foreach([
                     ['jogos', '⚽ Jogos', null],
                     ['ranking', '🏆 Ranking', null],
@@ -59,8 +77,7 @@
                 </button>
                 @endforeach
 
-                <a href="{{ route('pools.members', $pool->slug) }}"
-                   class="tab-btn ml-auto hidden sm:block">
+                <a href="{{ route('pools.members', $pool->slug) }}" class="tab-btn ml-auto">
                     👥 Participantes
                 </a>
                 @if(in_array($member->role, ['owner', 'manager']))
@@ -70,8 +87,18 @@
                 @endif
             </div>
 
+            {{-- Tabs mobile: pills compactos --}}
+            <div class="pool-tabs-mobile mt-2 mb-1">
+                @foreach(['jogos' => '⚽', 'ranking' => '🏆', 'resumo' => '📊'] as $t => $icon)
+                <button wire:click="setTab('{{ $t }}')"
+                        class="pool-tab-pill {{ $activeTab === $t ? 'active' : '' }}">
+                    {{ $icon }} {{ ucfirst($t) }}
+                </button>
+                @endforeach
+            </div>
+
             {{-- Live scores ticker --}}
-            <div class="mt-4 pb-1"
+            <div class="pool-ticker mt-3 pb-1"
                  x-data="{
                     animated: false,
                     init() {
@@ -90,51 +117,42 @@
                     <div class="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-pitch-900/90 to-transparent pointer-events-none z-10"></div>
                     <div class="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-pitch-900/90 to-transparent pointer-events-none z-10"></div>
 
-                    <div class="px-2 py-2"
-                         :class="animated ? 'ticker-mask' : ''">
-                        <div class="flex items-center gap-2"
-                             x-ref="track"
-                             :class="animated ? 'ticker-track' : ''">
+                    <div class="px-2 py-2" :class="animated ? 'ticker-mask' : ''">
+                        <div class="flex items-center gap-2" x-ref="track" :class="animated ? 'ticker-track' : ''">
                             @foreach($nearestTickerMatches as $matchTicker)
                             @php
                                 $isLiveTicker = in_array($matchTicker->status, ['IN_PLAY', 'PAUSED'], true);
                                 $isFinishedTicker = $matchTicker->status === 'FINISHED';
                                 $statusBadgeClass = 'bg-slate-900/40 text-slate-500 border-slate-700/40';
-                                $statusLabel = $isLiveTicker ? 'Ao vivo' : ($isFinishedTicker ? 'Encerrado' : 'Agendado');
+                                $statusLabel = $isLiveTicker ? 'Ao vivo' : ($isFinishedTicker ? 'Enc.' : 'Ag.');
                             @endphp
                             <a href="{{ route('pools.matches.show', ['pool' => $pool->slug, 'match' => $matchTicker->id]) }}"
-                               class="shrink-0 w-[240px] rounded-md border border-slate-700 bg-pitch-900/70 px-2.5 py-1.5 hover:border-emerald-500/40 transition-colors block">
-                                <div class="flex items-center gap-2">
-                                    <div class="flex items-center gap-1.5 min-w-0 flex-1">
+                               class="ticker-item shrink-0 rounded-md border border-slate-700 bg-pitch-900/70 px-2 py-1.5 hover:border-emerald-500/40 transition-colors block">
+                                <div class="flex items-center gap-1.5">
+                                    <div class="flex items-center min-w-0 flex-1 justify-start">
                                         @if($matchTicker->homeTeam?->crest)
-                                        <img src="{{ $matchTicker->homeTeam->crest }}" alt="{{ $matchTicker->homeTeam->tla }}" class="h-6 w-6 object-contain shrink-0" loading="lazy">
+                                        <img src="{{ $matchTicker->homeTeam->crest }}" alt="{{ $matchTicker->homeTeam->tla }}" class="h-5 w-5 object-contain shrink-0" loading="lazy">
                                         @endif
                                     </div>
-
-                                    <span class="text-[12px] font-bold text-slate-300">vs</span>
-
-                                    <div class="flex items-center gap-1.5 min-w-0 flex-1 justify-end">
+                                    @if($isLiveTicker || $isFinishedTicker)
+                                    <span class="text-[12px] font-black text-white tabular-nums leading-none whitespace-nowrap">
+                                        {{ $matchTicker->home_score_full_time ?? 0 }}-{{ $matchTicker->away_score_full_time ?? 0 }}
+                                    </span>
+                                    @else
+                                    <span class="text-[10px] text-slate-500 whitespace-nowrap tabular-nums">
+                                        {{ ($matchTicker->local_date ?? $matchTicker->utc_date)?->timezone('America/Sao_Paulo')->format('d/m H:i') }}
+                                    </span>
+                                    @endif
+                                    <div class="flex items-center min-w-0 flex-1 justify-end">
                                         @if($matchTicker->awayTeam?->crest)
-                                        <img src="{{ $matchTicker->awayTeam->crest }}" alt="{{ $matchTicker->awayTeam->tla }}" class="h-6 w-6 object-contain shrink-0" loading="lazy">
+                                        <img src="{{ $matchTicker->awayTeam->crest }}" alt="{{ $matchTicker->awayTeam->tla }}" class="h-5 w-5 object-contain shrink-0" loading="lazy">
                                         @endif
                                     </div>
                                 </div>
-
-                                <div class="mt-1 flex items-center justify-between">
-                                    <div class="text-[10px] font-medium text-slate-500">
-                                        {{ ($matchTicker->local_date ?? $matchTicker->utc_date)?->timezone('America/Sao_Paulo')->format('d/m H:i') }}
-                                    </div>
-
-                                    <div class="flex items-center gap-2">
-                                        @if($isLiveTicker || $isFinishedTicker)
-                                        <span class="text-[14px] font-black text-white tabular-nums leading-none">
-                                            {{ $matchTicker->home_score_full_time ?? 0 }} x {{ $matchTicker->away_score_full_time ?? 0 }}
-                                        </span>
-                                        @endif
-                                        <span class="inline-flex items-center rounded-full border px-1.5 py-0 text-[9px] font-normal tracking-normal uppercase {{ $statusBadgeClass }}">
-                                            {{ $statusLabel }}
-                                        </span>
-                                    </div>
+                                <div class="mt-0.5 text-center">
+                                    <span class="inline-flex items-center rounded-full border px-1.5 py-0 text-[9px] font-normal tracking-normal uppercase {{ $statusBadgeClass }}">
+                                        {{ $statusLabel }}
+                                    </span>
                                 </div>
                             </a>
                             @endforeach
@@ -145,41 +163,35 @@
                                     $isLiveTicker = in_array($matchTicker->status, ['IN_PLAY', 'PAUSED'], true);
                                     $isFinishedTicker = $matchTicker->status === 'FINISHED';
                                     $statusBadgeClass = 'bg-slate-900/40 text-slate-500 border-slate-700/40';
-                                    $statusLabel = $isLiveTicker ? 'Ao vivo' : ($isFinishedTicker ? 'Encerrado' : 'Agendado');
+                                    $statusLabel = $isLiveTicker ? 'Ao vivo' : ($isFinishedTicker ? 'Enc.' : 'Ag.');
                                 @endphp
                                 <a href="{{ route('pools.matches.show', ['pool' => $pool->slug, 'match' => $matchTicker->id]) }}"
-                                   class="shrink-0 w-[240px] rounded-md border border-slate-700 bg-pitch-900/70 px-2.5 py-1.5 hover:border-emerald-500/40 transition-colors block">
-                                    <div class="flex items-center gap-2">
-                                        <div class="flex items-center gap-1.5 min-w-0 flex-1">
+                                   class="ticker-item shrink-0 rounded-md border border-slate-700 bg-pitch-900/70 px-2 py-1.5 hover:border-emerald-500/40 transition-colors block">
+                                    <div class="flex items-center gap-1.5">
+                                        <div class="flex items-center min-w-0 flex-1 justify-start">
                                             @if($matchTicker->homeTeam?->crest)
-                                            <img src="{{ $matchTicker->homeTeam->crest }}" alt="{{ $matchTicker->homeTeam->tla }}" class="h-6 w-6 object-contain shrink-0" loading="lazy">
+                                            <img src="{{ $matchTicker->homeTeam->crest }}" alt="{{ $matchTicker->homeTeam->tla }}" class="h-5 w-5 object-contain shrink-0" loading="lazy">
                                             @endif
                                         </div>
-
-                                        <span class="text-[12px] font-bold text-slate-300">vs</span>
-
-                                        <div class="flex items-center gap-1.5 min-w-0 flex-1 justify-end">
+                                        @if($isLiveTicker || $isFinishedTicker)
+                                        <span class="text-[12px] font-black text-white tabular-nums leading-none whitespace-nowrap">
+                                            {{ $matchTicker->home_score_full_time ?? 0 }}-{{ $matchTicker->away_score_full_time ?? 0 }}
+                                        </span>
+                                        @else
+                                        <span class="text-[10px] text-slate-500 whitespace-nowrap tabular-nums">
+                                            {{ ($matchTicker->local_date ?? $matchTicker->utc_date)?->timezone('America/Sao_Paulo')->format('d/m H:i') }}
+                                        </span>
+                                        @endif
+                                        <div class="flex items-center min-w-0 flex-1 justify-end">
                                             @if($matchTicker->awayTeam?->crest)
-                                            <img src="{{ $matchTicker->awayTeam->crest }}" alt="{{ $matchTicker->awayTeam->tla }}" class="h-6 w-6 object-contain shrink-0" loading="lazy">
+                                            <img src="{{ $matchTicker->awayTeam->crest }}" alt="{{ $matchTicker->awayTeam->tla }}" class="h-5 w-5 object-contain shrink-0" loading="lazy">
                                             @endif
                                         </div>
                                     </div>
-
-                                    <div class="mt-1 flex items-center justify-between">
-                                        <div class="text-[10px] font-medium text-slate-500">
-                                            {{ ($matchTicker->local_date ?? $matchTicker->utc_date)?->timezone('America/Sao_Paulo')->format('d/m H:i') }}
-                                        </div>
-
-                                        <div class="flex items-center gap-2">
-                                            @if($isLiveTicker || $isFinishedTicker)
-                                            <span class="text-[14px] font-black text-white tabular-nums leading-none">
-                                                {{ $matchTicker->home_score_full_time ?? 0 }} x {{ $matchTicker->away_score_full_time ?? 0 }}
-                                            </span>
-                                            @endif
-                                            <span class="inline-flex items-center rounded-full border px-1.5 py-0 text-[9px] font-normal tracking-normal uppercase {{ $statusBadgeClass }}">
-                                                {{ $statusLabel }}
-                                            </span>
-                                        </div>
+                                    <div class="mt-0.5 text-center">
+                                        <span class="inline-flex items-center rounded-full border px-1.5 py-0 text-[9px] font-normal tracking-normal uppercase {{ $statusBadgeClass }}">
+                                            {{ $statusLabel }}
+                                        </span>
                                     </div>
                                 </a>
                                 @endforeach
@@ -196,19 +208,88 @@
         </div>
     </div>
 
+    {{-- FAB Config (mobile only) --}}
+    @if(in_array($member->role, ['owner', 'manager']))
+    <div class="pool-mobile-fab">
+        <a href="{{ route('pools.settings', $pool->slug) }}"
+           class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-700 shadow-lg hover:bg-slate-600 text-slate-200 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+        </a>
+    </div>
+    @endif
+
     @once
     <style>
+        /* ── Ranking layout ── */
+        .ranking-layout { display: flex; flex-direction: column; gap: 1rem; }
+        .ranking-main { width: 100%; min-width: 0; }
+        .ranking-side { width: 100%; }
+        @media (min-width: 1024px) {
+            .ranking-layout { flex-direction: row; align-items: flex-start; gap: 1.5rem; }
+            .ranking-main { flex: 1 1 0%; min-width: 0; }
+            .ranking-side { flex: 0 0 220px; width: 220px; }
+        }
+
+        /* ── Ticker ── */
+        .ticker-item { width: 120px; }
+        @media (min-width: 640px) { .ticker-item { width: 240px; } }
         .ticker-mask {
             mask-image: linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
             -webkit-mask-image: linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
         }
-        .ticker-track {
-            width: max-content;
-            animation: live-score-ticker 90s linear infinite;
-        }
+        .ticker-track { width: max-content; animation: live-score-ticker 90s linear infinite; }
         @keyframes live-score-ticker {
             from { transform: translateX(0); }
             to { transform: translateX(-50%); }
+        }
+
+        /* ── Header stat pills ── */
+        .pool-stat-label { font-size: 0.6rem; color: #64748b; line-height: 1; }
+        .pool-stat-value { font-size: 0.9rem; font-weight: 900; color: #fff; line-height: 1.2; }
+        @media (min-width: 640px) {
+            .pool-stat-label { font-size: 0.75rem; }
+            .pool-stat-value { font-size: 1.125rem; }
+        }
+
+        /* ── Tabs: desktop vs mobile ── */
+        .pool-tabs-desktop { display: none; }
+        .pool-tabs-mobile { display: flex; gap: 0.375rem; }
+        @media (min-width: 640px) {
+            .pool-tabs-desktop { display: flex; }
+            .pool-tabs-mobile { display: none; }
+        }
+
+        /* ── Mobile tab pills ── */
+        .pool-tab-pill {
+            padding: 0.3rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #94a3b8;
+            background: transparent;
+            border: 1px solid transparent;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .pool-tab-pill.active {
+            background: rgba(16,185,129,0.15);
+            border-color: rgba(16,185,129,0.3);
+            color: #6ee7b7;
+        }
+
+        /* ── FAB Config (mobile only) ── */
+        .pool-mobile-fab { display: none; }
+        @media (max-width: 639px) {
+            .pool-mobile-fab {
+                display: block;
+                position: fixed;
+                bottom: 1.5rem;
+                right: 1.5rem;
+                z-index: 50;
+            }
         }
     </style>
     @endonce
@@ -503,82 +584,131 @@
     {{-- Tab: Ranking --}}
     @if($activeTab === 'ranking')
     <div class="p-4 sm:p-6 lg:p-8">
-        @if($rankings->isEmpty())
-        <div class="card p-12 text-center">
-            <div class="flex flex-col items-center gap-4">
-                <div class="text-4xl">🏆</div>
-                <p class="text-slate-400">O ranking ainda não foi calculado.</p>
-                <p class="text-sm text-slate-600">Os pontos são calculados automaticamente após cada jogo.</p>
-            </div>
-        </div>
-        @else
-        <div class="card overflow-hidden">
-            <div class="overflow-x-auto">
-                <table class="min-w-full">
-                    <thead>
-                        <tr class="border-b border-slate-800">
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">#</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Participante</th>
-                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Pts</th>
-                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Exatos</th>
-                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Resultados</th>
-                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">Palpites</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-800/60">
-                        @foreach($rankings as $row)
-                        @php
-                            $isMe = $row->user_id === Auth::id();
-                            $medal = match($row->position) { 1 => '🥇', 2 => '🥈', 3 => '🥉', default => null };
-                        @endphp
-                        <tr class="{{ $isMe ? 'bg-emerald-900/10 ring-1 ring-inset ring-emerald-700/20' : 'hover:bg-slate-800/30' }} transition-colors">
-                            <td class="px-4 py-3.5">
-                                <div class="flex items-center gap-1.5">
-                                    @if($medal)
-                                    <span class="text-base">{{ $medal }}</span>
-                                    @else
-                                    <span class="text-sm font-semibold text-slate-500">{{ $row->position }}</span>
+        <div class="ranking-layout">
+            <div class="ranking-main">
+                <div class="card w-full overflow-hidden">
+                    @if($rankings->isEmpty())
+                    <div class="px-4 py-3 border-b border-slate-800 bg-blue-900/10 text-xs text-blue-300">
+                        Ranking provisório: todos empatados na mesma posição até o primeiro cálculo oficial.
+                    </div>
+                    @endif
+                    <div class="w-full overflow-x-auto">
+                        <table class="min-w-full">
+                            <thead>
+                                <tr class="border-b border-slate-800">
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">#</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Participante</th>
+                                    @if($rankingColumns['exact_scores'])
+                                    <th class="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Exatos</th>
                                     @endif
-                                </div>
-                            </td>
-                            <td class="px-4 py-3.5">
-                                <div class="flex items-center gap-3">
-                                    <div class="h-8 w-8 shrink-0 rounded-full flex items-center justify-center text-xs font-bold uppercase
-                                                {{ $isMe ? 'bg-emerald-700 text-white' : 'bg-slate-700 text-slate-300' }}">
-                                        {{ mb_substr($row->user?->name ?? '?', 0, 2) }}
-                                    </div>
-                                    <div>
-                                        <p class="text-sm font-medium {{ $isMe ? 'text-emerald-400' : 'text-slate-200' }}">
-                                            {{ $row->user?->name ?? '—' }}
-                                            @if($isMe) <span class="text-xs text-slate-500">(você)</span> @endif
-                                        </p>
-                                        @if($row->user?->area)
-                                        <p class="text-xs text-slate-600">{{ $row->user->area }}</p>
-                                        @endif
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-4 py-3.5 text-right">
-                                <span class="text-base font-bold {{ $isMe ? 'text-emerald-400' : 'text-white' }}">
-                                    {{ $row->points_total }}
-                                </span>
-                            </td>
-                            <td class="px-4 py-3.5 text-right text-sm text-slate-400 hidden sm:table-cell">
-                                {{ $row->exact_scores }}
-                            </td>
-                            <td class="px-4 py-3.5 text-right text-sm text-slate-400 hidden sm:table-cell">
-                                {{ $row->correct_results }}
-                            </td>
-                            <td class="px-4 py-3.5 text-right text-sm text-slate-500 hidden md:table-cell">
-                                {{ $row->predictions_counted }}
-                            </td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+                                    @if($rankingColumns['correct_results'])
+                                    <th class="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Resultados</th>
+                                    @endif
+                                    @if($rankingColumns['correct_goals'])
+                                    <th class="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Gols</th>
+                                    @endif
+                                    <th class="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">Palpites</th>
+                                    <th class="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase">Pts</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800/60">
+                                @foreach($rankingRows as $row)
+                                @php
+                                    $isMe = $row->user_id === Auth::id();
+                                    $medal = match($row->position) { 1 => '🥇', 2 => '🥈', 3 => '🥉', default => null };
+                                    $name = $row->user?->public_name ?? '—';
+                                    $fullName = trim((string) ($row->user?->name ?? ''));
+                                    $parts = array_values(array_filter(preg_split('/\s+/u', $fullName) ?: []));
+                                    $initials = $parts === [] ? mb_substr($name, 0, 2) : (
+                                        mb_substr($parts[0] ?? '', 0, 1) .
+                                        mb_substr($parts[1] ?? ($parts[0] ?? ''), 0, 1)
+                                    );
+                                    $goalsHits = (int) ($row->correct_home_goals ?? 0) + (int) ($row->correct_away_goals ?? 0);
+                                @endphp
+                                <tr class="{{ $isMe ? 'bg-emerald-900/10 ring-1 ring-inset ring-emerald-700/20' : 'hover:bg-slate-800/30' }} transition-colors">
+                                    <td class="px-4 py-3.5">
+                                        <div class="flex items-center gap-1.5">
+                                            @if($medal)
+                                            <span class="text-base">{{ $medal }}</span>
+                                            @else
+                                            <span class="text-sm font-semibold text-slate-500">{{ $row->position }}</span>
+                                            @endif
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-3.5">
+                                        <div class="flex items-center gap-3">
+                                            <div class="h-8 w-8 shrink-0 rounded-full flex items-center justify-center text-xs font-bold uppercase
+                                                        {{ $isMe ? 'bg-emerald-700 text-white' : 'bg-slate-700 text-slate-300' }}">
+                                                {{ mb_strtoupper($initials) }}
+                                            </div>
+                                            <div>
+                                                <p class="text-sm font-medium {{ $isMe ? 'text-emerald-400' : 'text-slate-200' }}">
+                                                    {{ $name }}
+                                                    @if($isMe) <span class="text-xs text-slate-500">(você)</span> @endif
+                                                </p>
+                                                @if($row->user?->area)
+                                                <p class="text-xs text-slate-600">{{ $row->user->area }}</p>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </td>
+                                    @if($rankingColumns['exact_scores'])
+                                    <td class="px-4 py-3.5 text-center text-sm text-slate-400 hidden sm:table-cell">
+                                        {{ $row->exact_scores }}
+                                    </td>
+                                    @endif
+                                    @if($rankingColumns['correct_results'])
+                                    <td class="px-4 py-3.5 text-center text-sm text-slate-400 hidden sm:table-cell">
+                                        {{ $row->correct_results }}
+                                    </td>
+                                    @endif
+                                    @if($rankingColumns['correct_goals'])
+                                    <td class="px-4 py-3.5 text-center text-sm text-slate-400 hidden sm:table-cell">
+                                        {{ $goalsHits }}
+                                    </td>
+                                    @endif
+                                    <td class="px-4 py-3.5 text-center text-sm text-slate-500 hidden md:table-cell">
+                                        {{ $row->predictions_counted }}
+                                    </td>
+                                    <td class="px-4 py-3.5 text-center">
+                                        <span class="text-xl font-black {{ $isMe ? 'text-emerald-400' : 'text-white' }}">
+                                            {{ $row->points_total }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ranking-side">
+                <div class="card p-4 space-y-3 lg:sticky lg:top-20">
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Critérios do Bolão</h3>
+                    <div class="space-y-2 text-xs">
+                        @if($rankingColumns['exact_scores'])
+                        <div class="flex items-center justify-between rounded-lg bg-slate-800/60 px-2.5 py-2">
+                            <span class="text-slate-400">Exato</span>
+                            <span class="text-emerald-300 font-semibold">{{ $pool->points_exact_score ?? 5 }} pts</span>
+                        </div>
+                        @endif
+                        @if($rankingColumns['correct_results'])
+                        <div class="flex items-center justify-between rounded-lg bg-slate-800/60 px-2.5 py-2">
+                            <span class="text-slate-400">Resultado</span>
+                            <span class="text-emerald-300 font-semibold">{{ $pool->points_correct_result ?? 3 }} pts</span>
+                        </div>
+                        @endif
+                        @if($rankingColumns['correct_goals'])
+                        <div class="flex items-center justify-between rounded-lg bg-slate-800/60 px-2.5 py-2">
+                            <span class="text-slate-400">Gols time</span>
+                            <span class="text-emerald-300 font-semibold">{{ $pool->points_correct_goals ?? 1 }} pts</span>
+                        </div>
+                        @endif
+                    </div>
+                </div>
             </div>
         </div>
-        @endif
     </div>
     @endif
 
