@@ -81,10 +81,10 @@ jobs:
                 APP_VERSION="$(git rev-parse --abbrev-ref HEAD)-$(git rev-parse --short HEAD)"
               fi
               echo "APP_VERSION=$APP_VERSION"
-              if grep -q '^APP_VERSION=' src/.env; then
-                sed -i "s/^APP_VERSION=.*/APP_VERSION=$APP_VERSION/" src/.env
+              if grep -q '^APP_VERSION=' .env; then
+                sed -i "s/^APP_VERSION=.*/APP_VERSION=$APP_VERSION/" .env
               else
-                echo "APP_VERSION=$APP_VERSION" >> src/.env
+                echo "APP_VERSION=$APP_VERSION" >> .env
               fi
 
               echo "== Voltando para compose externo =="
