@@ -44,6 +44,7 @@
                             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">Dono</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden lg:table-cell">Código</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden lg:table-cell">Membros</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden xl:table-cell">Criado em</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Ações</th>
                         </tr>
@@ -82,6 +83,9 @@
                                 <td class="px-4 py-3.5 text-sm text-slate-400 hidden lg:table-cell">
                                     {{ $pool->members_count }}
                                 </td>
+                                <td class="px-4 py-3.5 text-xs text-slate-500 hidden xl:table-cell">
+                                    {{ $pool->created_at?->format('d/m/Y H:i') ?? '—' }}
+                                </td>
                                 <td class="px-4 py-3.5">
                                     <span class="{{ $statusBadge }}">{{ $statusLabel }}</span>
                                 </td>
@@ -99,12 +103,17 @@
                                                 Reativar
                                             </button>
                                         @endif
+                                        <button wire:click="destroy({{ $pool->id }})"
+                                                wire:confirm="Excluir definitivamente o grupo {{ addslashes($pool->name) }}? Esta ação é irreversível."
+                                                class="inline-flex items-center rounded-md bg-red-900/40 px-2 py-1 text-xs font-medium text-red-300 ring-1 ring-red-600/40 hover:bg-red-900/60 transition-colors">
+                                            Excluir
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-4 py-12 text-center text-sm text-slate-500">
+                                <td colspan="7" class="px-4 py-12 text-center text-sm text-slate-500">
                                     Nenhum grupo encontrado.
                                 </td>
                             </tr>
@@ -150,6 +159,10 @@
                             <p class="text-slate-200 text-sm mt-1">{{ $selectedPool->members_count }}</p>
                         </div>
                     </div>
+                    <div class="mt-2 rounded-lg bg-pitch-800 border border-slate-700 p-3">
+                        <p class="text-[11px] text-slate-500 uppercase">Criado em</p>
+                        <p class="text-slate-200 text-sm mt-1">{{ $selectedPool->created_at?->format('d/m/Y H:i') ?? '—' }}</p>
+                    </div>
 
                     <div class="mt-4 space-y-3">
                         <div>
@@ -163,6 +176,12 @@
                     </div>
 
                     <div class="mt-5">
+                        <button wire:click="destroy({{ $selectedPool->id }})"
+                                wire:confirm="Excluir definitivamente o grupo {{ addslashes($selectedPool->name) }}? Esta ação é irreversível."
+                                class="inline-flex items-center rounded-md bg-red-900/40 px-2.5 py-1.5 text-xs font-medium text-red-300 ring-1 ring-red-600/40 hover:bg-red-900/60 transition-colors mb-3">
+                            Excluir grupo definitivamente
+                        </button>
+
                         <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Participantes</p>
                         <div class="max-h-72 overflow-y-auto space-y-1 pr-1">
                             @forelse($selectedPool->members as $member)

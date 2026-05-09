@@ -22,16 +22,18 @@ class WelcomeWithTemporaryPasswordNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $recipientName = $notifiable->public_name ?? $notifiable->name ?? 'Usuário';
-        $displayName = $notifiable->display_name ?? 'Não informado';
+        $displayName   = $notifiable->display_name ?? 'Não informado';
+        $appName       = config('app.name');
 
         return (new MailMessage)
-            ->subject('Acesso inicial da conta')
-            ->greeting('Olá '.$recipientName.',')
-            ->line('Seu pré-cadastro foi realizado com sucesso.')
-            ->line('Apelido: '.$displayName)
-            ->line('Senha temporária: '.$this->temporaryPassword)
-            ->line('No primeiro login você será obrigado a trocar a senha.')
-            ->action('Entrar no sistema', route('login'))
-            ->line('Se você não solicitou este cadastro, ignore este e-mail.');
+            ->subject("Bem-vindo(a) ao {$appName} — seus dados de acesso")
+            ->greeting("Olá, {$recipientName}!")
+            ->line('Seu cadastro foi criado com sucesso. Confira abaixo seus dados de acesso:')
+            ->line("**Apelido:** {$displayName}")
+            ->line("**Senha temporária:** {$this->temporaryPassword}")
+            ->line('Por segurança, você deverá criar uma nova senha no primeiro acesso.')
+            ->action('Acessar agora', route('login'))
+            ->line('Se você não solicitou este cadastro ou recebeu este e-mail por engano, desconsidere-o.')
+            ->salutation('Atenciosamente,');
     }
 }

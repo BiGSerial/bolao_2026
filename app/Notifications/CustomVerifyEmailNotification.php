@@ -12,15 +12,17 @@ class CustomVerifyEmailNotification extends VerifyEmail
 
     public function toMail($notifiable): MailMessage
     {
-        $recipientName = $notifiable->public_name ?? $notifiable->name ?? 'Usuário';
-        $verificationUrl = $this->verificationUrl($notifiable);
+        $recipientName    = $notifiable->public_name ?? $notifiable->name ?? 'Usuário';
+        $verificationUrl  = $this->verificationUrl($notifiable);
+        $appName          = config('app.name');
 
         return (new MailMessage)
-            ->subject('Confirmação de e-mail da conta')
-            ->greeting('Olá '.$recipientName.',')
-            ->line('Confirme seu endereço de e-mail para concluir a ativação da conta.')
+            ->subject("Confirme seu e-mail — {$appName}")
+            ->greeting("Olá, {$recipientName}!")
+            ->line('Obrigado por se cadastrar! Para ativar sua conta, confirme seu endereço de e-mail clicando no botão abaixo.')
             ->action('Confirmar e-mail', $verificationUrl)
-            ->line('Se você não criou uma conta em nossa plataforma, ignore este e-mail.');
+            ->line('Este link de confirmação expira em **60 minutos**.')
+            ->line('Se você não criou uma conta em nossa plataforma, desconsidere este e-mail.')
+            ->salutation('Atenciosamente,');
     }
 }
-

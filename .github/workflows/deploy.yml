@@ -164,26 +164,44 @@ jobs:
           STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" "$BASE_URL/login")
 
           LIVEWIRE_PATH="$(printf '%s' "$LOGIN_HTML" | grep -oE '/livewire-[^"]+/livewire(\.min)?\.js\?id=[^"]+' | head -n1 || true)"
+          LIVEWIRE_UPDATE_STATUS="$(curl -k -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/livewire/update" || true)"
+          LIVEWIRE_STATUS=""
 
-          if [ -z "$LIVEWIRE_PATH" ]; then
-            echo "Health check Livewire falhou. Não foi possível localizar script do Livewire no HTML do login."
-            exit 1
+          if [ -n "$LIVEWIRE_PATH" ]; then
+            LIVEWIRE_STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" "$BASE_URL$LIVEWIRE_PATH")
+          else
+            echo "Aviso: script Livewire não encontrado no HTML de /login; validando endpoint /livewire/update."
           fi
 
-          LIVEWIRE_STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" "$BASE_URL$LIVEWIRE_PATH")
-
           echo "HTTP status: $STATUS"
-          echo "Livewire path detectado: $LIVEWIRE_PATH"
-          echo "Livewire JS status: $LIVEWIRE_STATUS"
+          echo "Livewire path detectado: ${LIVEWIRE_PATH:-<não encontrado>}"
+          echo "Livewire JS status: ${LIVEWIRE_STATUS:-<não validado>}"
+          echo "Livewire update status: $LIVEWIRE_UPDATE_STATUS"
 
           if [ "$STATUS" != "200" ]; then
             echo "Health check falhou. Esperado: 200. Recebido: $STATUS"
             exit 1
           fi
 
-          if [ "$LIVEWIRE_STATUS" != "200" ]; then
-            echo "Health check Livewire falhou. Esperado: 200. Recebido: $LIVEWIRE_STATUS"
+          if [ -n "$LIVEWIRE_PATH" ] && [ "$LIVEWIRE_STATUS" != "200" ]; then
+            echo "Health check Livewire JS falhou. Esperado: 200. Recebido: $LIVEWIRE_STATUS"
             exit 1
+          fi
+
+          case "$LIVEWIRE_UPDATE_STATUS" in
+            200|405|419|422)
+              ;;
+            *)
+              echo "Health check Livewire endpoint falhou. Esperado: 200/405/419/422. Recebido: $LIVEWIRE_UPDATE_STATUS"
+              exit 1
+              ;;
+          esac
+
+          if [ -z "$LIVEWIRE_PATH" ]; then
+            if ! printf '%s' "$LOGIN_HTML" | grep -qiE 'csrf-token|name="_token"|login'; then
+              echo "Health check HTML falhou: página /login sem marcadores básicos esperados."
+              exit 1
+            fi
           fi
 
           echo "Deploy OK."

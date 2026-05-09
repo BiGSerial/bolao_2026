@@ -242,6 +242,37 @@
                         @error('tieBreakers') <p class="text-xs text-red-400">{{ $message }}</p> @enderror
                         @error('tieBreakers.*') <p class="text-xs text-red-400">{{ $message }}</p> @enderror
                     </div>
+
+                    @if(auth()->id() === $pool->owner_id)
+                    <div class="rounded-xl border border-red-900/60 bg-red-950/20 p-4 space-y-4">
+                        <div>
+                            <h3 class="text-sm font-semibold text-red-300">Deletar Grupo</h3>
+                            <p class="mt-1 text-xs text-red-200/80">
+                                Essa ação remove o grupo da sua visão, mantendo os dados para auditoria.
+                            </p>
+                        </div>
+
+                        <div class="rounded-lg border border-red-900/70 bg-red-950/30 px-3 py-2">
+                            <p class="text-[11px] uppercase tracking-wider text-red-300/90">Palavra de confirmação</p>
+                            <p class="mt-1 font-mono text-lg font-bold text-red-200">{{ $deleteChallenge }}</p>
+                        </div>
+
+                        <div>
+                            <label class="label">Digite a palavra acima para confirmar</label>
+                            <input type="text" wire:model.defer="deletePhrase" class="input-field">
+                            @error('deletePhrase') <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <button type="button" wire:click="regenerateDeleteChallenge" class="btn-ghost">
+                                Gerar nova palavra
+                            </button>
+                            <button type="button" wire:click="deletePool" class="btn-danger" wire:loading.attr="disabled">
+                                Deletar o Grupo
+                            </button>
+                        </div>
+                    </div>
+                    @endif
                 </div>
             </div>
         </div>

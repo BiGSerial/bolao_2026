@@ -63,6 +63,30 @@ class PoolsControl extends Component
         $this->dispatch('swal:alert', ['icon' => 'success', 'title' => 'Grupo reativado', 'text' => "O grupo {$pool->name} foi reativado."]);
     }
 
+    public function destroy(int $poolId): void
+    {
+        $this->assertAdmin();
+
+        $pool = Pool::query()->whereKey($poolId)->first();
+        if (! $pool) {
+            $this->dispatch('swal:alert', ['icon' => 'error', 'title' => 'Erro', 'text' => 'Grupo não encontrado.']);
+            return;
+        }
+
+        $name = $pool->name;
+        $pool->forceDelete();
+
+        if ($this->selectedPoolId === $poolId) {
+            $this->selectedPoolId = null;
+        }
+
+        $this->dispatch('swal:alert', [
+            'icon' => 'success',
+            'title' => 'Grupo removido',
+            'text' => "O grupo {$name} foi removido definitivamente.",
+        ]);
+    }
+
     private function assertAdmin(): void
     {
         abort_unless((bool) Auth::user()?->is_admin, 403);

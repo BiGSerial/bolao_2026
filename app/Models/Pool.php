@@ -5,9 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Pool extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'owner_id','name','slug','description','instructions','sectors','tie_breakers','visibility','status','invite_code',
         'allow_prediction_changes','prediction_lock_minutes','allow_pending_member_predictions','stage',

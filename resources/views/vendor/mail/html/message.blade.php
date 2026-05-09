@@ -16,9 +16,7 @@
     @endisset
 
     <x-slot:footer>
-        <x-mail::footer>
-            © {{ date('Y') }} VixForge Sistemas. Todos os direitos reservados.
-        </x-mail::footer>
+        <x-mail::footer></x-mail::footer>
     </x-slot:footer>
 </x-mail::layout>
 

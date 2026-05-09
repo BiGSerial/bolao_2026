@@ -22,19 +22,21 @@ class PoolInviteNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $pool = $this->invite->pool;
-        $url = route('pools.invites.accept', ['token' => $this->invite->token]);
+        $pool          = $this->invite->pool;
+        $url           = route('pools.invites.accept', ['token' => $this->invite->token]);
         $recipientName = data_get($notifiable, 'public_name')
             ?? data_get($notifiable, 'name')
             ?? 'Usuário';
+        $appName = config('app.name');
 
         return (new MailMessage)
-            ->subject('Convite para o bolão '.$pool->name)
-            ->greeting('Olá '.$recipientName.',')
-            ->line('Você recebeu um convite para um bolão.')
-            ->line('Bolão: '.$pool->name)
-            ->line('Se você ainda não tem cadastro, crie sua conta e a entrada será feita automaticamente.')
+            ->subject("Convite para o bolão \"{$pool->name}\" — {$appName}")
+            ->greeting("Olá, {$recipientName}!")
+            ->line("Você recebeu um convite para participar do bolão **{$pool->name}**.")
+            ->line('Aceite o convite e comece a fazer seus palpites para concorrer com seus amigos.')
             ->action('Aceitar convite', $url)
-            ->line('Este convite expira em 7 dias.');
+            ->line('Ainda não tem cadastro? Não se preocupe — crie sua conta e a entrada no bolão será feita automaticamente.')
+            ->line('Este convite expira em **7 dias**.')
+            ->salutation('Atenciosamente,');
     }
 }

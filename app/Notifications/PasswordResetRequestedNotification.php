@@ -27,21 +27,23 @@ class PasswordResetRequestedNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $recipientName = $notifiable->public_name ?? $notifiable->name ?? 'Usuário';
-        $resetUrl = url(route('password.reset', [
+        $resetUrl      = url(route('password.reset', [
             'token' => $this->token,
             'email' => $notifiable->getEmailForPasswordReset(),
         ], false));
+        $appName = config('app.name');
 
         return (new MailMessage)
-            ->subject('Recuperação de senha solicitada')
-            ->greeting('Olá '.$recipientName.',')
+            ->subject("Redefinição de senha — {$appName}")
+            ->greeting("Olá, {$recipientName}!")
             ->line('Recebemos uma solicitação para redefinir a senha da sua conta.')
-            ->action('Redefinir senha', $resetUrl)
-            ->line('Se você não solicitou essa ação, ignore este e-mail.')
-            ->line('Dados da solicitação:')
-            ->line('IP: '.$this->context['ip'])
-            ->line('Agente/Navegador: '.$this->context['user_agent'])
-            ->line('Horário: '.$this->context['requested_at']);
+            ->line('Clique no botão abaixo para criar uma nova senha. **O link expira em 60 minutos.**')
+            ->action('Redefinir minha senha', $resetUrl)
+            ->line('Se você não fez essa solicitação, recomendamos que troque sua senha imediatamente.')
+            ->line('**Detalhes da solicitação:**')
+            ->line("Endereço IP: {$this->context['ip']}")
+            ->line("Navegador: {$this->context['user_agent']}")
+            ->line("Data e hora: {$this->context['requested_at']}")
+            ->salutation('Atenciosamente,');
     }
 }
-

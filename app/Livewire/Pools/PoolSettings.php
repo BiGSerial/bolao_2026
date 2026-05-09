@@ -7,6 +7,7 @@ use App\Models\Pool;
 use App\Services\Predictions\PredictionScoringService;
 use App\Services\Pools\PoolRankingService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Livewire\Component;
 
 class PoolSettings extends Component
@@ -40,6 +41,8 @@ class PoolSettings extends Component
     /** @var string[] */
     public array $tieBreakers = [];
     public string $newTieBreaker = '';
+    public string $deleteChallenge = '';
+    public string $deletePhrase = '';
 
     public function mount(Pool $pool): void
     {
@@ -63,6 +66,8 @@ class PoolSettings extends Component
             $this->tieBreakers,
             fn (string $item) => in_array($item, $this->enabledTieBreakerCriteria(), true)
         ));
+
+        $this->regenerateDeleteChallenge();
     }
 
     public function addSector(): void
@@ -195,6 +200,31 @@ class PoolSettings extends Component
 
         session()->flash('status', 'Configurações atualizadas com sucesso.');
         $this->notify('success', 'Configurações salvas', 'As alterações do bolão foram aplicadas.');
+    }
+
+    public function regenerateDeleteChallenge(): void
+    {
+        $this->deleteChallenge = Str::upper(Str::random(6));
+        $this->deletePhrase = '';
+    }
+
+    public function deletePool(): void
+    {
+        $member = $this->pool->members()->where('user_id', Auth::id())->first();
+        abort_unless($member && $member->role === PoolMemberRole::Owner->value, 403);
+
+        $this->validate([
+            'deletePhrase' => ['required', 'string', 'in:'.$this->deleteChallenge],
+        ], [
+            'deletePhrase.in' => 'A palavra de confirmação não confere.',
+            'deletePhrase.required' => 'Digite a palavra de confirmação.',
+        ]);
+
+        $name = $this->pool->name;
+        $this->pool->delete();
+
+        session()->flash('status', "Grupo {$name} removido com sucesso.");
+        $this->redirect(route('pools.index'), navigate: true);
     }
 
     private function assertManager(): void

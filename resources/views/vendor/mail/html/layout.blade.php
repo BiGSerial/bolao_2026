@@ -19,12 +19,20 @@
                 {{ $header ?? '' }}
 
                 <tr>
-                    <td style="padding:28px 28px 16px 28px; color:#dbeafe; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:1.6;">
+                    <td style="padding:32px 32px 24px 32px; color:#dbeafe; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:1.7;">
                         {{ Illuminate\Mail\Markdown::parse($slot) }}
-
-                        {{ $subcopy ?? '' }}
                     </td>
                 </tr>
+
+                @if(!empty(trim((string)($subcopy ?? ''))))
+                <tr>
+                    <td style="padding:0 32px 20px 32px; border-top:1px dashed #1e3a6a;">
+                        <div style="padding-top:14px; color:#7dd3fc; font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:1.6;">
+                            {{ $subcopy }}
+                        </div>
+                    </td>
+                </tr>
+                @endif
 
                 {{ $footer ?? '' }}
             </table>
@@ -33,4 +41,3 @@
 </table>
 </body>
 </html>
-

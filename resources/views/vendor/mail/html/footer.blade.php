@@ -1,14 +1,12 @@
 <tr>
-    <td style="padding:16px 28px 22px 28px; border-top:1px solid #1e3a6a; color:#93c5fd; font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:1.5;">
-        @if(isset($slot) && trim((string) $slot) !== '')
-        <div style="margin-bottom:8px;">
-            {!! Illuminate\Mail\Markdown::parse($slot) !!}
+    <td style="padding:20px 28px 28px 28px; border-top:1px solid #1e3a6a; font-family:Arial, Helvetica, sans-serif; text-align:center;">
+        <div style="margin-bottom:6px; color:#10b981; font-size:13px; font-weight:700; letter-spacing:0.3px;">
+            {{ config('app.name') }}
         </div>
-        @endif
-        <div style="margin-bottom:8px;">
-            Plataforma recreativa de organização de palpites esportivos entre usuários.
+        <div style="margin-bottom:6px; color:#93c5fd; font-size:12px; line-height:1.5;">
+            Plataforma recreativa de palpites esportivos entre amigos.
         </div>
-        <div style="color:#7dd3fc;">
+        <div style="color:#4b6e9a; font-size:11px;">
             © {{ date('Y') }} VixForge Sistemas. Todos os direitos reservados.
         </div>
     </td>
