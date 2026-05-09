@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Pools;
 
+use App\Events\PoolMembersUpdated;
 use App\Enums\PoolMemberStatus;
 use App\Models\Pool;
 use App\Models\PoolMember;
@@ -76,6 +77,7 @@ class PoolIndex extends Component
             'sector' => ! empty($this->invite_sectors) ? ($data['invite_sector'] ?: null) : null,
             'status' => PoolMemberStatus::Pending->value,
         ]);
+        PoolMembersUpdated::dispatch($pool);
 
         session()->flash('status', 'Solicitacao enviada. Aguarde liberacao do gestor do bolao.');
         $this->invite_code = '';
@@ -117,6 +119,7 @@ class PoolIndex extends Component
             'sector' => null,
             'status' => PoolMemberStatus::Pending->value,
         ]);
+        PoolMembersUpdated::dispatch($pool);
 
         session()->flash('status', 'Solicitação enviada. Aguarde aprovação do gestor do bolão.');
     }

@@ -126,61 +126,73 @@
                         </td>
                         <td class="px-4 py-3.5">
                             @if(! $isSelf)
-                            <div class="flex flex-wrap gap-1.5">
-                                @if($user->status !== 'active')
-                                <button wire:click="approve({{ $user->id }})"
-                                        wire:loading.attr="disabled"
-                                        wire:target="approve({{ $user->id }})"
-                                        class="inline-flex items-center rounded-md bg-emerald-700/30 px-2 py-1 text-xs font-medium text-emerald-400 ring-1 ring-emerald-500/30 hover:bg-emerald-700/50 transition-colors disabled:opacity-60">
-                                    <span wire:loading.remove wire:target="approve({{ $user->id }})">Aprovar</span>
-                                    <span wire:loading wire:target="approve({{ $user->id }})">Aprovando...</span>
-                                </button>
-                                @endif
-                                @if($user->status === 'active')
-                                <button wire:click="suspend({{ $user->id }})"
-                                        wire:loading.attr="disabled"
-                                        wire:target="suspend({{ $user->id }})"
-                                        class="inline-flex items-center rounded-md bg-amber-700/30 px-2 py-1 text-xs font-medium text-amber-400 ring-1 ring-amber-500/30 hover:bg-amber-700/50 transition-colors disabled:opacity-60">
-                                    <span wire:loading.remove wire:target="suspend({{ $user->id }})">Suspender</span>
-                                    <span wire:loading wire:target="suspend({{ $user->id }})">Suspendendo...</span>
-                                </button>
-                                @endif
-                                @if($user->status !== 'banned')
-                                <button wire:click="ban({{ $user->id }})"
-                                        wire:confirm="Banir {{ addslashes($user->name) }} da plataforma?"
-                                        wire:loading.attr="disabled"
-                                        wire:target="ban({{ $user->id }})"
-                                        class="inline-flex items-center rounded-md bg-rose-700/30 px-2 py-1 text-xs font-medium text-rose-300 ring-1 ring-rose-500/30 hover:bg-rose-700/50 transition-colors disabled:opacity-60">
-                                    <span wire:loading.remove wire:target="ban({{ $user->id }})">Banir</span>
-                                    <span wire:loading wire:target="ban({{ $user->id }})">Banindo...</span>
-                                </button>
-                                @endif
-                                @if(! in_array($user->status, ['rejected']))
-                                <button wire:click="reject({{ $user->id }})"
-                                        wire:confirm="Rejeitar {{ addslashes($user->name) }}?"
-                                        wire:loading.attr="disabled"
-                                        wire:target="reject({{ $user->id }})"
-                                        class="inline-flex items-center rounded-md bg-red-700/30 px-2 py-1 text-xs font-medium text-red-400 ring-1 ring-red-500/30 hover:bg-red-700/50 transition-colors disabled:opacity-60">
-                                    <span wire:loading.remove wire:target="reject({{ $user->id }})">Rejeitar</span>
-                                    <span wire:loading wire:target="reject({{ $user->id }})">Rejeitando...</span>
-                                </button>
-                                @endif
-                                <button wire:click="resendTemporaryPassword({{ $user->id }})"
-                                        wire:loading.attr="disabled"
-                                        wire:target="resendTemporaryPassword({{ $user->id }})"
-                                        class="inline-flex items-center rounded-md bg-blue-700/30 px-2 py-1 text-xs font-medium text-blue-300 ring-1 ring-blue-500/30 hover:bg-blue-700/50 transition-colors disabled:opacity-60">
-                                    <span wire:loading.remove wire:target="resendTemporaryPassword({{ $user->id }})">Reenviar senha</span>
-                                    <span wire:loading wire:target="resendTemporaryPassword({{ $user->id }})">Enviando...</span>
-                                </button>
-                                <button wire:click="destroyUserData({{ $user->id }})"
-                                        wire:confirm="Excluir todos os dados de {{ addslashes($user->name) }}? Esta ação é irreversível."
-                                        wire:loading.attr="disabled"
-                                        wire:target="destroyUserData({{ $user->id }})"
-                                        class="inline-flex items-center rounded-md bg-red-800/40 px-2 py-1 text-xs font-medium text-red-300 ring-1 ring-red-600/40 hover:bg-red-800/60 transition-colors disabled:opacity-60">
-                                    <span wire:loading.remove wire:target="destroyUserData({{ $user->id }})">Remover dados</span>
-                                    <span wire:loading wire:target="destroyUserData({{ $user->id }})">Removendo...</span>
-                                </button>
-                            </div>
+                            <details class="relative">
+                                <summary class="list-none cursor-pointer inline-flex items-center gap-2 rounded-md border border-slate-700 bg-slate-800/60 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700/70">
+                                    Ações
+                                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                    </svg>
+                                </summary>
+                                <div class="absolute right-0 z-20 mt-2 w-56 rounded-lg border border-slate-700 bg-slate-900/95 p-1.5 shadow-2xl backdrop-blur">
+                                    <button wire:click="toggleAdmin({{ $user->id }})"
+                                            class="w-full rounded-md px-2.5 py-2 text-left text-xs text-slate-200 hover:bg-slate-800">
+                                        {{ $user->is_admin ? 'Remover permissão de admin' : 'Tornar administrador' }}
+                                    </button>
+                                    @if($user->status !== 'active')
+                                    <button wire:click="approve({{ $user->id }})"
+                                            wire:loading.attr="disabled"
+                                            wire:target="approve({{ $user->id }})"
+                                            class="w-full rounded-md px-2.5 py-2 text-left text-xs text-emerald-300 hover:bg-slate-800 disabled:opacity-60">
+                                        <span wire:loading.remove wire:target="approve({{ $user->id }})">Aprovar usuário</span>
+                                        <span wire:loading wire:target="approve({{ $user->id }})">Aprovando...</span>
+                                    </button>
+                                    @endif
+                                    @if($user->status === 'active')
+                                    <button wire:click="suspend({{ $user->id }})"
+                                            wire:loading.attr="disabled"
+                                            wire:target="suspend({{ $user->id }})"
+                                            class="w-full rounded-md px-2.5 py-2 text-left text-xs text-amber-300 hover:bg-slate-800 disabled:opacity-60">
+                                        <span wire:loading.remove wire:target="suspend({{ $user->id }})">Suspender usuário</span>
+                                        <span wire:loading wire:target="suspend({{ $user->id }})">Suspendendo...</span>
+                                    </button>
+                                    @endif
+                                    @if($user->status !== 'banned')
+                                    <button wire:click="ban({{ $user->id }})"
+                                            wire:confirm="Banir {{ addslashes($user->name) }} da plataforma?"
+                                            wire:loading.attr="disabled"
+                                            wire:target="ban({{ $user->id }})"
+                                            class="w-full rounded-md px-2.5 py-2 text-left text-xs text-rose-300 hover:bg-slate-800 disabled:opacity-60">
+                                        <span wire:loading.remove wire:target="ban({{ $user->id }})">Banir usuário</span>
+                                        <span wire:loading wire:target="ban({{ $user->id }})">Banindo...</span>
+                                    </button>
+                                    @endif
+                                    @if(! in_array($user->status, ['rejected']))
+                                    <button wire:click="reject({{ $user->id }})"
+                                            wire:confirm="Rejeitar {{ addslashes($user->name) }}?"
+                                            wire:loading.attr="disabled"
+                                            wire:target="reject({{ $user->id }})"
+                                            class="w-full rounded-md px-2.5 py-2 text-left text-xs text-red-300 hover:bg-slate-800 disabled:opacity-60">
+                                        <span wire:loading.remove wire:target="reject({{ $user->id }})">Rejeitar usuário</span>
+                                        <span wire:loading wire:target="reject({{ $user->id }})">Rejeitando...</span>
+                                    </button>
+                                    @endif
+                                    <button wire:click="resendTemporaryPassword({{ $user->id }})"
+                                            wire:loading.attr="disabled"
+                                            wire:target="resendTemporaryPassword({{ $user->id }})"
+                                            class="w-full rounded-md px-2.5 py-2 text-left text-xs text-blue-300 hover:bg-slate-800 disabled:opacity-60">
+                                        <span wire:loading.remove wire:target="resendTemporaryPassword({{ $user->id }})">Reenviar senha temporária</span>
+                                        <span wire:loading wire:target="resendTemporaryPassword({{ $user->id }})">Enviando...</span>
+                                    </button>
+                                    <button wire:click="destroyUserData({{ $user->id }})"
+                                            wire:confirm="Excluir todos os dados de {{ addslashes($user->name) }}? Esta ação é irreversível."
+                                            wire:loading.attr="disabled"
+                                            wire:target="destroyUserData({{ $user->id }})"
+                                            class="w-full rounded-md px-2.5 py-2 text-left text-xs text-red-200 hover:bg-red-950/40 disabled:opacity-60">
+                                        <span wire:loading.remove wire:target="destroyUserData({{ $user->id }})">Remover todos os dados</span>
+                                        <span wire:loading wire:target="destroyUserData({{ $user->id }})">Removendo...</span>
+                                    </button>
+                                </div>
+                            </details>
                             @endif
                         </td>
                     </tr>

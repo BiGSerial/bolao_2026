@@ -13,6 +13,7 @@ use DomainException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class PoolMembers extends Component
@@ -26,6 +27,12 @@ class PoolMembers extends Component
     {
         $this->pool = $pool;
         $this->assertManager();
+    }
+
+    #[On('echo-private:pool.{pool.id},MembersUpdated')]
+    public function refreshMembers(): void
+    {
+        $this->pool->refresh();
     }
 
     public function activateMember(int $memberId, PoolMembershipService $service): void

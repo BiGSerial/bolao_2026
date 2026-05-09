@@ -43,6 +43,7 @@ class PoolSettings extends Component
     public string $newTieBreaker = '';
     public string $deleteChallenge = '';
     public string $deletePhrase = '';
+    public bool $showDeleteConfirm = false;
 
     public function mount(Pool $pool): void
     {
@@ -205,6 +206,18 @@ class PoolSettings extends Component
     public function regenerateDeleteChallenge(): void
     {
         $this->deleteChallenge = Str::upper(Str::random(6));
+        $this->deletePhrase = '';
+    }
+
+    public function openDeleteConfirm(): void
+    {
+        $this->showDeleteConfirm = true;
+        $this->regenerateDeleteChallenge();
+    }
+
+    public function cancelDeleteConfirm(): void
+    {
+        $this->showDeleteConfirm = false;
         $this->deletePhrase = '';
     }
 

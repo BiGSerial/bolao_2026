@@ -103,6 +103,13 @@ class PoolShow extends Component
         $this->pool->refresh();
     }
 
+    #[On('echo-private:pool.{pool.id},RankingUpdated')]
+    #[On('echo-private:pool.{pool.id},MembersUpdated')]
+    public function refreshPoolData(): void
+    {
+        $this->pool->refresh();
+    }
+
     public function setTab(string $tab): void
     {
         $this->activeTab = $tab;

@@ -7,6 +7,7 @@ use App\Models\PoolMember;
 use App\Services\Pools\PoolMembershipService;
 use DomainException;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class MyPoolsManager extends Component
@@ -28,6 +29,12 @@ class MyPoolsManager extends Component
         $this->selectedPoolId = $poolId;
         $this->filterStatus = '';
         $this->search = '';
+    }
+
+    #[On('echo-private:pool.{selectedPoolId},MembersUpdated')]
+    public function refreshManagedPoolData(): void
+    {
+        // Evento recebido via Reverb; re-render já consulta os dados atualizados.
     }
 
     public function activateMember(int $memberId, PoolMembershipService $service): void

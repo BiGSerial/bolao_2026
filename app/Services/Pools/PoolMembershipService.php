@@ -2,6 +2,7 @@
 
 namespace App\Services\Pools;
 
+use App\Events\PoolMembersUpdated;
 use App\Enums\PoolMemberRole;
 use App\Enums\PoolMemberStatus;
 use App\Models\Pool;
@@ -15,6 +16,7 @@ class PoolMembershipService
     {
         $this->assertCanManage($pool, $actor);
         $member->activate($actor);
+        PoolMembersUpdated::dispatch($pool);
     }
 
     public function deactivate(Pool $pool, PoolMember $member, User $actor): void
@@ -22,6 +24,7 @@ class PoolMembershipService
         $this->assertCanManage($pool, $actor);
         $this->assertNotOwner($member);
         $member->deactivate($actor);
+        PoolMembersUpdated::dispatch($pool);
     }
 
     public function remove(Pool $pool, PoolMember $member, User $actor): void
@@ -34,6 +37,7 @@ class PoolMembershipService
             'deactivated_by' => $actor->id,
             'deactivated_at' => now(),
         ]);
+        PoolMembersUpdated::dispatch($pool);
     }
 
     public function block(Pool $pool, PoolMember $member, User $actor): void
@@ -46,6 +50,7 @@ class PoolMembershipService
             'deactivated_by' => $actor->id,
             'deactivated_at' => now(),
         ]);
+        PoolMembersUpdated::dispatch($pool);
     }
 
     public function promoteToManager(Pool $pool, PoolMember $member, User $actor): void
@@ -53,6 +58,7 @@ class PoolMembershipService
         $this->assertCanManage($pool, $actor);
         $this->assertNotOwner($member);
         $member->update(['role' => PoolMemberRole::Manager->value]);
+        PoolMembersUpdated::dispatch($pool);
     }
 
     public function demoteToMember(Pool $pool, PoolMember $member, User $actor): void
@@ -60,6 +66,7 @@ class PoolMembershipService
         $this->assertCanManage($pool, $actor);
         $this->assertNotOwner($member);
         $member->update(['role' => PoolMemberRole::Member->value]);
+        PoolMembersUpdated::dispatch($pool);
     }
 
     public function assertCanManage(Pool $pool, User $actor): void

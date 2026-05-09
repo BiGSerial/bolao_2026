@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Pools;
 
+use App\Events\PoolMembersUpdated;
 use App\Enums\PoolMemberStatus;
 use App\Http\Controllers\Controller;
 use App\Models\PoolInvite;
@@ -82,5 +83,7 @@ class PoolInviteController extends Controller
             'accepted_by' => $userId,
             'accepted_at' => now(),
         ]);
+
+        PoolMembersUpdated::dispatch($invite->pool);
     }
 }

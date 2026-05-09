@@ -251,7 +251,13 @@
                                 Essa ação remove o grupo da sua visão, mantendo os dados para auditoria.
                             </p>
                         </div>
-
+                        @if(! $showDeleteConfirm)
+                        <div class="flex justify-end">
+                            <button type="button" wire:click="openDeleteConfirm" class="btn-danger" wire:loading.attr="disabled">
+                                Deletar o Grupo
+                            </button>
+                        </div>
+                        @else
                         <div class="rounded-lg border border-red-900/70 bg-red-950/30 px-3 py-2">
                             <p class="text-[11px] uppercase tracking-wider text-red-300/90">Palavra de confirmação</p>
                             <p class="mt-1 font-mono text-lg font-bold text-red-200">{{ $deleteChallenge }}</p>
@@ -264,13 +270,19 @@
                         </div>
 
                         <div class="flex items-center justify-between gap-3">
-                            <button type="button" wire:click="regenerateDeleteChallenge" class="btn-ghost">
-                                Gerar nova palavra
-                            </button>
+                            <div class="flex items-center gap-2">
+                                <button type="button" wire:click="regenerateDeleteChallenge" class="btn-ghost">
+                                    Gerar nova palavra
+                                </button>
+                                <button type="button" wire:click="cancelDeleteConfirm" class="btn-ghost">
+                                    Cancelar
+                                </button>
+                            </div>
                             <button type="button" wire:click="deletePool" class="btn-danger" wire:loading.attr="disabled">
-                                Deletar o Grupo
+                                Confirmar deleção
                             </button>
                         </div>
+                        @endif
                     </div>
                     @endif
                 </div>
