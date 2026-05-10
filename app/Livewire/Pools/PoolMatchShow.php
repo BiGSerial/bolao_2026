@@ -19,9 +19,8 @@ class PoolMatchShow extends Component
     public function mount(Pool $pool, FootballMatch $match): void
     {
         $this->pool = $pool;
-        $this->match = $match->load(['homeTeam', 'awayTeam', 'detail']);
+        $this->match = $match->load(['homeTeam', 'awayTeam', 'detail', 'competition']);
 
-        abort_unless($this->match->stage === $this->pool->stage, 404);
         $this->assertMember();
     }
 
@@ -70,8 +69,14 @@ class PoolMatchShow extends Component
      */
     public function statsRows(): array
     {
-        $home = data_get($this->match->detail?->payload, 'homeTeam.statistics', []);
-        $away = data_get($this->match->detail?->payload, 'awayTeam.statistics', []);
+        $payload = $this->match->detail?->payload ?? [];
+        $home = data_get($payload, 'homeTeam.statistics', []);
+        $away = data_get($payload, 'awayTeam.statistics', []);
+
+        // Fallback para competições em que a API não envia o bloco homeTeam/awayTeam.statistics.
+        if (empty($home) && empty($away)) {
+            return $this->fallbackStatsRowsFromScorePayload($payload);
+        }
 
         $map = [
             'shots' => 'Chutes',
@@ -108,6 +113,25 @@ class PoolMatchShow extends Component
         }
 
         $this->match->refresh()->load(['homeTeam', 'awayTeam', 'detail']);
+    }
+
+    public function hasMatchDetail(): bool
+    {
+        return $this->match->detail !== null;
+    }
+
+    public function statsUnavailableMessage(): string
+    {
+        if (! $this->hasMatchDetail()) {
+            return 'Os dados serão carregados durante e após a partida.';
+        }
+
+        $code = strtoupper((string) ($this->match->competition?->code ?? ''));
+        if ($code === 'BSA') {
+            return 'A API não disponibilizou estatísticas detalhadas para esta partida do Brasileirão.';
+        }
+
+        return 'O provedor não retornou estatísticas detalhadas para esta partida.';
     }
 
     public function render()
@@ -165,4 +189,38 @@ class PoolMatchShow extends Component
 
         return (string) $value;
     }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<int, array<string, string>>
+     */
+    private function fallbackStatsRowsFromScorePayload(array $payload): array
+    {
+        $fullHome = (int) data_get($payload, 'score.fullTime.home', $this->match->home_score_full_time ?? 0);
+        $fullAway = (int) data_get($payload, 'score.fullTime.away', $this->match->away_score_full_time ?? 0);
+        $halfHome = (int) data_get($payload, 'score.halfTime.home', $this->match->home_score_half_time ?? 0);
+        $halfAway = (int) data_get($payload, 'score.halfTime.away', $this->match->away_score_half_time ?? 0);
+
+        $bookings = (array) data_get($payload, 'bookings', []);
+        $homeName = (string) ($this->match->homeTeam?->name ?? '');
+        $awayName = (string) ($this->match->awayTeam?->name ?? '');
+        $homeCards = 0;
+        $awayCards = 0;
+
+        foreach ($bookings as $booking) {
+            $teamName = (string) data_get($booking, 'team.name', '');
+            if ($homeName !== '' && $teamName === $homeName) {
+                $homeCards++;
+            } elseif ($awayName !== '' && $teamName === $awayName) {
+                $awayCards++;
+            }
+        }
+
+        return [
+            ['label' => 'Gols (Final)', 'home' => (string) $fullHome, 'away' => (string) $fullAway],
+            ['label' => 'Gols (1º Tempo)', 'home' => (string) $halfHome, 'away' => (string) $halfAway],
+            ['label' => 'Cartões', 'home' => (string) $homeCards, 'away' => (string) $awayCards],
+        ];
+    }
+
 }

@@ -102,6 +102,14 @@
         @apply badge bg-blue-900/60 text-blue-400 ring-1 ring-blue-500/30;
     }
 
+    .badge-orange {
+        @apply badge bg-orange-900/60 text-orange-400 ring-1 ring-orange-500/30;
+    }
+
+    .badge-purple {
+        @apply badge bg-purple-900/60 text-purple-400 ring-1 ring-purple-500/30;
+    }
+
     .tab-btn {
         @apply relative py-3 px-1 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors duration-150;
     }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Notifications\CustomVerifyEmailNotification;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -32,9 +33,46 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'subscription_tier' => 'integer',
+            'competition_package_id' => 'integer',
             'must_change_password' => 'boolean',
             'password_changed_at' => 'datetime',
         ];
+    }
+
+    public function canAccessCompetition(string $code): bool
+    {
+        $normalized = strtoupper(trim($code));
+        if ($normalized === 'WC') {
+            return true;
+        }
+
+        if ((bool) $this->is_admin) {
+            return true;
+        }
+
+        $enabled = (bool) config('football-data.competitions.'.$normalized.'.enabled', false);
+        if (! $enabled) {
+            return false;
+        }
+
+        if ($this->competition_package_id) {
+            $package = $this->competitionPackage;
+            if (! $package || ! $package->active) {
+                return false;
+            }
+
+            return $package->items()
+                ->whereRaw('UPPER(competition_code) = ?', [$normalized])
+                ->exists();
+        }
+
+        return (int) ($this->subscription_tier ?? 1) >= 2;
+    }
+
+    public function competitionPackage(): BelongsTo
+    {
+        return $this->belongsTo(CompetitionPackage::class);
     }
 
     public function poolMemberships(): HasMany

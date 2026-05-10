@@ -3,10 +3,11 @@
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class PasswordResetRequestedNotification extends Notification
+class PasswordResetRequestedNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
@@ -17,6 +18,7 @@ class PasswordResetRequestedNotification extends Notification
         private readonly string $token,
         private readonly array $context
     ) {
+        $this->onQueue(config('queue-priority.mail.default', 'mail'));
     }
 
     public function via(object $notifiable): array

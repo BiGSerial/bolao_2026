@@ -4,13 +4,19 @@ namespace App\Notifications;
 
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Carbon;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\URL;
 
-class CustomVerifyEmailNotification extends VerifyEmail
+class CustomVerifyEmailNotification extends VerifyEmail implements ShouldQueue
 {
     use Queueable;
+
+    public function __construct()
+    {
+        $this->onQueue(config('queue-priority.mail.default', 'mail'));
+    }
 
     protected function verificationUrl($notifiable): string
     {

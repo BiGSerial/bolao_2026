@@ -14,8 +14,57 @@
     @livewireStyles
 </head>
 <body class="h-full font-sans antialiased">
+@php
+    $authUser = Auth::user();
+    $allCompetitions = (array) config('football-data.competitions', []);
+    $currentCompetitionCode = strtoupper((string) request()->query('competition', session('competition', config('football-data.default_competition_code', 'WC'))));
+    $allowedCompetitions = [];
 
-<div class="flex h-full min-h-screen" x-data="{ sidebarOpen: false }">
+    $competitionNameFallbacks = [
+        'WC' => 'Copa do Mundo',
+        'BSA' => 'Brasileirão Série A',
+    ];
+
+    foreach ($allCompetitions as $code => $settings) {
+        $normalized = strtoupper((string) $code);
+        $enabled = (bool) data_get($settings, 'enabled', false);
+        if (! $enabled && $normalized !== 'WC' && !($authUser && (bool) $authUser->is_admin)) {
+            continue;
+        }
+        if ($authUser && ! $authUser->canAccessCompetition($normalized)) {
+            continue;
+        }
+        $configuredName = trim((string) data_get($settings, 'name', ''));
+        $resolvedName = $configuredName !== '' ? $configuredName : ($competitionNameFallbacks[$normalized] ?? $normalized);
+        if (strtoupper($resolvedName) === $normalized) {
+            $resolvedName = $competitionNameFallbacks[$normalized] ?? $resolvedName;
+        }
+
+        $allowedCompetitions[$normalized] = [
+            'name' => $resolvedName,
+            'season' => (int) data_get($settings, 'season', 0),
+            'enabled' => $enabled || $normalized === 'WC',
+        ];
+    }
+
+    if (! isset($allowedCompetitions['WC'])) {
+        $allowedCompetitions['WC'] = [
+            'name' => 'Copa do Mundo',
+            'season' => (int) config('football-data.competitions.WC.season', 2026),
+            'enabled' => true,
+        ];
+    }
+
+    if (! array_key_exists($currentCompetitionCode, $allowedCompetitions)) {
+        $currentCompetitionCode = 'WC';
+    }
+
+    session(['competition' => $currentCompetitionCode]);
+    $currentCompetition = $allowedCompetitions[$currentCompetitionCode];
+    $canSwitchCompetition = $authUser && ((bool) $authUser->is_admin || (int) ($authUser->subscription_tier ?? 1) >= 2);
+@endphp
+
+<div class="flex h-screen overflow-hidden" x-data="{ sidebarOpen: false }">
 
     {{-- Overlay mobile --}}
     <div x-show="sidebarOpen" x-cloak
@@ -23,8 +72,9 @@
          @click="sidebarOpen = false"></div>
 
     {{-- Sidebar --}}
-    <aside class="fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-pitch-900 border-r border-slate-800
-                  transform transition-transform duration-300 ease-in-out lg:static lg:translate-x-0"
+    <aside class="fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col bg-pitch-900 border-r border-slate-800
+                  transition-transform duration-300 ease-in-out
+                  lg:static lg:inset-auto lg:z-auto lg:translate-x-0"
            :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
 
         {{-- Logo --}}
@@ -32,9 +82,42 @@
             <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white text-lg shadow-lg shadow-emerald-900/50 select-none">
                 ⚽
             </div>
-            <div>
+            <div class="min-w-0" x-data="{ openCompetition: false }">
                 <p class="text-sm font-bold text-white leading-none">Bolão</p>
-                <p class="text-xs text-emerald-400 font-semibold leading-none mt-0.5">Copa do Mundo 2026</p>
+                @if($canSwitchCompetition)
+                <div class="relative mt-1">
+                    <button type="button"
+                            @click="openCompetition = !openCompetition"
+                            class="inline-flex w-full items-center justify-between gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300 font-semibold leading-none hover:bg-emerald-500/20 transition-colors">
+                        <span class="truncate">{{ $currentCompetition['name'] }} {{ $currentCompetition['season'] }}</span>
+                        <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+                    <div x-show="openCompetition" x-cloak @click.outside="openCompetition = false"
+                         class="absolute left-0 z-50 mt-2 w-60 rounded-xl border border-slate-700 bg-pitch-800 shadow-2xl py-1.5">
+                        @foreach($allowedCompetitions as $code => $competition)
+                        <a href="{{ ($competition['enabled'] || ($authUser && (bool) $authUser->is_admin)) ? route('pools.index', ['competition' => $code]) : '#' }}"
+                           @click="openCompetition = false; sidebarOpen = false"
+                           class="mx-1 flex items-center justify-between rounded-lg px-3 py-2 text-xs {{ $currentCompetitionCode === $code ? 'text-emerald-300 bg-emerald-600/15' : 'text-slate-300 hover:bg-slate-700/60 hover:text-white' }}">
+                            <span class="flex min-w-0 items-center gap-2">
+                                <span class="font-semibold truncate">{{ $competition['name'] }}</span>
+                                <span class="shrink-0 text-slate-500">{{ $code }}</span>
+                                <span class="shrink-0 text-slate-400">{{ $competition['season'] }}</span>
+                                @if(!($competition['enabled'] ?? false))
+                                <span class="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">OFF</span>
+                                @endif
+                            </span>
+                            @if($currentCompetitionCode === $code)
+                            <span class="text-emerald-300">✓</span>
+                            @endif
+                        </a>
+                        @endforeach
+                    </div>
+                </div>
+                @else
+                <p class="text-xs text-emerald-400 font-semibold leading-none mt-0.5">Copa do Mundo {{ $allowedCompetitions['WC']['season'] }}</p>
+                @endif
             </div>
         </div>
 
@@ -53,7 +136,7 @@
                 Dashboard
             </a>
 
-            <a href="{{ route('pools.index') }}"
+            <a href="{{ route('pools.index', ['competition' => $currentCompetitionCode]) }}"
                @click="sidebarOpen = false"
                class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
                       {{ request()->routeIs('pools.*') ? 'bg-emerald-600/20 text-emerald-400 ring-1 ring-emerald-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
@@ -238,7 +321,7 @@
     </aside>
 
     {{-- Main area --}}
-    <div class="flex flex-1 flex-col min-w-0">
+    <div class="flex flex-1 flex-col min-h-0 min-w-0">
         {{-- Mobile topbar --}}
         <div class="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-slate-800 bg-pitch-900/95 backdrop-blur px-4 lg:hidden">
             <button @click="sidebarOpen = !sidebarOpen"
@@ -247,10 +330,10 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                 </svg>
             </button>
-            <span class="text-sm font-bold text-white">⚽ Bolão Copa 2026</span>
+            <span class="text-sm font-bold text-white">⚽ Bolão {{ $currentCompetition['name'] }} {{ $currentCompetition['season'] }}</span>
         </div>
 
-        <main class="flex-1">
+        <main class="flex-1 overflow-y-auto">
             {{ $slot }}
         </main>
     </div>

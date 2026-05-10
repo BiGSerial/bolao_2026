@@ -6,6 +6,7 @@ use App\Models\Competition;
 use App\Models\CompetitionSeason;
 use App\Models\Standing;
 use App\Models\Team;
+use App\Models\TeamProviderRef;
 use Illuminate\Support\Facades\DB;
 
 class SyncWorldCupStandingsService
@@ -14,9 +15,9 @@ class SyncWorldCupStandingsService
     {
     }
 
-    public function sync(array $payload): int
+    public function sync(array $payload, ?int $seasonYear = null, ?string $stageFilter = null): int
     {
-        return DB::transaction(function () use ($payload): int {
+        return DB::transaction(function () use ($payload, $seasonYear, $stageFilter): int {
             $competition = Competition::updateOrCreate(
                 ['provider' => 'football_data', 'external_id' => data_get($payload, 'competition.id', 0)],
                 [
@@ -27,11 +28,14 @@ class SyncWorldCupStandingsService
                 ]
             );
 
+            $resolvedYear = $seasonYear
+                ?: (int) data_get($payload, 'season.year', config('football-data.competitions.WC.season', config('football-data.world_cup.season')));
+
             $season = CompetitionSeason::updateOrCreate(
                 ['provider' => 'football_data', 'external_id' => data_get($payload, 'season.id', 0)],
                 [
                     'competition_id' => $competition->id,
-                    'year' => (int) data_get($payload, 'season.year', config('football-data.world_cup.season')),
+                    'year' => $resolvedYear,
                     'start_date' => data_get($payload, 'season.startDate'),
                     'end_date' => data_get($payload, 'season.endDate'),
                     'current_matchday' => data_get($payload, 'season.currentMatchday'),
@@ -39,19 +43,19 @@ class SyncWorldCupStandingsService
                 ]
             );
 
-            $stage = (string) config('football-data.world_cup.stage', 'GROUP_STAGE');
+            $stage = $stageFilter ?: (string) config('football-data.competitions.WC.default_stage', config('football-data.world_cup.stage', 'GROUP_STAGE'));
 
             Standing::query()
                 ->where('provider', 'football_data')
                 ->where('competition_id', $competition->id)
                 ->where('competition_season_id', $season->id)
-                ->where('stage', $stage)
+                ->when($stage !== '', fn ($q) => $q->where('stage', $stage))
                 ->delete();
 
             $created = 0;
 
             foreach ((array) data_get($payload, 'standings', []) as $standingPayload) {
-                if ((string) data_get($standingPayload, 'stage') !== $stage) {
+                if ($stage !== '' && (string) data_get($standingPayload, 'stage') !== $stage) {
                     continue;
                 }
 
@@ -67,13 +71,16 @@ class SyncWorldCupStandingsService
                 ]);
 
                 foreach ((array) data_get($standingPayload, 'table', []) as $rowPayload) {
-                    $teamExternalId = data_get($rowPayload, 'team.id');
+                    $teamExternalId = (int) data_get($rowPayload, 'team.id', 0);
                     $team = null;
 
-                    if ($teamExternalId) {
-                        $team = Team::updateOrCreate(
-                            ['provider' => 'football_data', 'external_id' => $teamExternalId],
+                    if ($teamExternalId > 0) {
+                        $team = $this->resolveTeamByProviderRef(
+                            'football_data',
+                            $teamExternalId,
                             [
+                                'provider' => 'football_data',
+                                'external_id' => $teamExternalId,
                                 'name' => data_get($rowPayload, 'team.name', 'TBD'),
                                 'short_name' => data_get($rowPayload, 'team.shortName') ?? data_get($rowPayload, 'team.name'),
                                 'tla' => data_get($rowPayload, 'team.tla'),
@@ -105,5 +112,33 @@ class SyncWorldCupStandingsService
 
             return $created;
         });
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     */
+    private function resolveTeamByProviderRef(string $provider, int $externalId, array $attributes): Team
+    {
+        $ref = TeamProviderRef::query()
+            ->where('provider', $provider)
+            ->where('external_id', $externalId)
+            ->first();
+
+        if ($ref) {
+            $team = Team::query()->findOrFail($ref->team_id);
+            $team->fill($attributes);
+            $team->save();
+
+            return $team;
+        }
+
+        $team = Team::create($attributes);
+
+        TeamProviderRef::updateOrCreate(
+            ['provider' => $provider, 'external_id' => $externalId],
+            ['team_id' => $team->id]
+        );
+
+        return $team;
     }
 }

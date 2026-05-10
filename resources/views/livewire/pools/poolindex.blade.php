@@ -3,10 +3,10 @@
     {{-- Header --}}
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-bold text-white">Bolões</h1>
+            <h1 class="text-2xl font-bold text-white">Bolões - {{ $competitionName }}</h1>
             <p class="text-sm text-slate-400 mt-1">Gerencie seus grupos de palpites</p>
         </div>
-        <a href="{{ route('pools.create') }}" class="btn-primary">
+        <a href="{{ route('pools.create', ['competition' => $competition_code]) }}" class="btn-primary">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
             </svg>
@@ -35,7 +35,7 @@
                         <p class="text-slate-300 font-medium">Você ainda não participa de nenhum bolão</p>
                         <p class="text-sm text-slate-500 mt-1">Crie um novo ou entre com código de convite</p>
                     </div>
-                    <a href="{{ route('pools.create') }}" class="btn-primary mt-2">Criar meu primeiro bolão</a>
+                    <a href="{{ route('pools.create', ['competition' => $competition_code]) }}" class="btn-primary mt-2">Criar meu primeiro bolão</a>
                 </div>
             </div>
             @else

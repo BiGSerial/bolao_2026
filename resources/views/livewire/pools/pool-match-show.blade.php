@@ -268,7 +268,7 @@ $cardInfo = function (string $card): array {
                 <div class="card p-12 text-center">
                     <div class="text-5xl mb-4">📊</div>
                     <p class="text-slate-300 font-semibold">Estatísticas indisponíveis</p>
-                    <p class="text-sm text-slate-600 mt-1">Os dados serão carregados durante e após a partida.</p>
+                    <p class="text-sm text-slate-600 mt-1">{{ $this->statsUnavailableMessage() }}</p>
                 </div>
             @else
 

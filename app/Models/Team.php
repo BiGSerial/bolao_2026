@@ -78,4 +78,9 @@ class Team extends Model
     {
         return $this->hasMany(StandingRow::class);
     }
+
+    public function providerRefs(): HasMany
+    {
+        return $this->hasMany(TeamProviderRef::class);
+    }
 }

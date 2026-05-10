@@ -50,8 +50,21 @@ services:
     networks:
       - bolao_net
 
+  redis:
+    image: redis:7-alpine
+    container_name: bolao_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    networks:
+      - bolao_net
+
 volumes:
   mysql_data:
+  redis_data:
 
 networks:
   bolao_net:

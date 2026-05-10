@@ -2,7 +2,7 @@
 
     {{-- Header --}}
     <div class="flex items-center gap-4 mb-6">
-        <a href="{{ route('pools.index') }}"
+        <a href="{{ route('pools.index', ['competition' => $competition_code]) }}"
            class="flex items-center justify-center h-9 w-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
@@ -19,6 +19,15 @@
         {{-- Informações básicas --}}
         <div class="card p-6 space-y-5">
             <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Informações Básicas</h2>
+
+            <div>
+                <label class="label">Competição <span class="text-red-400">*</span></label>
+                <div class="input-field flex items-center justify-between bg-slate-900/60 text-slate-200">
+                    <span>{{ $competitionName }}</span>
+                    <span class="text-xs text-emerald-400 font-semibold">{{ $competition_code }}</span>
+                </div>
+                <input type="hidden" wire:model="competition_code">
+            </div>
 
             <div>
                 <label class="label">Nome do Bolão <span class="text-red-400">*</span></label>
@@ -231,7 +240,7 @@
 
         {{-- Actions --}}
         <div class="flex items-center justify-end gap-3">
-            <a href="{{ route('pools.index') }}" class="btn-ghost">Cancelar</a>
+            <a href="{{ route('pools.index', ['competition' => $competition_code]) }}" class="btn-ghost">Cancelar</a>
             <button type="submit" class="btn-primary" wire:loading.attr="disabled" wire:loading.class="opacity-75">
                 <svg wire:loading wire:target="save" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>

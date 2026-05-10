@@ -119,6 +119,8 @@ class MyPoolsManager extends Component
                   ->where('status', 'active');
             })
             ->where('status', 'active')
+            ->with(['competition:id,code,name', 'season:id,competition_id,year'])
+            ->orderBy('competition_id')
             ->orderBy('name');
     }
 
@@ -137,6 +139,14 @@ class MyPoolsManager extends Component
             'members as pending_count' => fn ($q) => $q->where('status', 'pending'),
             'members as active_count'  => fn ($q) => $q->where('status', 'active'),
         ])->get();
+
+        $groupedPools = $pools->groupBy(function (Pool $pool) {
+            $code = strtoupper((string) ($pool->competition?->code ?? 'SEM'));
+            $name = (string) ($pool->competition?->name ?? 'Sem competição');
+            $season = (string) ($pool->season?->year ?? '—');
+
+            return "{$code}|{$name}|{$season}";
+        });
 
         $selectedPool = $this->selectedPool();
 
@@ -169,6 +179,6 @@ class MyPoolsManager extends Component
                 ->pluck('total', 'status');
         }
 
-        return view('livewire.management.my-pools-manager', compact('pools', 'selectedPool', 'members', 'statusCounts'));
+        return view('livewire.management.my-pools-manager', compact('pools', 'groupedPools', 'selectedPool', 'members', 'statusCounts'));
     }
 }

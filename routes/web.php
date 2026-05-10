@@ -14,6 +14,7 @@ use App\Livewire\Admin\UsersApproval;
 use App\Livewire\Dashboard\Home;
 use App\Livewire\Auth\ForcePasswordChange;
 use App\Livewire\Management\MyPoolsManager;
+use App\Livewire\Matches\MatchShow;
 use App\Livewire\Pools\PoolCreate;
 use App\Livewire\Pools\PoolIndex;
 use App\Livewire\Pools\PoolMembers;
@@ -39,6 +40,7 @@ Route::middleware(['auth', 'user.active'])->group(function (): void {
 
 Route::middleware(['auth', 'user.active', 'password.changed', 'legal.accepted'])->group(function (): void {
     Route::get('/dashboard', Home::class)->name('dashboard');
+    Route::get('/jogos/{match}', MatchShow::class)->name('matches.show');
     Route::get('/boloes', PoolIndex::class)->name('pools.index');
     Route::get('/boloes/criar', PoolCreate::class)->name('pools.create');
     Route::get('/gerenciar', MyPoolsManager::class)->name('management.pools');

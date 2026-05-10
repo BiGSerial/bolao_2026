@@ -12,7 +12,7 @@ class Pool extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'owner_id','name','slug','description','instructions','sectors','tie_breakers','visibility','status','invite_code',
+        'owner_id','competition_id','competition_season_id','name','slug','description','instructions','sectors','tie_breakers','visibility','status','invite_code',
         'allow_prediction_changes','prediction_lock_minutes','allow_pending_member_predictions','stage',
         'points_exact_score', 'points_correct_result', 'points_correct_goals',
     ];
@@ -38,6 +38,16 @@ class Pool extends Model
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
+    }
+
+    public function competition(): BelongsTo
+    {
+        return $this->belongsTo(Competition::class);
+    }
+
+    public function season(): BelongsTo
+    {
+        return $this->belongsTo(CompetitionSeason::class, 'competition_season_id');
     }
 
     public function activeMembers(): HasMany

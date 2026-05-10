@@ -29,4 +29,9 @@ class CompetitionSeason extends Model
     {
         return $this->hasMany(Standing::class);
     }
+
+    public function pools(): HasMany
+    {
+        return $this->hasMany(Pool::class, 'competition_season_id');
+    }
 }

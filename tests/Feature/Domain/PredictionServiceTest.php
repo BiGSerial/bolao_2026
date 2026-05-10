@@ -67,6 +67,47 @@ class PredictionServiceTest extends TestCase
         app(PredictionService::class)->save($pool, $match, $user, 0, 0);
     }
 
+    public function test_prediction_is_blocked_when_match_is_from_another_competition_or_season(): void
+    {
+        [$user, $pool] = $this->makeScenario('active', true, true, '+5 hours');
+
+        $otherCompetition = Competition::create([
+            'provider' => 'football_data',
+            'external_id' => 2013,
+            'code' => 'BSA',
+            'name' => 'Brasileirao Serie A',
+            'type' => 'LEAGUE',
+        ]);
+
+        $otherSeason = CompetitionSeason::create([
+            'competition_id' => $otherCompetition->id,
+            'provider' => 'football_data',
+            'external_id' => 9999,
+            'year' => 2026,
+        ]);
+
+        $home = Team::create(['provider' => 'football_data', 'external_id' => 11, 'name' => 'Home BSA']);
+        $away = Team::create(['provider' => 'football_data', 'external_id' => 12, 'name' => 'Away BSA']);
+
+        $match = FootballMatch::create([
+            'provider' => 'football_data',
+            'external_id' => 8888,
+            'competition_id' => $otherCompetition->id,
+            'competition_season_id' => $otherSeason->id,
+            'home_team_id' => $home->id,
+            'away_team_id' => $away->id,
+            'utc_date' => now()->utc()->addHours(5),
+            'local_date' => now()->timezone('America/Sao_Paulo')->addHours(5),
+            'status' => 'TIMED',
+            'stage' => 'GROUP_STAGE',
+        ]);
+
+        $this->expectException(DomainException::class);
+        $this->expectExceptionMessage('competição/temporada');
+
+        app(PredictionService::class)->save($pool, $match, $user, 1, 0);
+    }
+
     private function makeScenario(string $memberStatus, bool $allowPending, bool $allowChanges, string $utcDateModifier): array
     {
         $user = User::factory()->create();
@@ -104,6 +145,8 @@ class PredictionServiceTest extends TestCase
 
         $pool = Pool::create([
             'owner_id' => $user->id,
+            'competition_id' => $competition->id,
+            'competition_season_id' => $season->id,
             'name' => 'Pool Test',
             'slug' => 'pool-test-'.uniqid(),
             'visibility' => 'invite_only',

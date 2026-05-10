@@ -16,34 +16,52 @@ use Throwable;
 
 class SyncWorldCupGroupStage extends Command
 {
-    protected $signature = 'worldcup:sync-group-stage {--force : Ignora janela inteligente e sincroniza agora}';
-    protected $description = 'Sincroniza jogos e placares da fase de grupos da Copa 2026.';
+    protected $signature = 'worldcup:sync-group-stage
+        {--code= : Codigo da competicao (ex: WC, BSA)}
+        {--season= : Temporada (ex: 2026)}
+        {--stage= : Fase para filtro (ex: GROUP_STAGE)}
+        {--force : Ignora janela inteligente e sincroniza agora}';
+
+    protected $description = 'Sincroniza jogos e classificacao por competicao/temporada.';
 
     public function handle(
         FootballDataClient $client,
         SyncWorldCupMatchesService $syncService,
         SyncWorldCupStandingsService $standingsSyncService
-    ): int
-    {
-        if (! $this->option('force') && ! $this->shouldSyncNow()) {
+    ): int {
+        $ctx = $client->competitionContext(
+            $this->option('code') ? (string) $this->option('code') : null,
+            $this->option('season') ? (int) $this->option('season') : null,
+            $this->option('stage') ? (string) $this->option('stage') : null
+        );
+
+        if (! $this->option('force') && ! $this->shouldSyncNow($ctx['code'], $ctx['season'], $ctx['stage'])) {
             ApiSyncLog::create([
                 'provider' => 'football_data',
-                'endpoint' => '/competitions/WC/matches',
+                'endpoint' => '/competitions/'.$ctx['code'].'/matches',
                 'success' => true,
                 'message' => 'Sync ignorado: fora da janela de sincronizacao.',
-                'meta' => ['status' => 'skipped', 'stage' => config('football-data.world_cup.stage')],
+                'meta' => [
+                    'apis_synced' => ['football_data'],
+                    'status' => 'skipped',
+                    'competition_code' => $ctx['code'],
+                    'season' => $ctx['season'],
+                    'stage' => $ctx['stage'],
+                ],
                 'synced_at' => now(),
             ]);
 
             $this->info('Fora da janela de sincronizacao.');
+
             return self::SUCCESS;
         }
 
         try {
-            $payload = $client->worldCupGroupStageMatches();
-            $changed = $syncService->sync($payload);
-            $standingsPayload = $client->worldCupStandings();
-            $standingsCount = $standingsSyncService->sync($standingsPayload);
+            $payload = $client->competitionMatches($ctx['code'], $ctx['season'], $ctx['stage']);
+            $changed = $syncService->sync($payload, $ctx['season']);
+
+            $standingsPayload = $client->competitionStandings($ctx['code'], $ctx['season']);
+            $standingsCount = $standingsSyncService->sync($standingsPayload, $ctx['season'], $ctx['stage']);
 
             foreach ($changed as $match) {
                 if ($match->status === 'FINISHED') {
@@ -57,15 +75,18 @@ class SyncWorldCupGroupStage extends Command
 
             ApiSyncLog::create([
                 'provider' => 'football_data',
-                'endpoint' => '/competitions/WC/matches',
+                'endpoint' => '/competitions/'.$ctx['code'].'/matches',
                 'http_status' => 200,
                 'success' => true,
                 'records_total' => count($payload['matches'] ?? []),
                 'records_changed' => $changed->count(),
                 'message' => 'Sync executado com sucesso.',
                 'meta' => [
+                    'apis_synced' => ['football_data'],
                     'status' => 'success',
-                    'stage' => config('football-data.world_cup.stage'),
+                    'competition_code' => $ctx['code'],
+                    'season' => $ctx['season'],
+                    'stage' => $ctx['stage'],
                     'result_set' => data_get($payload, 'resultSet'),
                     'standings_synced' => $standingsCount,
                 ],
@@ -73,34 +94,43 @@ class SyncWorldCupGroupStage extends Command
             ]);
 
             $this->info('Sincronizacao concluida. Jogos alterados: '.$changed->count().' | Grupos sincronizados: '.$standingsCount);
+
             return self::SUCCESS;
         } catch (Throwable $e) {
             $httpStatus = $e instanceof RequestException ? $e->response?->status() : null;
 
             ApiSyncLog::create([
                 'provider' => 'football_data',
-                'endpoint' => '/competitions/WC/matches',
+                'endpoint' => '/competitions/'.$ctx['code'].'/matches',
                 'http_status' => $httpStatus,
                 'success' => false,
                 'message' => $e->getMessage(),
                 'meta' => [
+                    'apis_synced' => ['football_data'],
                     'status' => $httpStatus === 429 ? 'rate_limited' : 'failed',
+                    'competition_code' => $ctx['code'],
+                    'season' => $ctx['season'],
+                    'stage' => $ctx['stage'],
                     'exception' => get_class($e),
                 ],
                 'synced_at' => now(),
             ]);
             $this->error($e->getMessage());
+
             return self::FAILURE;
         }
     }
 
-    private function shouldSyncNow(): bool
+    private function shouldSyncNow(string $code, int $season, ?string $stage): bool
     {
         $baseQuery = FootballMatch::query()
-            ->where('stage', config('football-data.world_cup.stage'));
+            ->whereHas('competition', fn ($q) => $q->where('code', $code))
+            ->whereHas('season', fn ($q) => $q->where('year', $season));
 
-        // Primeira carga: se ainda não existe nenhum jogo da fase no banco,
-        // precisa sincronizar para popular datas/partidas.
+        if ($stage !== null && $stage !== '') {
+            $baseQuery->where('stage', $stage);
+        }
+
         if (! $baseQuery->exists()) {
             return true;
         }

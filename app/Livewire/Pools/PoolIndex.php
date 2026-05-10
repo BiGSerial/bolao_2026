@@ -4,6 +4,7 @@ namespace App\Livewire\Pools;
 
 use App\Events\PoolMembersUpdated;
 use App\Enums\PoolMemberStatus;
+use App\Models\Competition;
 use App\Models\Pool;
 use App\Models\PoolMember;
 use App\Models\PoolRanking;
@@ -12,10 +13,26 @@ use Livewire\Component;
 
 class PoolIndex extends Component
 {
+    public string $competition_code = '';
     public string $invite_code = '';
     public string $invite_sector = '';
     /** @var string[] */
     public array $invite_sectors = [];
+
+    public function mount(): void
+    {
+        $requested = strtoupper((string) request()->query('competition', session('competition', '')));
+        $available = $this->availableCompetitionCodes();
+        $defaultCode = strtoupper((string) config('football-data.default_competition_code', 'WC'));
+
+        if ($requested !== '' && in_array($requested, $available, true)) {
+            $this->competition_code = $requested;
+            return;
+        }
+
+        $this->competition_code = in_array($defaultCode, $available, true) ? $defaultCode : ($available[0] ?? 'WC');
+        session(['competition' => $this->competition_code]);
+    }
 
     public function updatedInviteCode(string $value): void
     {
@@ -27,7 +44,11 @@ class PoolIndex extends Component
             return;
         }
 
-        $pool = Pool::query()->where('invite_code', $code)->where('status', 'active')->first(['id', 'sectors']);
+        $pool = Pool::query()
+            ->where('invite_code', $code)
+            ->where('status', 'active')
+            ->whereHas('competition', fn ($q) => $q->where('code', $this->competition_code))
+            ->first(['id', 'sectors']);
         $this->invite_sectors = $pool && is_array($pool->sectors) ? array_values($pool->sectors) : [];
 
         if (! in_array($this->invite_sector, $this->invite_sectors, true)) {
@@ -49,6 +70,11 @@ class PoolIndex extends Component
             $this->addError('invite_code', 'Codigo de convite invalido.');
             $this->invite_sectors = [];
             $this->invite_sector = '';
+            return;
+        }
+
+        if (($pool->competition?->code ?? null) !== $this->competition_code) {
+            $this->addError('invite_code', 'Este código pertence a outra competição.');
             return;
         }
 
@@ -93,6 +119,7 @@ class PoolIndex extends Component
             ->whereKey($poolId)
             ->where('visibility', 'public')
             ->where('status', 'active')
+            ->whereHas('competition', fn ($q) => $q->where('code', $this->competition_code))
             ->first();
 
         if (! $pool) {
@@ -130,7 +157,8 @@ class PoolIndex extends Component
 
         $myPools = PoolMember::query()
             ->where('user_id', $userId)
-            ->with('pool:id,name,slug,status,visibility,invite_code')
+            ->whereHas('pool.competition', fn ($q) => $q->where('code', $this->competition_code))
+            ->with('pool:id,competition_id,name,slug,status,visibility,invite_code')
             ->latest('id')
             ->get();
 
@@ -143,11 +171,31 @@ class PoolIndex extends Component
         $publicPools = Pool::query()
             ->where('visibility', 'public')
             ->where('status', 'active')
+            ->whereHas('competition', fn ($q) => $q->where('code', $this->competition_code))
             ->whereDoesntHave('members', fn ($q) => $q->where('user_id', $userId))
             ->orderBy('name')
             ->limit(20)
             ->get(['id', 'name', 'slug', 'description', 'status', 'visibility']);
 
-        return view('livewire.pools.poolindex', compact('myPools', 'myRankings', 'publicPools'));
+        session(['competition' => $this->competition_code]);
+        $competitionName = (string) config('football-data.competitions.'.$this->competition_code.'.name', $this->competition_code);
+
+        return view('livewire.pools.poolindex', compact('myPools', 'myRankings', 'publicPools', 'competitionName'));
+    }
+
+    /**
+     * @return string[]
+     */
+    private function availableCompetitionCodes(): array
+    {
+        $user = Auth::user();
+        $configured = array_keys((array) config('football-data.competitions', []));
+        $fromDb = Competition::query()->whereNotNull('code')->pluck('code')->map(fn ($code) => strtoupper((string) $code))->all();
+
+        $all = array_unique(array_map('strtoupper', array_merge($configured, $fromDb)));
+        $all = array_values(array_filter($all, fn (string $code) => $user ? $user->canAccessCompetition($code) : $code === 'WC'));
+        sort($all);
+
+        return $all !== [] ? $all : ['WC'];
     }
 }

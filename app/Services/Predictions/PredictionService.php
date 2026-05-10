@@ -12,6 +12,13 @@ class PredictionService
 {
     public function save(Pool $pool, FootballMatch $match, User $user, int $homeScore, int $awayScore): Prediction
     {
+        if (
+            (int) $match->competition_id !== (int) $pool->competition_id ||
+            (int) $match->competition_season_id !== (int) $pool->competition_season_id
+        ) {
+            throw new DomainException('Jogo fora da competição/temporada deste bolão.');
+        }
+
         if ($match->stage !== $pool->stage) {
             throw new DomainException('Jogo fora da fase configurada para este bolao.');
         }

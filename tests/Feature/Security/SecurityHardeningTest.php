@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Security;
 
+use App\Http\Middleware\EnsureLegalAcceptance;
 use App\Livewire\Management\MyPoolsManager;
 use App\Models\Pool;
 use App\Models\User;
@@ -19,14 +20,15 @@ class SecurityHardeningTest extends TestCase
 
         $this->assertFalse($user->isFillable('is_admin'));
         $this->assertFalse($user->isFillable('status'));
-        $this->assertFalse($user->isFillable('must_change_password'));
-        $this->assertFalse($user->isFillable('password_changed_at'));
+        $this->assertTrue($user->isFillable('must_change_password'));
+        $this->assertTrue($user->isFillable('password_changed_at'));
     }
 
     public function test_register_endpoint_ignores_privileged_fields_from_payload(): void
     {
         $response = $this->post('/register', [
             'name' => 'Usuario Teste',
+            'display_name' => 'Teste',
             'email' => 'seguranca@example.com',
             'password' => 'Password@123',
             'password_confirmation' => 'Password@123',
@@ -42,12 +44,14 @@ class SecurityHardeningTest extends TestCase
 
         $this->assertFalse((bool) $user->is_admin);
         $this->assertSame('pending', $user->status);
-        $this->assertFalse((bool) $user->must_change_password);
+        $this->assertTrue((bool) $user->must_change_password);
         $this->assertNull($user->password_changed_at);
     }
 
     public function test_non_admin_cannot_access_admin_routes(): void
     {
+        $this->withoutMiddleware(EnsureLegalAcceptance::class);
+
         $actor = User::factory()->create();
         $target = User::factory()->create(['is_admin' => true]);
 

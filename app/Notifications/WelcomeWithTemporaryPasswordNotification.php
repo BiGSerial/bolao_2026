@@ -3,15 +3,17 @@
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class WelcomeWithTemporaryPasswordNotification extends Notification
+class WelcomeWithTemporaryPasswordNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
     public function __construct(private readonly string $temporaryPassword)
     {
+        $this->onQueue(config('queue-priority.mail.default', 'mail'));
     }
 
     public function via(object $notifiable): array

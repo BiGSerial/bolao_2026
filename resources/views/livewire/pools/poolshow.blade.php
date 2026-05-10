@@ -121,13 +121,20 @@
                         <div class="flex items-center gap-2" x-ref="track" :class="animated ? 'ticker-track' : ''">
                             @foreach($nearestTickerMatches as $matchTicker)
                             @php
-                                $isLiveTicker = in_array($matchTicker->status, ['IN_PLAY', 'PAUSED'], true);
+                                $isLiveTicker    = in_array($matchTicker->status, ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'], true);
+                                $isInPlayTicker  = $matchTicker->status === 'IN_PLAY';
                                 $isFinishedTicker = $matchTicker->status === 'FINISHED';
-                                $statusBadgeClass = 'bg-slate-900/40 text-slate-500 border-slate-700/40';
-                                $statusLabel = $isLiveTicker ? 'Ao vivo' : ($isFinishedTicker ? 'Enc.' : 'Ag.');
+                                $tickerMinute    = $liveMinutes[$matchTicker->id] ?? null;
+                                $tickerCardClass = $isLiveTicker
+                                    ? 'border-red-500/60 bg-red-950/20 ring-1 ring-red-500/30'
+                                    : 'border-slate-700 bg-pitch-900/70';
+                                $statusBadgeClass = $isLiveTicker
+                                    ? 'bg-red-950/60 text-red-300 border-red-500/50'
+                                    : 'bg-slate-900/40 text-slate-500 border-slate-700/40';
+                                $statusLabel = $statusLabels[$matchTicker->id] ?? ucfirst(strtolower($matchTicker->status));
                             @endphp
-                            <a href="{{ route('pools.matches.show', ['pool' => $pool->slug, 'match' => $matchTicker->id]) }}"
-                               class="ticker-item shrink-0 rounded-md border border-slate-700 bg-pitch-900/70 px-2 py-1.5 hover:border-emerald-500/40 transition-colors block">
+                            <a href="{{ route('matches.show', ['match' => $matchTicker->id]) }}"
+                               class="ticker-item shrink-0 rounded-md border px-2 py-1.5 hover:border-emerald-500/40 transition-colors block {{ $tickerCardClass }}">
                                 <div class="flex items-center gap-1.5">
                                     <div class="flex items-center min-w-0 flex-1 justify-start">
                                         @if($matchTicker->homeTeam?->crest)
@@ -140,7 +147,7 @@
                                     </span>
                                     @else
                                     <span class="text-[10px] text-slate-500 whitespace-nowrap tabular-nums">
-                                        {{ ($matchTicker->local_date ?? $matchTicker->utc_date)?->timezone('America/Sao_Paulo')->format('d/m H:i') }}
+                                        {{ ($matchTicker->utc_date ?? $matchTicker->local_date)?->timezone('America/Sao_Paulo')->format('d/m H:i') }}
                                     </span>
                                     @endif
                                     <div class="flex items-center min-w-0 flex-1 justify-end">
@@ -151,7 +158,15 @@
                                 </div>
                                 <div class="mt-0.5 text-center">
                                     <span class="inline-flex items-center rounded-full border px-1.5 py-0 text-[9px] font-normal tracking-normal uppercase {{ $statusBadgeClass }}">
-                                        {{ $statusLabel }}
+                                        @if($isInPlayTicker)
+                                        <span class="relative mr-1 inline-flex h-2 w-2 items-center justify-center">
+                                            <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-red-300 opacity-80"></span>
+                                            <span class="relative inline-flex h-2 w-2 rounded-full bg-red-200"></span>
+                                        </span>
+                                        @elseif($isLiveTicker)
+                                        <span class="mr-1 inline-flex h-1.5 w-1.5 rounded-full bg-red-200"></span>
+                                        @endif
+                                        {{ $statusLabel }}@if($isLiveTicker && $tickerMinute !== null) · {{ $tickerMinute }}' @endif
                                     </span>
                                 </div>
                             </a>
@@ -160,13 +175,20 @@
                             @if($duplicateTickerItems)
                                 @foreach($nearestTickerMatches as $matchTicker)
                                 @php
-                                    $isLiveTicker = in_array($matchTicker->status, ['IN_PLAY', 'PAUSED'], true);
+                                    $isLiveTicker    = in_array($matchTicker->status, ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'], true);
+                                    $isInPlayTicker  = $matchTicker->status === 'IN_PLAY';
                                     $isFinishedTicker = $matchTicker->status === 'FINISHED';
-                                    $statusBadgeClass = 'bg-slate-900/40 text-slate-500 border-slate-700/40';
-                                    $statusLabel = $isLiveTicker ? 'Ao vivo' : ($isFinishedTicker ? 'Enc.' : 'Ag.');
+                                    $tickerMinute    = $liveMinutes[$matchTicker->id] ?? null;
+                                    $tickerCardClass = $isLiveTicker
+                                        ? 'border-red-500/60 bg-red-950/20 ring-1 ring-red-500/30'
+                                        : 'border-slate-700 bg-pitch-900/70';
+                                    $statusBadgeClass = $isLiveTicker
+                                        ? 'bg-red-950/60 text-red-300 border-red-500/50'
+                                        : 'bg-slate-900/40 text-slate-500 border-slate-700/40';
+                                    $statusLabel = $statusLabels[$matchTicker->id] ?? ucfirst(strtolower($matchTicker->status));
                                 @endphp
-                                <a href="{{ route('pools.matches.show', ['pool' => $pool->slug, 'match' => $matchTicker->id]) }}"
-                                   class="ticker-item shrink-0 rounded-md border border-slate-700 bg-pitch-900/70 px-2 py-1.5 hover:border-emerald-500/40 transition-colors block">
+                                <a href="{{ route('matches.show', ['match' => $matchTicker->id]) }}"
+                                   class="ticker-item shrink-0 rounded-md border px-2 py-1.5 hover:border-emerald-500/40 transition-colors block {{ $tickerCardClass }}">
                                     <div class="flex items-center gap-1.5">
                                         <div class="flex items-center min-w-0 flex-1 justify-start">
                                             @if($matchTicker->homeTeam?->crest)
@@ -179,7 +201,7 @@
                                         </span>
                                         @else
                                         <span class="text-[10px] text-slate-500 whitespace-nowrap tabular-nums">
-                                            {{ ($matchTicker->local_date ?? $matchTicker->utc_date)?->timezone('America/Sao_Paulo')->format('d/m H:i') }}
+                                            {{ ($matchTicker->utc_date ?? $matchTicker->local_date)?->timezone('America/Sao_Paulo')->format('d/m H:i') }}
                                         </span>
                                         @endif
                                         <div class="flex items-center min-w-0 flex-1 justify-end">
@@ -190,7 +212,15 @@
                                     </div>
                                     <div class="mt-0.5 text-center">
                                         <span class="inline-flex items-center rounded-full border px-1.5 py-0 text-[9px] font-normal tracking-normal uppercase {{ $statusBadgeClass }}">
-                                            {{ $statusLabel }}
+                                            @if($isInPlayTicker)
+                                            <span class="relative mr-1 inline-flex h-2 w-2 items-center justify-center">
+                                                <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-red-300 opacity-80"></span>
+                                                <span class="relative inline-flex h-2 w-2 rounded-full bg-red-200"></span>
+                                            </span>
+                                            @elseif($isLiveTicker)
+                                            <span class="mr-1 inline-flex h-1.5 w-1.5 rounded-full bg-red-200"></span>
+                                            @endif
+                                            {{ $statusLabel }}@if($isLiveTicker && $tickerMinute !== null) · {{ $tickerMinute }}' @endif
                                         </span>
                                     </div>
                                 </a>
@@ -402,31 +432,68 @@
                 @php
                     $prediction = $predictions->get($match->id);
                     $predStatus = $predictionStatuses[$match->id];
-                    $isLive = in_array($match->status, ['IN_PLAY', 'PAUSED']);
+                    $isLive     = in_array($match->status, ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'], true);
                     $isFinished = $match->status === 'FINISHED';
-                    $isLocked = in_array($predStatus, ['bloqueado', 'calculado', 'finalizado', 'inelegivel']);
+                    $isPreMatch = $match->status === 'PRE_MATCH';
+                    $isLocked   = in_array($predStatus, ['bloqueado', 'calculado', 'finalizado', 'inelegivel']);
+                    $matchDate  = ($match->utc_date ?? $match->local_date)?->timezone('America/Sao_Paulo');
+                    $liveMinute = $liveMinutes[$match->id] ?? null;
+                    $statusLabel = $statusLabels[$match->id] ?? '';
+
+                    $cardRingClass = match(true) {
+                        $isLive && $match->status === 'IN_PLAY'             => 'ring-1 ring-red-500/30',
+                        $isLive && $match->status === 'PAUSED'              => 'ring-1 ring-amber-500/30',
+                        $isLive && $match->status === 'EXTRA_TIME'          => 'ring-1 ring-orange-500/30',
+                        $isLive && $match->status === 'PENALTY_SHOOTOUT'    => 'ring-1 ring-purple-500/30',
+                        $isPreMatch                                          => 'ring-1 ring-blue-500/20',
+                        default => '',
+                    };
+
+                    [$statusColor, $pingOuter, $pingInner, $showPing] = match($match->status) {
+                        'IN_PLAY'          => ['text-red-400',    'bg-red-400',    'bg-red-500',    true],
+                        'PAUSED'           => ['text-amber-400',  'bg-amber-400',  'bg-amber-500',  false],
+                        'EXTRA_TIME'       => ['text-orange-400', 'bg-orange-400', 'bg-orange-500', true],
+                        'PENALTY_SHOOTOUT' => ['text-purple-400', 'bg-purple-400', 'bg-purple-500', true],
+                        'PRE_MATCH'        => ['text-blue-400',   '',              '',              false],
+                        'FINISHED'         => ['text-slate-500',  '',              '',              false],
+                        default            => ['text-slate-500',  '',              '',              false],
+                    };
+
+                    $liveBadgeClass = match($match->status) {
+                        'IN_PLAY'          => 'badge-red',
+                        'PAUSED'           => 'badge-amber',
+                        'EXTRA_TIME'       => 'badge-orange',
+                        'PENALTY_SHOOTOUT' => 'badge-purple',
+                        default            => 'badge-red',
+                    };
                 @endphp
-                <div class="card {{ $isLive ? 'ring-1 ring-red-500/30' : '' }} overflow-hidden h-full flex flex-col">
+                <div class="card {{ $cardRingClass }} overflow-hidden h-full flex flex-col">
                     {{-- Match status bar --}}
                     <div class="flex items-center justify-between px-3 pt-2.5 pb-1">
                         <div class="flex items-center gap-2">
                             @if($isLive)
                             <span class="flex h-2 w-2 relative">
-                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                <span class="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
+                                @if($showPing)
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full {{ $pingOuter }} opacity-75"></span>
+                                @endif
+                                <span class="relative inline-flex h-2 w-2 rounded-full {{ $pingInner }}"></span>
                             </span>
-                            <span class="text-xs font-semibold text-red-400">{{ $statusLabels[$match->id] }}</span>
+                            <span class="text-xs font-semibold {{ $statusColor }}">
+                                {{ $statusLabel }}@if($liveMinute !== null) · {{ $liveMinute }}'@endif
+                            </span>
+                            @elseif($isPreMatch)
+                            <span class="text-xs font-semibold {{ $statusColor }}">{{ $statusLabel }}</span>
                             @elseif($isFinished)
-                            <span class="text-xs text-slate-600">✓ {{ $statusLabels[$match->id] }}</span>
+                            <span class="text-xs {{ $statusColor }}">✓ {{ $statusLabel }}</span>
                             @else
-                            <span class="text-xs text-slate-500">{{ $statusLabels[$match->id] }}</span>
+                            <span class="text-xs {{ $statusColor }}">{{ $statusLabel }}</span>
                             @endif
                         </div>
                         <div class="flex items-center gap-2">
                             <span class="text-[11px] text-slate-600">
-                                {{ $match->local_date?->format('d/m H:i') ?? $match->utc_date->format('d/m H:i') }}
+                                {{ $matchDate?->format('d/m H:i') }}
                             </span>
-                            <a href="{{ route('pools.matches.show', ['pool' => $pool->slug, 'match' => $match->id]) }}"
+                            <a href="{{ route('matches.show', ['match' => $match->id]) }}"
                                class="text-[11px] text-emerald-400 hover:text-emerald-300 transition-colors">
                                 Ver jogo
                             </a>
@@ -482,6 +549,17 @@
                             <div class="flex flex-col items-center gap-1 shrink-0 px-1">
                                 @if($isLive || $isFinished)
                                 <div class="text-xs text-slate-600">PLACAR</div>
+                                @if($isLive)
+                                <span class="{{ $liveBadgeClass }} text-[10px] mt-1 inline-flex items-center gap-1.5">
+                                    @if($showPing)
+                                    <span class="relative flex h-2 w-2">
+                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full {{ $pingOuter }} opacity-75"></span>
+                                        <span class="relative inline-flex h-2 w-2 rounded-full {{ $pingInner }}"></span>
+                                    </span>
+                                    @endif
+                                    {{ $statusLabel }}@if($liveMinute !== null) · {{ $liveMinute }}'@endif
+                                </span>
+                                @endif
                                 @else
                                 <div class="text-xs font-bold text-slate-600 bg-slate-800 rounded px-2 py-0.5">VS</div>
                                 @endif
@@ -513,13 +591,34 @@
 
                     {{-- Prediction input --}}
                     @if(!$isLocked || $prediction)
-                    <div class="border-t border-slate-800 px-3 py-2 bg-slate-900/30">
+                    @php
+                        $initH = $prediction ? (string) $prediction->home_score : '';
+                        $initA = $prediction ? (string) $prediction->away_score : '';
+                        $hasPred = $prediction ? 'true' : 'false';
+                    @endphp
+                    <div class="border-t border-slate-800 px-3 py-2 bg-slate-900/30"
+                         x-data="{
+                             hasPred: {{ $hasPred }},
+                             savedH: '{{ $initH }}',
+                             savedA: '{{ $initA }}',
+                             curH: '{{ $initH }}',
+                             curA: '{{ $initA }}',
+                             get dirty() { return this.curH !== this.savedH || this.curA !== this.savedA; },
+                             get showSave() { return this.dirty || !this.hasPred; },
+                             get showSaved() { return !this.dirty && this.hasPred; }
+                         }"
+                         @prediction-saved.window="
+                             if ($event.detail.matchId === {{ $match->id }}) {
+                                 savedH = curH; savedA = curA; hasPred = true;
+                             }
+                         ">
                         <div class="flex items-center gap-2">
                             <form wire:submit="savePrediction({{ $match->id }})" class="flex w-full items-center gap-2 whitespace-nowrap">
                                 <span class="text-xs text-slate-500 shrink-0">Meu palpite:</span>
                                 <div class="flex flex-1 items-center justify-center gap-1.5 min-w-[96px]">
                                     <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2"
                                            oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,2)"
+                                           @input="curH = $event.target.value.replace(/[^0-9]/g,'').slice(0,2)"
                                            wire:model="scores.{{ $match->id }}.home"
                                            @if($isLocked) disabled @endif
                                            class="score-input w-10 text-center rounded-md text-xs font-bold tabular-nums
@@ -530,6 +629,7 @@
                                     <span class="text-slate-600 font-bold text-xs">×</span>
                                     <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2"
                                            oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,2)"
+                                           @input="curA = $event.target.value.replace(/[^0-9]/g,'').slice(0,2)"
                                            wire:model="scores.{{ $match->id }}.away"
                                            @if($isLocked) disabled @endif
                                            class="score-input w-10 text-center rounded-md text-xs font-bold tabular-nums
@@ -539,7 +639,18 @@
                                                   border py-1 transition-colors">
                                 </div>
                                 @if(!$isLocked)
+                                {{-- Indicador: já salvo --}}
+                                <div x-show="showSaved" x-cloak
+                                     class="flex items-center gap-1 text-emerald-400 text-xs ml-auto shrink-0">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    <span>Salvo</span>
+                                </div>
+                                {{-- Botão salvar: aparece quando alterado ou sem palpite --}}
                                 <button type="submit"
+                                        x-show="showSave"
+                                        x-cloak
                                         class="btn-primary !px-2.5 !py-1 text-xs ml-auto"
                                         wire:loading.attr="disabled" wire:target="savePrediction({{ $match->id }})">
                                     <svg wire:loading wire:target="savePrediction({{ $match->id }})" class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">

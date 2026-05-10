@@ -114,4 +114,21 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Login Rate Limit
+    |--------------------------------------------------------------------------
+    |
+    | Proteção anti brute force no login:
+    | - por identidade (email + IP)
+    | - por IP global
+    |
+    */
+    'login_rate_limit' => [
+        'max_attempts_per_identity' => (int) env('LOGIN_RATE_LIMIT_MAX_ATTEMPTS_PER_IDENTITY', 5),
+        'decay_seconds_per_identity' => (int) env('LOGIN_RATE_LIMIT_DECAY_SECONDS_PER_IDENTITY', 60),
+        'max_attempts_per_ip' => (int) env('LOGIN_RATE_LIMIT_MAX_ATTEMPTS_PER_IP', 25),
+        'decay_seconds_per_ip' => (int) env('LOGIN_RATE_LIMIT_DECAY_SECONDS_PER_IP', 60),
+    ],
+
 ];

@@ -13,12 +13,24 @@ class FootballMatch extends Model
         'provider','external_id','competition_id','competition_season_id','home_team_id','away_team_id','utc_date','local_date',
         'status','matchday','stage','group_name','score_winner','score_duration','home_score_full_time','away_score_full_time',
         'home_score_half_time','away_score_half_time','home_score_extra_time','away_score_extra_time','home_score_penalties','away_score_penalties',
-        'last_updated_by_provider_at','raw_payload',
+        'last_updated_by_provider_at','in_play_started_at','interval_started_at','resumed_from_interval_at','finished_at',
+        'live_clock_anchor_at','live_clock_accumulated_seconds','raw_payload',
     ];
 
     protected function casts(): array
     {
-        return ['utc_date' => 'datetime', 'local_date' => 'datetime', 'last_updated_by_provider_at' => 'datetime', 'raw_payload' => 'array'];
+        return [
+            'utc_date' => 'datetime',
+            'local_date' => 'datetime',
+            'last_updated_by_provider_at' => 'datetime',
+            'in_play_started_at' => 'datetime',
+            'interval_started_at' => 'datetime',
+            'resumed_from_interval_at' => 'datetime',
+            'finished_at' => 'datetime',
+            'live_clock_anchor_at' => 'datetime',
+            'live_clock_accumulated_seconds' => 'integer',
+            'raw_payload' => 'array',
+        ];
     }
 
     public function competition(): BelongsTo

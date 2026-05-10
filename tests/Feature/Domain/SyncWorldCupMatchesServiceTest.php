@@ -37,6 +37,27 @@ class SyncWorldCupMatchesServiceTest extends TestCase
         $this->assertCount(1, $changed);
     }
 
+    public function test_sync_supports_non_world_cup_competition_context(): void
+    {
+        $service = app(SyncWorldCupMatchesService::class);
+
+        $payload = $this->payload('TIMED', null, null);
+        $payload['competition']['id'] = 2013;
+        $payload['competition']['code'] = 'BSA';
+        $payload['competition']['name'] = 'Brasileirao Serie A';
+        $payload['competition']['type'] = 'LEAGUE';
+        $payload['matches'][0]['season']['id'] = 9001;
+
+        $service->sync($payload, 2026);
+
+        $match = FootballMatch::query()->where('external_id', 5001)->firstOrFail();
+        $match->load('competition', 'season');
+
+        $this->assertSame('BSA', $match->competition?->code);
+        $this->assertSame(2026, $match->season?->year);
+        $this->assertSame('GROUP_STAGE', $match->stage);
+    }
+
     private function payload(string $status, ?int $home, ?int $away): array
     {
         return [

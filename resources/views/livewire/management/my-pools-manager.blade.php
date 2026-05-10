@@ -8,33 +8,60 @@
             <p class="text-xs text-slate-500 mt-0.5">Seus bolões ativos</p>
         </div>
 
-        <nav class="flex-1 overflow-y-auto p-2 space-y-1">
-            @forelse($pools as $pool)
+        <nav class="flex-1 overflow-y-auto p-2 space-y-2">
+            @forelse($groupedPools as $groupKey => $groupPools)
             @php
-                $isSelected = $selectedPoolId === $pool->id;
-                $hasPending = ($pool->pending_count ?? 0) > 0;
+                [$compCode, $compName, $compSeason] = array_pad(explode('|', (string) $groupKey), 3, '—');
+                $hasSelectedInGroup = $groupPools->contains(fn ($pool) => $selectedPoolId === $pool->id);
             @endphp
-            <button wire:click="selectPool({{ $pool->id }})"
-                    class="w-full text-left rounded-lg px-3 py-3 transition-colors
-                           {{ $isSelected
-                              ? 'bg-emerald-600/20 ring-1 ring-emerald-500/30'
-                              : 'hover:bg-slate-800' }}">
-                <div class="flex items-start justify-between gap-2">
-                    <p class="text-sm font-medium {{ $isSelected ? 'text-emerald-400' : 'text-slate-300' }} leading-tight">
-                        {{ $pool->name }}
-                    </p>
-                    @if($hasPending)
-                    <span class="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-black px-1">
-                        {{ $pool->pending_count }}
-                    </span>
-                    @endif
+            <div class="rounded-lg border border-slate-800/80 bg-pitch-950/40"
+                 x-data="{ open: {{ $hasSelectedInGroup ? 'true' : 'false' }} }">
+                <button type="button"
+                        @click="open = !open"
+                        class="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left">
+                    <div class="min-w-0">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-emerald-400 truncate">
+                            {{ $compCode }} · {{ $compSeason }}
+                        </p>
+                        <p class="text-[11px] text-slate-500 truncate">{{ $compName }}</p>
+                    </div>
+                    <svg class="w-4 h-4 text-slate-500 transition-transform duration-200"
+                         :class="open ? 'rotate-180' : ''"
+                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+
+                <div x-show="open" x-collapse class="space-y-1 p-2 pt-0">
+                    @foreach($groupPools as $pool)
+                    @php
+                        $isSelected = $selectedPoolId === $pool->id;
+                        $hasPending = ($pool->pending_count ?? 0) > 0;
+                    @endphp
+                    <button wire:click="selectPool({{ $pool->id }})"
+                            class="w-full text-left rounded-lg px-3 py-3 transition-colors
+                                   {{ $isSelected
+                                      ? 'bg-emerald-600/20 ring-1 ring-emerald-500/30'
+                                      : 'hover:bg-slate-800' }}">
+                        <div class="flex items-start justify-between gap-2">
+                            <p class="text-sm font-medium {{ $isSelected ? 'text-emerald-400' : 'text-slate-300' }} leading-tight">
+                                {{ $pool->name }}
+                            </p>
+                            @if($hasPending)
+                            <span class="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-black px-1">
+                                {{ $pool->pending_count }}
+                            </span>
+                            @endif
+                        </div>
+                        <div class="flex items-center gap-2 mt-1.5">
+                            <span class="text-xs text-slate-500">{{ $pool->active_count }} ativos</span>
+                            <span class="text-slate-700">·</span>
+                            <span class="text-xs text-slate-500">{{ $pool->total_members }} total</span>
+                        </div>
+                    </button>
+                    @endforeach
                 </div>
-                <div class="flex items-center gap-2 mt-1.5">
-                    <span class="text-xs text-slate-500">{{ $pool->active_count }} ativos</span>
-                    <span class="text-slate-700">·</span>
-                    <span class="text-xs text-slate-500">{{ $pool->total_members }} total</span>
-                </div>
-            </button>
+            </div>
             @empty
             <div class="px-3 py-6 text-center">
                 <p class="text-sm text-slate-500">Nenhum bolão ativo.</p>
@@ -73,6 +100,8 @@
                         <h2 class="text-lg font-bold text-white truncate">{{ $selectedPool->name }}</h2>
                         <p class="text-xs text-slate-400 flex items-center gap-2 flex-wrap">
                             <span>Código: <span class="font-mono text-emerald-400">{{ $selectedPool->invite_code }}</span></span>
+                            <span class="text-slate-700">·</span>
+                            <span>{{ strtoupper((string) ($selectedPool->competition?->code ?? '—')) }} {{ $selectedPool->season?->year ?? '—' }}</span>
                             <span class="text-slate-700">·</span>
                             <span>{{ match($selectedPool->visibility) { 'public' => '🌐 Público', 'invite_only' => '🔗 Convite', default => '🔒 Privado' } }}</span>
                         </p>
@@ -298,24 +327,48 @@
                     </svg>
                 </button>
             </div>
-            <nav class="p-2 space-y-1">
-                @foreach($pools as $pool)
-                <button wire:click="selectPool({{ $pool->id }}); $nextTick(() => { mobilePanelOpen = false })"
-                        @click="mobilePanelOpen = false"
-                        class="w-full text-left rounded-lg px-3 py-3 transition-colors
-                               {{ $selectedPoolId === $pool->id ? 'bg-emerald-600/20 ring-1 ring-emerald-500/30' : 'hover:bg-slate-800' }}">
-                    <div class="flex items-start justify-between gap-2">
-                        <p class="text-sm font-medium {{ $selectedPoolId === $pool->id ? 'text-emerald-400' : 'text-slate-300' }}">
-                            {{ $pool->name }}
-                        </p>
-                        @if(($pool->pending_count ?? 0) > 0)
-                        <span class="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-black px-1">
-                            {{ $pool->pending_count }}
-                        </span>
-                        @endif
+            <nav class="p-2 space-y-2">
+                @foreach($groupedPools as $groupKey => $groupPools)
+                @php
+                    [$compCode, $compName, $compSeason] = array_pad(explode('|', (string) $groupKey), 3, '—');
+                @endphp
+                <div class="rounded-lg border border-slate-800/80 bg-pitch-950/40" x-data="{ open: true }">
+                    <button type="button"
+                            @click="open = !open"
+                            class="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left">
+                        <div class="min-w-0">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-emerald-400 truncate">
+                                {{ $compCode }} · {{ $compSeason }}
+                            </p>
+                            <p class="text-[11px] text-slate-500 truncate">{{ $compName }}</p>
+                        </div>
+                        <svg class="w-4 h-4 text-slate-500 transition-transform duration-200"
+                             :class="open ? 'rotate-180' : ''"
+                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+                    <div x-show="open" x-collapse class="space-y-1 p-2 pt-0">
+                        @foreach($groupPools as $pool)
+                        <button wire:click="selectPool({{ $pool->id }}); $nextTick(() => { mobilePanelOpen = false })"
+                                @click="mobilePanelOpen = false"
+                                class="w-full text-left rounded-lg px-3 py-3 transition-colors
+                                       {{ $selectedPoolId === $pool->id ? 'bg-emerald-600/20 ring-1 ring-emerald-500/30' : 'hover:bg-slate-800' }}">
+                            <div class="flex items-start justify-between gap-2">
+                                <p class="text-sm font-medium {{ $selectedPoolId === $pool->id ? 'text-emerald-400' : 'text-slate-300' }}">
+                                    {{ $pool->name }}
+                                </p>
+                                @if(($pool->pending_count ?? 0) > 0)
+                                <span class="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-black px-1">
+                                    {{ $pool->pending_count }}
+                                </span>
+                                @endif
+                            </div>
+                            <p class="text-xs text-slate-500 mt-1">{{ $pool->active_count }} ativos · {{ $pool->total_members }} total</p>
+                        </button>
+                        @endforeach
                     </div>
-                    <p class="text-xs text-slate-500 mt-1">{{ $pool->active_count }} ativos · {{ $pool->total_members }} total</p>
-                </button>
+                </div>
                 @endforeach
             </nav>
         </aside>

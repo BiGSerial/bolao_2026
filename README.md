@@ -138,6 +138,45 @@ Executar sincronizacao manual da Copa:
 docker compose exec app php artisan worldcup:sync-group-stage --force
 ```
 
+## Filas em producao (Redis)
+
+Para funcionamento estavel em producao, configure no `.env`:
+
+- `QUEUE_CONNECTION=redis`
+- `REDIS_QUEUE=default`
+- `QUEUE_NAME_API_SYNC=api-sync`
+- `QUEUE_NAME_API_FUNNEL=api-funnel`
+- `QUEUE_NAME_SCORING=scoring`
+- `QUEUE_NAME_RANKING=ranking`
+- `QUEUE_NAME_MAIL=mail`
+- `QUEUE_NAME_BROADCAST=broadcast`
+
+Topologia recomendada de filas:
+
+- `api-sync`: orquestracao de sincronizacao da API (scheduler/comandos de sync)
+- `api-funnel`: drenagem de backlog de atualizacao da API respeitando rate limit
+- `scoring`: calculo de pontuacao por partida finalizada
+- `ranking`: recálculo de ranking dos bolões
+- `mail`: envio de e-mails/notificacoes (convite, verificacao, reset, senha temporaria)
+- `broadcast`: eventos de broadcast/websocket
+
+Workers minimos recomendados (Supervisor/systemd):
+
+```bash
+php artisan queue:work redis --queue=api-sync --sleep=1 --tries=3 --timeout=120
+php artisan queue:work redis --queue=api-funnel --sleep=1 --tries=3 --timeout=180
+php artisan queue:work redis --queue=scoring --sleep=1 --tries=3 --timeout=120
+php artisan queue:work redis --queue=ranking --sleep=1 --tries=3 --timeout=120
+php artisan queue:work redis --queue=mail --sleep=1 --tries=3 --timeout=120
+php artisan queue:work redis --queue=broadcast --sleep=1 --tries=3 --timeout=120
+```
+
+Escala inicial sugerida:
+
+- `mail`: 2 a 4 processos (normalmente o maior gargalo)
+- `api-funnel`: 1 processo (o rate-limit global ja faz o funil de 10 req/min)
+- demais filas: 1 processo cada
+
 Agendamento automatico configurado em `routes/console.php`:
 
 - Comando `worldcup:sync-group-stage`

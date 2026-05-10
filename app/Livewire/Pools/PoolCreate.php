@@ -4,6 +4,8 @@ namespace App\Livewire\Pools;
 
 use App\Enums\PoolMemberRole;
 use App\Enums\PoolMemberStatus;
+use App\Models\Competition;
+use App\Models\CompetitionSeason;
 use App\Models\Pool;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -30,6 +32,7 @@ class PoolCreate extends Component
     public int $points_exact_score = 5;
     public int $points_correct_result = 3;
     public int $points_correct_goals = 1;
+    public string $competition_code = '';
 
     /** @var string[] */
     public array $sectors = [];
@@ -39,6 +42,22 @@ class PoolCreate extends Component
     /** @var string[] */
     public array $tieBreakers = [];
     public string $newTieBreaker = '';
+
+    public function mount(): void
+    {
+        $requested = strtoupper((string) request()->query('competition', session('competition', '')));
+        $options = $this->availableCompetitionOptions();
+        $defaultCode = strtoupper((string) config('football-data.default_competition_code', 'WC'));
+
+        if ($requested !== '' && isset($options[$requested])) {
+            $this->competition_code = $requested;
+            session(['competition' => $requested]);
+            return;
+        }
+
+        $this->competition_code = isset($options[$defaultCode]) ? $defaultCode : (string) array_key_first($options);
+        session(['competition' => $this->competition_code]);
+    }
 
     public function addSector(): void
     {
@@ -126,6 +145,7 @@ class PoolCreate extends Component
 
         $data = $this->validate([
             'name' => ['required', 'string', 'max:120'],
+            'competition_code' => ['required', 'string', 'in:'.implode(',', array_keys($this->availableCompetitionOptions()))],
             'description' => ['nullable', 'string', 'max:1000'],
             'instructions' => ['nullable', 'string', 'max:3000'],
             'visibility' => ['required', 'in:private,invite_only,public'],
@@ -148,10 +168,15 @@ class PoolCreate extends Component
         ));
 
         $userId = (int) Auth::id();
+        $context = $this->resolveCompetitionContext($data['competition_code']);
 
         $pool = DB::transaction(function () use ($data, $userId): Pool {
+            $context = $this->resolveCompetitionContext($data['competition_code']);
+
             $pool = Pool::create([
                 'owner_id' => $userId,
+                'competition_id' => $context['competition']->id,
+                'competition_season_id' => $context['season']->id,
                 'name' => $data['name'],
                 'slug' => $this->makeUniqueSlug($data['name']),
                 'description' => $data['description'] ?: null,
@@ -167,7 +192,7 @@ class PoolCreate extends Component
                 'points_exact_score' => $data['points_exact_score'],
                 'points_correct_result' => $data['points_correct_result'],
                 'points_correct_goals' => $data['points_correct_goals'],
-                'stage' => 'GROUP_STAGE',
+                'stage' => $context['stage'],
             ]);
 
             $pool->members()->create([
@@ -182,7 +207,7 @@ class PoolCreate extends Component
         });
 
         session()->flash('status', 'Bolão criado com sucesso!');
-        $this->redirectRoute('pools.show', ['pool' => $pool->slug], navigate: true);
+        $this->redirectRoute('pools.show', ['pool' => $pool->slug, 'competition' => $context['competition']->code], navigate: true);
     }
 
     private function appendPendingSector(): void
@@ -235,6 +260,7 @@ class PoolCreate extends Component
         return view('livewire.pools.poolcreate', [
             'availableTieBreakers' => $availableTieBreakers,
             'tieBreakerLabels' => $this->tieBreakerLabels(),
+            'competitionName' => (string) config('football-data.competitions.'.$this->competition_code.'.name', $this->competition_code),
         ]);
     }
 
@@ -280,5 +306,66 @@ class PoolCreate extends Component
     private function notify(string $icon, string $title, string $text): void
     {
         $this->dispatch('swal:toast', compact('icon', 'title', 'text'));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function availableCompetitionOptions(): array
+    {
+        $user = Auth::user();
+        $configured = (array) config('football-data.competitions', []);
+        $options = [];
+
+        foreach ($configured as $code => $settings) {
+            $enabled = (bool) data_get($settings, 'enabled', false);
+            $normalizedCode = strtoupper((string) $code);
+            if (! $enabled && $normalizedCode !== 'WC' && !((bool) ($user?->is_admin ?? false))) {
+                continue;
+            }
+
+            $label = (string) data_get($settings, 'name', $normalizedCode);
+            if ($user && ! $user->canAccessCompetition($normalizedCode)) {
+                continue;
+            }
+            $options[$normalizedCode] = $label !== '' ? $label : $normalizedCode;
+        }
+
+        if ($options === []) {
+            $options['WC'] = 'Copa do Mundo';
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return array{competition: Competition, season: CompetitionSeason, stage: string}
+     */
+    private function resolveCompetitionContext(string $competitionCode): array
+    {
+        $code = strtoupper(trim($competitionCode));
+        $competition = Competition::query()->where('code', $code)->first();
+        if (! $competition) {
+            abort(422, 'Competição inválida.');
+        }
+
+        $configuredSeason = (int) config('football-data.competitions.'.$code.'.season', 0);
+        $season = CompetitionSeason::query()
+            ->where('competition_id', $competition->id)
+            ->where('year', $configuredSeason)
+            ->latest('id')
+            ->first();
+
+        if (! $season) {
+            abort(422, 'Temporada da competição ainda não sincronizada.');
+        }
+
+        $stage = (string) config('football-data.competitions.'.$code.'.default_stage', 'GROUP_STAGE');
+
+        return [
+            'competition' => $competition,
+            'season' => $season,
+            'stage' => $stage,
+        ];
     }
 }

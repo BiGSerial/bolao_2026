@@ -90,64 +90,45 @@ jobs:
               echo "== Voltando para compose externo =="
               cd /srv/apps/bolaocopa
 
-              echo "== Buildando imagens PHP =="
-              docker compose build app reverb queue scheduler
+              echo "== [1/8] Buildando imagens Docker =="
+              docker compose build app reverb horizon scheduler
 
-              echo "== Validando Node/NPM no container app =="
-              docker compose run --rm app sh -lc 'node -v && npm -v'
-
-              echo "== Instalando dependências PHP =="
+              echo "== [2/8] Instalando dependências PHP =="
               docker compose run --rm \
                 -e COMPOSER_HOME=/tmp/composer \
                 --user "$(id -u):$(id -g)" \
                 app composer install --no-dev --optimize-autoloader --prefer-dist --no-interaction
 
-              echo "== Instalando dependências JS =="
+              echo "== [3/8] Buildando assets front-end =="
               docker compose run --rm \
                 -e NPM_CONFIG_CACHE=/tmp/npm-cache \
-                -e NODE_ENV=development \
+                -e NODE_ENV=production \
                 --user "$(id -u):$(id -g)" \
-                app npm ci --include=dev
-
-              echo "== Buildando assets Vite =="
-              docker compose run --rm \
-                -e NPM_CONFIG_CACHE=/tmp/npm-cache \
-                -e NODE_ENV=development \
-                --user "$(id -u):$(id -g)" \
-                app npm run build
+                app sh -c 'npm ci --include=dev && npm run build'
 
               echo "== Validando manifest do Vite =="
               test -f src/public/build/manifest.json
 
-              echo "== Removendo cache antigo do Laravel =="
+              echo "== [4/8] Limpando caches antigos =="
               rm -f src/bootstrap/cache/*.php
-
-              echo "== Limpando caches via Artisan =="
-              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan config:clear
-              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan route:clear
-              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan view:clear
-              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan cache:clear
               docker compose run --rm --user "$(id -u):$(id -g)" app php artisan optimize:clear
+              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan cache:clear
 
-              echo "== Publicando assets do Laravel/Livewire =="
-              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan vendor:publish --tag=laravel-assets --force || true
-              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan livewire:publish --assets --force || true
+              echo "== [5/8] Rodando migrations =="
+              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan migrate --force --verbose
 
-              echo "== Rodando migrations =="
-              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan migrate --force
-
-              echo "== Ajustando permissões =="
+              echo "== [6/8] Ajustando permissões =="
               chmod -R ug+rw src/storage src/bootstrap/cache || true
               chmod -R a+rX src/public || true
 
-              echo "== Subindo containers =="
+              echo "== [7/8] Encerrando Horizon (drena jobs em andamento) =="
+              docker compose exec -T app php artisan horizon:terminate 2>/dev/null || true
+              sleep 5
+
+              echo "== [8/8] Subindo containers e otimizando =="
               docker compose up -d --remove-orphans
-
-              echo "== Otimizando Laravel =="
               docker compose exec -T --user "$(id -u):$(id -g)" app php artisan optimize
-
-              echo "== Reiniciando queue, scheduler e Reverb =="
-              docker compose restart queue scheduler reverb
+              docker compose restart scheduler reverb
 
               echo "== Status final dos containers =="
               docker compose ps
