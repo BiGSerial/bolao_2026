@@ -70,6 +70,7 @@ class PublicRegister extends Component
             'display_name'        => $this->display_name,
             'email'               => $this->email,
             'password'            => Hash::make($temporaryPassword),
+            'status'              => 'active',
             'must_change_password' => true,
         ]);
 

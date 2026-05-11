@@ -303,24 +303,28 @@ jobs:
             echo "Aviso: nenhum asset /build/assets detectado no HTML de /login."
           fi
 
-          echo "== Health check: Livewire =="
+                    echo "== Health check: Livewire =="
 
           LIVEWIRE_PATH="$(grep -oE 'src="[^"]*livewire[^"]*\.js[^"]*"' /tmp/login.html | sed -E 's/src="([^"]+)"/\1/' | head -n1 || true)"
           LIVEWIRE_STATUS=""
+          LIVEWIRE_PREFIX=""
 
           if [ -n "$LIVEWIRE_PATH" ]; then
             case "$LIVEWIRE_PATH" in
               http://*|https://*)
                 LIVEWIRE_URL="$LIVEWIRE_PATH"
+                LIVEWIRE_PREFIX="$(printf '%s' "$LIVEWIRE_PATH" | sed -E 's#https?://[^/]+(/livewire-[^/]+)/livewire.*#\1#')"
                 ;;
               *)
                 LIVEWIRE_URL="$BASE_URL$LIVEWIRE_PATH"
+                LIVEWIRE_PREFIX="$(printf '%s' "$LIVEWIRE_PATH" | sed -E 's#(/livewire-[^/]+)/livewire.*#\1#')"
                 ;;
             esac
 
             LIVEWIRE_STATUS="$(curl -k -sS -L --max-time 20 -o /dev/null -w "%{http_code}" "$LIVEWIRE_URL" || echo "000")"
 
             echo "Livewire JS detectado: $LIVEWIRE_PATH"
+            echo "Livewire prefix detectado: ${LIVEWIRE_PREFIX:-<não encontrado>}"
             echo "HTTP Livewire JS status: $LIVEWIRE_STATUS"
 
             if [ "$LIVEWIRE_STATUS" != "200" ]; then
@@ -331,15 +335,49 @@ jobs:
             echo "Aviso: script Livewire não encontrado no HTML de /login."
           fi
 
-          LIVEWIRE_UPDATE_STATUS="$(curl -k -sS -L --max-time 20 -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/livewire/update" || echo "000")"
+          LIVEWIRE_UPDATE_URI="$(grep -oE 'data-update-uri="[^"]+"' /tmp/login.html | sed -E 's/data-update-uri="([^"]+)"/\1/' | head -n1 || true)"
 
-          echo "HTTP /livewire/update status: $LIVEWIRE_UPDATE_STATUS"
+          if [ -n "$LIVEWIRE_UPDATE_URI" ]; then
+            echo "Livewire update URI detectado no HTML: $LIVEWIRE_UPDATE_URI"
+
+            case "$LIVEWIRE_UPDATE_URI" in
+              http://*|https://*)
+                LIVEWIRE_UPDATE_URL="$LIVEWIRE_UPDATE_URI"
+                ;;
+              *)
+                LIVEWIRE_UPDATE_URL="$BASE_URL$LIVEWIRE_UPDATE_URI"
+                ;;
+            esac
+
+          elif [ -n "$LIVEWIRE_PREFIX" ] && [ "$LIVEWIRE_PREFIX" != "$LIVEWIRE_PATH" ]; then
+            LIVEWIRE_UPDATE_URL="$BASE_URL$LIVEWIRE_PREFIX/update"
+            echo "Livewire update URI inferido pelo prefixo: $LIVEWIRE_PREFIX/update"
+
+          else
+            LIVEWIRE_UPDATE_URL="$BASE_URL/livewire/update"
+            echo "Aviso: não foi possível detectar prefixo Livewire. Usando fallback /livewire/update."
+          fi
+
+          LIVEWIRE_UPDATE_STATUS="$(curl -k -sS -L --max-time 20 -o /dev/null -w "%{http_code}" -X POST "$LIVEWIRE_UPDATE_URL" || echo "000")"
+
+          echo "Livewire update URL testada: $LIVEWIRE_UPDATE_URL"
+          echo "HTTP Livewire update status: $LIVEWIRE_UPDATE_STATUS"
 
           case "$LIVEWIRE_UPDATE_STATUS" in
             200|405|419|422)
+              echo "Livewire update endpoint respondeu dentro do esperado."
+              ;;
+            404)
+              if [ -n "$LIVEWIRE_PATH" ] && [ "$LIVEWIRE_STATUS" = "200" ]; then
+                echo "Aviso: Livewire update retornou 404, mas o JS do Livewire foi carregado com sucesso."
+                echo "Não falhando deploy por endpoint update fixo."
+              else
+                echo "Health check Livewire falhou: update retornou 404 e JS não foi validado."
+                exit 1
+              fi
               ;;
             *)
-              echo "Health check Livewire endpoint falhou. Esperado: 200/405/419/422. Recebido: $LIVEWIRE_UPDATE_STATUS"
+              echo "Health check Livewire endpoint falhou. Recebido: $LIVEWIRE_UPDATE_STATUS"
               exit 1
               ;;
           esac

@@ -55,6 +55,7 @@ class RegisteredUserController extends Controller
             'area' => $request->area,
             'email' => $request->email,
             'password' => Hash::make($temporaryPassword),
+            'status' => 'active',
             'must_change_password' => true,
         ]);
 
