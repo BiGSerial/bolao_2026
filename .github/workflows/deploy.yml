@@ -140,16 +140,16 @@ jobs:
 
           sleep 8
 
-          BASE_URL="https://bolao.woti.com.br"
-          LOGIN_HTML="$(curl -k -sS "$BASE_URL/login")"
-          STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" "$BASE_URL/login")
+          BASE_URL="https://bolao.vixforge.com.br"
+          LOGIN_HTML="$(curl -k -sS -L "$BASE_URL/login")"
+          STATUS=$(curl -k -s -L -o /dev/null -w "%{http_code}" "$BASE_URL/login")
 
           LIVEWIRE_PATH="$(printf '%s' "$LOGIN_HTML" | grep -oE '/livewire-[^"]+/livewire(\.min)?\.js\?id=[^"]+' | head -n1 || true)"
-          LIVEWIRE_UPDATE_STATUS="$(curl -k -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/livewire/update" || true)"
+          LIVEWIRE_UPDATE_STATUS="$(curl -k -s -L -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/livewire/update" || true)"
           LIVEWIRE_STATUS=""
 
           if [ -n "$LIVEWIRE_PATH" ]; then
-            LIVEWIRE_STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" "$BASE_URL$LIVEWIRE_PATH")
+            LIVEWIRE_STATUS=$(curl -k -s -L -o /dev/null -w "%{http_code}" "$BASE_URL$LIVEWIRE_PATH")
           else
             echo "Aviso: script Livewire não encontrado no HTML de /login; validando endpoint /livewire/update."
           fi
