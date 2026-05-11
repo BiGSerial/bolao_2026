@@ -8,12 +8,18 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('pools', function (Blueprint $table): void {
-            $table->text('instructions')->nullable()->after('description');
-            $table->json('sectors')->nullable()->after('instructions');
+            if (! Schema::hasColumn('pools', 'instructions')) {
+                $table->text('instructions')->nullable()->after('description');
+            }
+            if (! Schema::hasColumn('pools', 'sectors')) {
+                $table->json('sectors')->nullable()->after('instructions');
+            }
         });
 
         Schema::table('pool_members', function (Blueprint $table): void {
-            $table->string('sector')->nullable()->after('role');
+            if (! Schema::hasColumn('pool_members', 'sector')) {
+                $table->string('sector')->nullable()->after('role');
+            }
         });
     }
 

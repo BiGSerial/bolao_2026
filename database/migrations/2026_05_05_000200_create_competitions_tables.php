@@ -7,6 +7,10 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
+        if (Schema::hasTable('competitions')) {
+            return;
+        }
+
         Schema::create('competitions', function (Blueprint $table): void {
             $table->id();
             $table->string('provider')->default('football_data');

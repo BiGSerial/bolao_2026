@@ -9,9 +9,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('pools', function (Blueprint $table): void {
-            $table->unsignedTinyInteger('points_exact_score')->default(5)->after('stage');
-            $table->unsignedTinyInteger('points_correct_result')->default(3)->after('points_exact_score');
-            $table->unsignedTinyInteger('points_correct_goals')->default(1)->after('points_correct_result');
+            if (! Schema::hasColumn('pools', 'points_exact_score')) {
+                $table->unsignedTinyInteger('points_exact_score')->default(5)->after('stage');
+            }
+            if (! Schema::hasColumn('pools', 'points_correct_result')) {
+                $table->unsignedTinyInteger('points_correct_result')->default(3)->after('points_exact_score');
+            }
+            if (! Schema::hasColumn('pools', 'points_correct_goals')) {
+                $table->unsignedTinyInteger('points_correct_goals')->default(1)->after('points_correct_result');
+            }
         });
     }
 

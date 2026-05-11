@@ -7,6 +7,10 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
+        if (Schema::hasTable('legal_documents')) {
+            return;
+        }
+
         Schema::create('legal_documents', function (Blueprint $table): void {
             $table->id();
             $table->string('type', 50);

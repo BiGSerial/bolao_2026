@@ -8,7 +8,9 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('pools', function (Blueprint $table): void {
-            $table->json('tie_breakers')->nullable()->after('sectors');
+            if (! Schema::hasColumn('pools', 'tie_breakers')) {
+                $table->json('tie_breakers')->nullable()->after('sectors');
+            }
         });
     }
 

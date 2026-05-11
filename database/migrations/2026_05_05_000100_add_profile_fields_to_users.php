@@ -8,10 +8,18 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table): void {
-            $table->string('area')->nullable()->after('name');
-            $table->string('phone')->nullable()->after('email');
-            $table->string('status')->default('pending')->after('password');
-            $table->boolean('is_admin')->default(false)->after('status');
+            if (! Schema::hasColumn('users', 'area')) {
+                $table->string('area')->nullable()->after('name');
+            }
+            if (! Schema::hasColumn('users', 'phone')) {
+                $table->string('phone')->nullable()->after('email');
+            }
+            if (! Schema::hasColumn('users', 'status')) {
+                $table->string('status')->default('pending')->after('password');
+            }
+            if (! Schema::hasColumn('users', 'is_admin')) {
+                $table->boolean('is_admin')->default(false)->after('status');
+            }
         });
     }
 

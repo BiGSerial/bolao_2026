@@ -94,6 +94,7 @@ jobs:
               docker compose build app reverb horizon scheduler
 
               echo "== [2/8] Instalando dependências PHP =="
+              sudo chown -R "$(id -u):$(id -g)" src/vendor 2>/dev/null || rm -rf src/vendor 2>/dev/null || true
               docker compose run --rm \
                 -e COMPOSER_HOME=/tmp/composer \
                 --user "$(id -u):$(id -g)" \
