@@ -21,6 +21,7 @@ use App\Livewire\Pools\PoolMembers;
 use App\Livewire\Pools\PoolMatchShow;
 use App\Livewire\Pools\PoolSettings;
 use App\Livewire\Pools\PoolShow;
+use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Route;
 
 
