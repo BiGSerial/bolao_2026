@@ -19,14 +19,20 @@ jobs:
 
     steps:
       - name: Configurar SSH
+        shell: bash
         run: |
-          set -e
+          set -Eeuo pipefail
 
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/bolaocopa_key
           chmod 600 ~/.ssh/bolaocopa_key
+
+          if [ ! -s ~/.ssh/bolaocopa_key ]; then
+            echo "Erro: secret VPS_SSH_KEY não configurado ou vazio."
+            exit 1
+          fi
 
           VPS_HOST="${{ secrets.VPS_HOST }}"
           VPS_PORT="${{ secrets.VPS_PORT }}"
@@ -43,8 +49,9 @@ jobs:
           ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
       - name: Deploy na VPS
+        shell: bash
         run: |
-          set -e
+          set -Eeuo pipefail
 
           VPS_HOST="${{ secrets.VPS_HOST }}"
           VPS_USER="${{ secrets.VPS_USER }}"
@@ -64,15 +71,45 @@ jobs:
           ssh \
             -i ~/.ssh/bolaocopa_key \
             -p "$VPS_PORT" \
-            "$VPS_USER@$VPS_HOST" << 'EOF'
-              set -e
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "$VPS_USER@$VPS_HOST" "bash -s" << 'EOF'
+              set -Eeuo pipefail
+
+              PROJECT_ROOT="/srv/apps/bolaocopa"
+              APP_DIR="$PROJECT_ROOT/src"
+
+              trap '
+                echo ""
+                echo "== ERRO NO DEPLOY =="
+                echo "Comando falhou. Exibindo diagnóstico dos containers:"
+                cd "$PROJECT_ROOT" 2>/dev/null || true
+                docker compose ps || true
+                docker compose logs -n 80 app nginx horizon reverb scheduler || true
+              ' ERR
+
+              echo "== Validando ambiente da VPS =="
+              command -v docker >/dev/null
+              docker compose version
 
               echo "== Acessando projeto Laravel =="
-              cd /srv/apps/bolaocopa/src
+              cd "$APP_DIR"
 
               echo "== Atualizando código pelo Git =="
-              git fetch origin main
+              git fetch --tags origin main
               git reset --hard origin/main
+
+              echo "== Validando arquivos essenciais do projeto =="
+              test -f composer.json
+              test -f composer.lock
+              test -f package.json
+              test -f package-lock.json
+              test -f .env
+
+              if ! grep -qE '^APP_KEY=.+$' .env; then
+                echo "Erro: APP_KEY ausente ou vazio no .env."
+                exit 1
+              fi
 
               echo "== Calculando versão da aplicação =="
               if git describe --tags --exact-match >/dev/null 2>&1; then
@@ -80,94 +117,223 @@ jobs:
               else
                 APP_VERSION="$(git rev-parse --abbrev-ref HEAD)-$(git rev-parse --short HEAD)"
               fi
+
               echo "APP_VERSION=$APP_VERSION"
+
               if grep -q '^APP_VERSION=' .env; then
-                sed -i "s/^APP_VERSION=.*/APP_VERSION=$APP_VERSION/" .env
+                sed -i "s|^APP_VERSION=.*|APP_VERSION=$APP_VERSION|" .env
               else
                 echo "APP_VERSION=$APP_VERSION" >> .env
               fi
 
-              echo "== Voltando para compose externo =="
-              cd /srv/apps/bolaocopa
+              echo "== Acessando compose externo =="
+              cd "$PROJECT_ROOT"
 
-              echo "== [1/8] Buildando imagens Docker =="
+              echo "== Validando docker-compose.yml =="
+              docker compose config -q
+
+              echo "== [1/10] Buildando imagens Docker =="
               docker compose build app reverb horizon scheduler
 
-              echo "== [2/8] Instalando dependências PHP =="
-              docker compose run --rm --user root app rm -rf /var/www/html/vendor
+              echo "== [2/10] Garantindo DB e Redis ativos =="
+              docker compose up -d db redis
+
+              echo "== [3/10] Instalando dependências PHP =="
               docker compose run --rm \
+                --user root \
+                -e COMPOSER_ALLOW_SUPERUSER=1 \
                 -e COMPOSER_HOME=/tmp/composer \
                 app composer install --no-dev --optimize-autoloader --prefer-dist --no-interaction
 
-              echo "== [3/8] Buildando assets front-end =="
-              docker compose run --rm --user root app rm -rf /var/www/html/node_modules
+              echo "== Validando autoload do Composer =="
+              test -f "$APP_DIR/vendor/autoload.php"
+
+              docker compose run --rm app php -r "require 'vendor/autoload.php'; echo 'Composer autoload OK'.PHP_EOL;"
+
+              echo "== [4/10] Buildando assets front-end =="
               docker compose run --rm \
+                --user root \
                 -e NPM_CONFIG_CACHE=/tmp/npm-cache \
                 -e NODE_ENV=production \
-                app sh -c 'npm ci --include=dev && npm run build'
+                app bash -lc '
+                  set -Eeuo pipefail
 
-              echo "== Validando manifest do Vite =="
-              test -f src/public/build/manifest.json
+                  echo "Node:"
+                  node -v
 
-              echo "== [4/8] Limpando caches antigos =="
-              rm -f src/bootstrap/cache/*.php
+                  echo "NPM:"
+                  npm -v
+
+                  echo "Instalando dependências front-end:"
+                  npm ci --include=dev
+
+                  echo "Rodando Vite build:"
+                  npm run build
+
+                  echo "Validando manifest:"
+                  test -f public/build/manifest.json
+                '
+
+              echo "== Validando manifest do Vite no host =="
+              test -f "$APP_DIR/public/build/manifest.json"
+
+              echo "== [5/10] Ajustando permissões =="
+              docker compose run --rm --user root app sh -lc '
+                chown -R 1000:1000 vendor storage bootstrap/cache public/build node_modules 2>/dev/null || true
+                chmod -R ug+rw storage bootstrap/cache public/build vendor 2>/dev/null || true
+                chmod -R a+rX public 2>/dev/null || true
+              '
+
+              echo "== [6/10] Limpando caches antigos =="
+              rm -f "$APP_DIR/bootstrap/cache/"*.php || true
               docker compose run --rm app php artisan optimize:clear
               docker compose run --rm app php artisan cache:clear
 
-              echo "== [5/8] Rodando migrations =="
+              echo "== [7/10] Validando Laravel antes das migrations =="
+              docker compose run --rm app php artisan about
+
+              echo "== [8/10] Rodando migrations =="
               docker compose run --rm app php artisan migrate --force --verbose
 
-              echo "== [6/8] Ajustando permissões =="
-              chmod -R ug+rw src/storage src/bootstrap/cache || true
-              chmod -R a+rX src/public || true
-
-              echo "== [7/8] Encerrando Horizon (drena jobs em andamento) =="
+              echo "== [9/10] Encerrando Horizon para reinício limpo =="
               docker compose exec -T app php artisan horizon:terminate 2>/dev/null || true
               sleep 5
 
-              echo "== [8/8] Subindo containers e otimizando =="
+              echo "== [10/10] Subindo containers =="
               docker compose up -d --remove-orphans
+
+              echo "== Otimizando aplicação =="
               docker compose exec -T app php artisan optimize
-              docker compose restart scheduler reverb
+
+              echo "== Reiniciando serviços Laravel =="
+              docker compose restart app nginx horizon reverb scheduler
 
               echo "== Status final dos containers =="
               docker compose ps
+
+              echo "== Validando arquivos críticos finais =="
+              test -f "$APP_DIR/vendor/autoload.php"
+              test -f "$APP_DIR/public/build/manifest.json"
+
+              echo "Deploy interno concluído."
           EOF
 
       - name: Health check externo
+        shell: bash
         run: |
-          set -e
-
-          sleep 8
+          set -Eeuo pipefail
 
           BASE_URL="https://bolao.vixforge.com.br"
-          LOGIN_HTML="$(curl -k -sS -L "$BASE_URL/login")"
-          STATUS=$(curl -k -s -L -o /dev/null -w "%{http_code}" "$BASE_URL/login")
 
-          LIVEWIRE_PATH="$(printf '%s' "$LOGIN_HTML" | grep -oE '/livewire-[^"]+/livewire(\.min)?\.js\?id=[^"]+' | head -n1 || true)"
-          LIVEWIRE_UPDATE_STATUS="$(curl -k -s -L -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/livewire/update" || true)"
+          echo "Aguardando aplicação estabilizar..."
+          sleep 10
+
+          echo "== Health check: /health =="
+
+          HEALTH_OK=0
+
+          for attempt in {1..12}; do
+            echo "Tentativa $attempt/12..."
+
+            HEALTH_STATUS="$(curl -k -sS -L --max-time 20 -o /tmp/health.json -w "%{http_code}" "$BASE_URL/health" || echo "000")"
+
+            echo "HTTP /health status: $HEALTH_STATUS"
+
+            if [ -f /tmp/health.json ]; then
+              cat /tmp/health.json
+              echo ""
+            fi
+
+            if [ "$HEALTH_STATUS" = "200" ] && grep -qE '"status"[[:space:]]*:[[:space:]]*"ok"' /tmp/health.json; then
+              HEALTH_OK=1
+              break
+            fi
+
+            sleep 5
+          done
+
+          if [ "$HEALTH_OK" != "1" ]; then
+            echo "Health check falhou em /health."
+            echo "Resposta final:"
+            cat /tmp/health.json || true
+            exit 1
+          fi
+
+          echo "== Health check: /login =="
+
+          LOGIN_STATUS="$(curl -k -sS -L --max-time 20 -o /tmp/login.html -w "%{http_code}" "$BASE_URL/login" || echo "000")"
+
+          echo "HTTP /login status: $LOGIN_STATUS"
+
+          if [ "$LOGIN_STATUS" != "200" ]; then
+            echo "Health check falhou em /login. Esperado: 200. Recebido: $LOGIN_STATUS"
+            echo "Primeiras linhas da resposta:"
+            head -n 60 /tmp/login.html || true
+            exit 1
+          fi
+
+          if grep -qiE 'Fatal error|Warning: require|Failed opening required|vendor/autoload.php|Whoops|Call to undefined|SQLSTATE' /tmp/login.html; then
+            echo "Health check falhou: /login retornou erro PHP/Laravel no HTML."
+            echo "Primeiras linhas da resposta:"
+            head -n 80 /tmp/login.html || true
+            exit 1
+          fi
+
+          if ! grep -qiE 'entrar|login|email|senha|password|csrf-token|_token|build/assets|vite|livewire' /tmp/login.html; then
+            echo "Health check falhou: /login retornou 200, mas não parece ser a tela esperada."
+            echo "Primeiras linhas da resposta:"
+            head -n 80 /tmp/login.html || true
+            exit 1
+          fi
+
+          echo "== Health check: assets Vite detectados no HTML =="
+
+          ASSET_PATH="$(grep -oE '/build/assets/[^"]+\.(css|js)' /tmp/login.html | head -n1 || true)"
+
+          if [ -n "$ASSET_PATH" ]; then
+            ASSET_STATUS="$(curl -k -sS -L --max-time 20 -o /dev/null -w "%{http_code}" "$BASE_URL$ASSET_PATH" || echo "000")"
+            echo "Asset detectado: $ASSET_PATH"
+            echo "HTTP asset status: $ASSET_STATUS"
+
+            if [ "$ASSET_STATUS" != "200" ]; then
+              echo "Health check falhou: asset do Vite não carregou."
+              exit 1
+            fi
+          else
+            echo "Aviso: nenhum asset /build/assets detectado no HTML de /login."
+          fi
+
+          echo "== Health check: Livewire =="
+
+          LIVEWIRE_PATH="$(grep -oE 'src="[^"]*livewire[^"]*\.js[^"]*"' /tmp/login.html | sed -E 's/src="([^"]+)"/\1/' | head -n1 || true)"
           LIVEWIRE_STATUS=""
 
           if [ -n "$LIVEWIRE_PATH" ]; then
-            LIVEWIRE_STATUS=$(curl -k -s -L -o /dev/null -w "%{http_code}" "$BASE_URL$LIVEWIRE_PATH")
+            case "$LIVEWIRE_PATH" in
+              http://*|https://*)
+                LIVEWIRE_URL="$LIVEWIRE_PATH"
+                ;;
+              *)
+                LIVEWIRE_URL="$BASE_URL$LIVEWIRE_PATH"
+                ;;
+            esac
+
+            LIVEWIRE_STATUS="$(curl -k -sS -L --max-time 20 -o /dev/null -w "%{http_code}" "$LIVEWIRE_URL" || echo "000")"
+
+            echo "Livewire JS detectado: $LIVEWIRE_PATH"
+            echo "HTTP Livewire JS status: $LIVEWIRE_STATUS"
+
+            if [ "$LIVEWIRE_STATUS" != "200" ]; then
+              echo "Health check Livewire JS falhou. Esperado: 200. Recebido: $LIVEWIRE_STATUS"
+              exit 1
+            fi
           else
-            echo "Aviso: script Livewire não encontrado no HTML de /login; validando endpoint /livewire/update."
+            echo "Aviso: script Livewire não encontrado no HTML de /login."
           fi
 
-          echo "HTTP status: $STATUS"
-          echo "Livewire path detectado: ${LIVEWIRE_PATH:-<não encontrado>}"
-          echo "Livewire JS status: ${LIVEWIRE_STATUS:-<não validado>}"
-          echo "Livewire update status: $LIVEWIRE_UPDATE_STATUS"
+          LIVEWIRE_UPDATE_STATUS="$(curl -k -sS -L --max-time 20 -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/livewire/update" || echo "000")"
 
-          if [ "$STATUS" != "200" ]; then
-            echo "Health check falhou. Esperado: 200. Recebido: $STATUS"
-            exit 1
-          fi
-
-          if [ -n "$LIVEWIRE_PATH" ] && [ "$LIVEWIRE_STATUS" != "200" ]; then
-            echo "Health check Livewire JS falhou. Esperado: 200. Recebido: $LIVEWIRE_STATUS"
-            exit 1
-          fi
+          echo "HTTP /livewire/update status: $LIVEWIRE_UPDATE_STATUS"
 
           case "$LIVEWIRE_UPDATE_STATUS" in
             200|405|419|422)
@@ -178,11 +344,28 @@ jobs:
               ;;
           esac
 
-          if [ -z "$LIVEWIRE_PATH" ]; then
-            if ! printf '%s' "$LOGIN_HTML" | grep -qiE 'csrf-token|name="_token"|login'; then
-              echo "Health check HTML falhou: página /login sem marcadores básicos esperados."
-              exit 1
-            fi
+          echo "== Health check: /horizon =="
+
+          HORIZON_STATUS="$(curl -k -sS -L --max-time 20 -o /tmp/horizon.html -w "%{http_code}" "$BASE_URL/horizon" || echo "000")"
+
+          echo "HTTP /horizon status: $HORIZON_STATUS"
+
+          if grep -qiE 'Fatal error|Warning: require|Failed opening required|vendor/autoload.php|Whoops|Call to undefined|SQLSTATE' /tmp/horizon.html; then
+            echo "Health check falhou: /horizon retornou erro PHP/Laravel no HTML."
+            echo "Primeiras linhas da resposta:"
+            head -n 80 /tmp/horizon.html || true
+            exit 1
           fi
+
+          case "$HORIZON_STATUS" in
+            200|302|401|403)
+              ;;
+            *)
+              echo "Health check Horizon falhou. Status inesperado: $HORIZON_STATUS"
+              echo "Primeiras linhas da resposta:"
+              head -n 80 /tmp/horizon.html || true
+              exit 1
+              ;;
+          esac
 
           echo "Deploy OK."

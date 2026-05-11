@@ -23,6 +23,38 @@ use App\Livewire\Pools\PoolSettings;
 use App\Livewire\Pools\PoolShow;
 use Illuminate\Support\Facades\Route;
 
+
+Route::get('/health', function () {
+    $checks = [
+        'app' => true,
+        'database' => false,
+        'redis' => false,
+    ];
+
+    try {
+        DB::select('select 1');
+        $checks['database'] = true;
+    } catch (\Throwable $e) {
+        $checks['database'] = false;
+    }
+
+    try {
+        Redis::connection()->ping();
+        $checks['redis'] = true;
+    } catch (\Throwable $e) {
+        $checks['redis'] = false;
+    }
+
+    $ok = collect($checks)->every(fn ($check) => $check === true);
+
+    return response()->json([
+        'status' => $ok ? 'ok' : 'error',
+        'version' => env('APP_VERSION'),
+        'checks' => $checks,
+        'time' => now()->toIso8601String(),
+    ], $ok ? 200 : 503);
+})->name('health');
+
 Route::redirect('/', '/login');
 
 Route::get('/legal/eula', [LegalPageController::class, 'eula'])->name('legal.eula');
