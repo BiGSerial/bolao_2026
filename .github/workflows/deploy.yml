@@ -94,11 +94,13 @@ jobs:
               docker compose build app reverb horizon scheduler
 
               echo "== [2/8] Instalando dependências PHP =="
+              docker compose run --rm --user root app rm -rf /var/www/html/vendor
               docker compose run --rm \
                 -e COMPOSER_HOME=/tmp/composer \
                 app composer install --no-dev --optimize-autoloader --prefer-dist --no-interaction
 
               echo "== [3/8] Buildando assets front-end =="
+              docker compose run --rm --user root app rm -rf /var/www/html/node_modules
               docker compose run --rm \
                 -e NPM_CONFIG_CACHE=/tmp/npm-cache \
                 -e NODE_ENV=production \
