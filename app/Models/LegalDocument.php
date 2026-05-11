@@ -8,14 +8,17 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class LegalDocument extends Model
 {
     protected $fillable = [
         'type',
         'title',
+        'slug',
         'version',
         'content',
+        'content_hash',
         'is_active',
         'published_at',
         'created_by',
@@ -32,6 +35,15 @@ class LegalDocument extends Model
 
     protected static function booted(): void
     {
+        static::saving(function (self $document): void {
+            $document->content_hash = hash('sha256', (string) $document->content);
+
+            if (! is_string($document->slug) || trim($document->slug) === '') {
+                $base = Str::slug((string) $document->type->value.'-'.(string) $document->version);
+                $document->slug = $base !== '' ? $base : null;
+            }
+        });
+
         static::updating(function (self $document): void {
             if (! $document->isPublished()) {
                 return;
@@ -75,5 +87,14 @@ class LegalDocument extends Model
     public function isPublished(): bool
     {
         return $this->published_at !== null;
+    }
+
+    public function hasContentIntegrity(): bool
+    {
+        if (! is_string($this->content_hash) || $this->content_hash === '') {
+            return false;
+        }
+
+        return hash_equals($this->content_hash, hash('sha256', (string) $this->content));
     }
 }

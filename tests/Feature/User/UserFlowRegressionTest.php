@@ -55,19 +55,22 @@ class UserFlowRegressionTest extends TestCase
             'competition_package_id' => null,
             'must_change_password' => false,
         ]);
+        $originalEmail = $user->email;
 
-        $response = $this->actingAs($user)->patch('/profile', [
-            'name' => 'Nome Atualizado',
-            'email' => 'novo@example.com',
-        ]);
+        $response = $this->actingAs($user)
+            ->from('/profile')
+            ->patch('/profile', [
+                'name' => 'Nome Atualizado',
+                'email' => 'novo@example.com',
+            ]);
 
-        $response->assertSessionHasNoErrors();
+        $response->assertSessionHasErrors('email');
         $response->assertRedirect('/profile');
 
         $user->refresh();
 
-        $this->assertSame('Nome Atualizado', $user->name);
-        $this->assertSame('novo@example.com', $user->email);
+        $this->assertNotSame('Nome Atualizado', $user->name);
+        $this->assertSame($originalEmail, $user->email);
         $this->assertSame('active', $user->status);
         $this->assertSame(2, (int) $user->subscription_tier);
         $this->assertNull($user->competition_package_id);

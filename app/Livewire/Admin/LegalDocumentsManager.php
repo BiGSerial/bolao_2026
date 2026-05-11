@@ -4,8 +4,10 @@ namespace App\Livewire\Admin;
 
 use App\Enums\LegalDocumentType;
 use App\Models\LegalDocument;
+use App\Models\User;
 use App\Models\UserLegalAcceptance;
 use App\Services\Legal\LegalDocumentPublishingService;
+use App\Services\Legal\LegalAuditExportService;
 use DomainException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
@@ -25,6 +27,9 @@ class LegalDocumentsManager extends Component
     public bool $publishNow = false;
 
     public string $acceptanceSearch = '';
+    /** @var array<int, array{label:string,path:string}> */
+    public array $lastAuditExportFiles = [];
+    public ?string $lastAuditExportUserLabel = null;
 
     public function mount(): void
     {
@@ -51,7 +56,7 @@ class LegalDocumentsManager extends Component
         $this->assertAdmin();
 
         $validated = $this->validate([
-            'type'       => ['required', 'in:EULA,PRIVACY_POLICY'],
+            'type'       => ['required', 'in:'.collect(LegalDocumentType::cases())->pluck('value')->implode(',')],
             'title'      => ['required', 'string', 'min:5', 'max:255'],
             'content'    => ['required', 'string', 'min:20'],
             'publishNow' => ['boolean'],
@@ -123,6 +128,44 @@ class LegalDocumentsManager extends Component
         }
 
         $this->dispatch('swal:alert', ['icon' => 'success', 'title' => 'Publicado', 'text' => 'Nova versão publicada e versão ativa anterior desativada.']);
+    }
+
+    public function exportAcceptancesByUser(int $userId, LegalAuditExportService $exportService): void
+    {
+        $this->assertAdmin();
+
+        $user = User::query()->find($userId);
+        if (! $user) {
+            $this->dispatch('swal:alert', ['icon' => 'error', 'title' => 'Erro', 'text' => 'Usuário não encontrado para exportação.']);
+
+            return;
+        }
+
+        $result = $exportService->export(
+            filters: ['user_id' => $userId],
+            withSnapshot: true,
+            outputDir: 'legal-audit-exports/admin',
+        );
+
+        if (((int) ($result['total_records'] ?? 0)) === 0) {
+            $this->dispatch('swal:alert', ['icon' => 'warning', 'title' => 'Sem dados', 'text' => 'Nenhum aceite jurídico encontrado para este usuário.']);
+
+            return;
+        }
+
+        $this->lastAuditExportFiles = [
+            ['label' => 'CSV', 'path' => (string) $result['csv_path']],
+            ['label' => 'JSON', 'path' => (string) $result['json_path']],
+            ['label' => 'Manifest', 'path' => (string) $result['manifest_path']],
+        ];
+
+        $this->lastAuditExportUserLabel = trim((string) ($user->name ?: $user->email));
+
+        $this->dispatch('swal:alert', [
+            'icon' => 'success',
+            'title' => 'Exportação concluída',
+            'text' => 'Pacote de auditoria do usuário gerado com sucesso.',
+        ]);
     }
 
     public function selectDocument(int $documentId): void

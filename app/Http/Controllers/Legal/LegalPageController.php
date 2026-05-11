@@ -24,6 +24,16 @@ class LegalPageController extends Controller
         return $this->renderDocument(LegalDocumentType::PrivacyPolicy);
     }
 
+    public function disclaimer(): View
+    {
+        return $this->renderDocument(LegalDocumentType::Disclaimer);
+    }
+
+    public function confidentialityPolicy(): View
+    {
+        return $this->renderDocument(LegalDocumentType::ConfidentialityPolicy);
+    }
+
     public function about(): View
     {
         return view('legal.about');

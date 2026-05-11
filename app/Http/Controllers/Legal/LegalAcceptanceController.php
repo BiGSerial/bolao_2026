@@ -6,6 +6,7 @@ use App\Enums\LegalDocumentType;
 use App\Http\Controllers\Controller;
 use App\Models\LegalDocument;
 use App\Models\UserLegalAcceptance;
+use App\Services\Legal\LegalAcceptanceEvidenceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,10 @@ use Illuminate\View\View;
 
 class LegalAcceptanceController extends Controller
 {
+    public function __construct(
+        private readonly LegalAcceptanceEvidenceService $evidenceService,
+    ) {}
+
     public function show(Request $request): View|RedirectResponse
     {
         $user = $request->user();
@@ -59,14 +64,17 @@ class LegalAcceptanceController extends Controller
 
         DB::transaction(function () use ($request, $user, $eula, $privacyPolicy): void {
             foreach ([$eula, $privacyPolicy] as $document) {
+                $evidence = $this->evidenceService->buildEvidence(
+                    request: $request,
+                    document: $document,
+                    method: 'mandatory_acceptance_gate',
+                    context: ['source' => 'mandatory_gate'],
+                );
+
                 UserLegalAcceptance::query()->firstOrCreate([
                     'user_id' => $user->id,
                     'legal_document_id' => $document->id,
-                ], [
-                    'accepted_at' => now(),
-                    'ip_address' => $request->ip(),
-                    'user_agent' => (string) $request->userAgent(),
-                ]);
+                ], $evidence);
             }
         });
 

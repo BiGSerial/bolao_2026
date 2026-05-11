@@ -63,7 +63,11 @@
                 <input id="email" name="email" type="email"
                        value="{{ old('email', $user->email) }}"
                        required autocomplete="username"
+                       @disabled(! (bool) $user->is_admin)
                        class="input-field">
+                @if(! (bool) $user->is_admin)
+                    <p class="mt-1 text-xs text-slate-500">O e-mail cadastrado não pode ser alterado por usuário comum.</p>
+                @endif
                 @error('email')
                     <p class="mt-1.5 text-xs text-red-400 flex items-center gap-1">
                         <svg class="w-3.5 h-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">

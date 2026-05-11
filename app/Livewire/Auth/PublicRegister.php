@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\UserLegalAcceptance;
 use App\Notifications\WelcomeWithTemporaryPasswordNotification;
 use App\Services\Email\EmailDispatchGuard;
+use App\Services\Legal\LegalAcceptanceEvidenceService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -98,14 +99,20 @@ class PublicRegister extends Component
     {
         $eula = LegalDocument::query()->active()->ofType(LegalDocumentType::Eula)->first();
         $privacy = LegalDocument::query()->active()->ofType(LegalDocumentType::PrivacyPolicy)->first();
-
-        $ip = request()->ip();
-        $ua = (string) request()->userAgent();
+        $request = request();
+        $evidenceService = app(LegalAcceptanceEvidenceService::class);
 
         foreach (array_filter([$eula, $privacy]) as $document) {
+            $evidence = $evidenceService->buildEvidence(
+                request: $request,
+                document: $document,
+                method: 'public_registration',
+                context: ['source' => 'public_register'],
+            );
+
             UserLegalAcceptance::firstOrCreate(
                 ['user_id' => $userId, 'legal_document_id' => $document->id],
-                ['accepted_at' => now(), 'ip_address' => $ip, 'user_agent' => $ua]
+                $evidence
             );
         }
     }

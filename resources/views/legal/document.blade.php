@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ config('app.name', 'Bolão Copa') }} · {{ $documentType === \App\Enums\LegalDocumentType::Eula ? 'Termos de Uso' : 'Política de Privacidade' }}</title>
+    <title>{{ config('app.name', 'Bolão Copa') }} · {{ $documentType->label() }}</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
@@ -41,7 +41,7 @@
                     <div class="flex items-start justify-between gap-3">
                         <div>
                             <p class="text-[11px] uppercase tracking-[0.16em] text-emerald-400 font-medium mb-1">
-                                {{ $documentType === \App\Enums\LegalDocumentType::Eula ? 'Termos de Uso (EULA)' : 'Política de Privacidade' }}
+                                {{ $documentType->label() }}
                             </p>
                             <h1 class="text-base font-semibold leading-tight text-white sm:text-lg">{{ $document->title }}</h1>
                             <div class="mt-1 flex items-center gap-2 text-[11px] text-slate-500">

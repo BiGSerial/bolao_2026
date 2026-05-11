@@ -16,17 +16,30 @@ class ProfileUpdateRequest extends FormRequest
      */
     public function rules(): array
     {
+        $emailRules = [
+            'required',
+            'string',
+            'lowercase',
+            'email',
+            'max:255',
+            Rule::unique(User::class)->ignore($this->user()->id),
+        ];
+
+        if (! (bool) $this->user()?->is_admin) {
+            $emailRules[] = Rule::in([(string) $this->user()?->email]);
+        }
+
         return [
             'name' => ['required', 'string', 'max:255'],
             'display_name' => ['nullable', 'string', 'max:80'],
-            'email' => [
-                'required',
-                'string',
-                'lowercase',
-                'email',
-                'max:255',
-                Rule::unique(User::class)->ignore($this->user()->id),
-            ],
+            'email' => $emailRules,
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'email.in' => 'Usuário comum não pode alterar o e-mail cadastrado.',
         ];
     }
 }

@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Admin\UserModerationController;
+use App\Http\Controllers\Admin\LegalAuditExportController;
 use App\Http\Controllers\Legal\LegalAcceptanceController;
 use App\Http\Controllers\Pools\PoolInviteController;
 use App\Http\Controllers\Legal\LegalPageController;
@@ -61,6 +62,8 @@ Route::redirect('/', '/login');
 Route::get('/legal/eula', [LegalPageController::class, 'eula'])->name('legal.eula');
 Route::get('/legal/privacy-policy', [LegalPageController::class, 'privacyPolicy'])->name('legal.privacy-policy');
 Route::get('/legal/terms', [LegalPageController::class, 'terms'])->name('legal.terms');
+Route::get('/legal/disclaimer', [LegalPageController::class, 'disclaimer'])->name('legal.disclaimer');
+Route::get('/legal/confidentiality-policy', [LegalPageController::class, 'confidentialityPolicy'])->name('legal.confidentiality-policy');
 Route::get('/sobre', [LegalPageController::class, 'about'])->name('about');
 
 Route::middleware('guest')->group(function (): void {
@@ -99,6 +102,7 @@ Route::middleware(['auth', 'user.active', 'password.changed', 'legal.accepted', 
     Route::get('/api-sync', ApiSyncDashboard::class)->name('api.sync');
     Route::get('/jogos/correcao-manual', ManualMatchCorrection::class)->name('matches.manual-correction');
     Route::get('/legal', LegalDocumentsManager::class)->name('legal.index');
+    Route::get('/legal/exports/download', [LegalAuditExportController::class, 'download'])->name('legal.exports.download');
 });
 
 Route::middleware(['auth', 'user.active', 'password.changed', 'legal.accepted'])->group(function (): void {

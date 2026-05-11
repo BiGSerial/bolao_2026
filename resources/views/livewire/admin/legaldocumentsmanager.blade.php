@@ -23,8 +23,9 @@
                 <div>
                     <label class="label">Tipo</label>
                     <select wire:model.live="type" class="input-field mt-1">
-                        <option value="EULA">Termos de Uso (EULA)</option>
-                        <option value="PRIVACY_POLICY">Política de Privacidade</option>
+                        @foreach($types as $typeOption)
+                        <option value="{{ $typeOption->value }}">{{ $typeOption->label() }}</option>
+                        @endforeach
                     </select>
                     @error('type') <p class="text-xs text-red-400 mt-1">{{ $message }}</p> @enderror
                 </div>
@@ -123,8 +124,9 @@
                                class="input-field text-sm flex-1 min-w-0" placeholder="Buscar…">
                         <select wire:model.live="filterType" class="input-field text-sm w-auto shrink-0">
                             <option value="">Todos</option>
-                            <option value="EULA">EULA</option>
-                            <option value="PRIVACY_POLICY">Privacidade</option>
+                            @foreach($types as $typeOption)
+                            <option value="{{ $typeOption->value }}">{{ $typeOption->label() }}</option>
+                            @endforeach
                         </select>
                     </div>
                 </div>
@@ -250,6 +252,22 @@
                            class="input-field text-sm" placeholder="Buscar usuário ou e-mail…">
                 </div>
 
+                @if($lastAuditExportFiles !== [])
+                <div class="rounded-lg border border-emerald-700/40 bg-emerald-900/10 px-3 py-2.5">
+                    <p class="text-xs text-emerald-300 font-medium">
+                        Exportação pronta para {{ $lastAuditExportUserLabel ?: 'usuário selecionado' }}
+                    </p>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        @foreach($lastAuditExportFiles as $file)
+                        <a href="{{ route('admin.legal.exports.download', ['path' => base64_encode($file['path'])]) }}"
+                           class="inline-flex items-center rounded-md border border-emerald-700/40 bg-emerald-900/20 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:bg-emerald-900/40 transition-colors">
+                            Baixar {{ $file['label'] }}
+                        </a>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+
                 {{-- Mobile cards --}}
                 <div class="sm:hidden max-h-56 overflow-y-auto space-y-3 pr-1">
                     @forelse($acceptances as $acc)
@@ -269,8 +287,21 @@
                         </p>
                         <p class="text-xs text-slate-600">
                             {{ $acc->accepted_at?->format('d/m/Y H:i') ?? '—' }}
-                            @if($acc->ip_address) · {{ $acc->ip_address }} @endif
+                            @if($acc->ip_hash)
+                            · {{ substr($acc->ip_hash, 0, 12) }}…
+                            @elseif($acc->ip_address)
+                            · {{ $acc->ip_address }}
+                            @endif
                         </p>
+                        <div class="pt-1">
+                            <button wire:click="exportAcceptancesByUser({{ $acc->user_id }})"
+                                    wire:loading.attr="disabled"
+                                    wire:target="exportAcceptancesByUser({{ $acc->user_id }})"
+                                    class="inline-flex items-center rounded-md border border-emerald-700/40 bg-emerald-900/20 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:bg-emerald-900/40 transition-colors disabled:opacity-60">
+                                <span wire:loading.remove wire:target="exportAcceptancesByUser({{ $acc->user_id }})">Exportar usuário</span>
+                                <span wire:loading wire:target="exportAcceptancesByUser({{ $acc->user_id }})">Exportando…</span>
+                            </button>
+                        </div>
                     </div>
                     @empty
                     <p class="text-sm text-slate-500 text-center py-6">Nenhum aceite registrado ainda.</p>
@@ -287,6 +318,7 @@
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Documento</th>
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Aceito em</th>
                                     <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">IP</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Ações</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-800/60">
@@ -301,11 +333,22 @@
                                         <p class="text-slate-600 text-[10px] mt-0.5">v{{ $acc->legalDocument?->version ?? '—' }}</p>
                                     </td>
                                     <td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{{ $acc->accepted_at?->format('d/m/Y H:i') ?? '—' }}</td>
-                                    <td class="px-3 py-2 text-xs text-slate-600 font-mono whitespace-nowrap">{{ $acc->ip_address ?? '—' }}</td>
+                                    <td class="px-3 py-2 text-xs text-slate-600 font-mono whitespace-nowrap">
+                                        {{ $acc->ip_hash ? substr($acc->ip_hash, 0, 16).'…' : ($acc->ip_address ?? '—') }}
+                                    </td>
+                                    <td class="px-3 py-2 whitespace-nowrap">
+                                        <button wire:click="exportAcceptancesByUser({{ $acc->user_id }})"
+                                                wire:loading.attr="disabled"
+                                                wire:target="exportAcceptancesByUser({{ $acc->user_id }})"
+                                                class="inline-flex items-center rounded-md border border-emerald-700/40 bg-emerald-900/20 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:bg-emerald-900/40 transition-colors disabled:opacity-60">
+                                            <span wire:loading.remove wire:target="exportAcceptancesByUser({{ $acc->user_id }})">Exportar usuário</span>
+                                            <span wire:loading wire:target="exportAcceptancesByUser({{ $acc->user_id }})">Exportando…</span>
+                                        </button>
+                                    </td>
                                 </tr>
                                 @empty
                                 <tr>
-                                    <td colspan="4" class="px-3 py-8 text-center text-sm text-slate-500">Nenhum aceite registrado ainda.</td>
+                                    <td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500">Nenhum aceite registrado ainda.</td>
                                 </tr>
                                 @endforelse
                             </tbody>
