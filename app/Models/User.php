@@ -68,7 +68,8 @@ class User extends Authenticatable implements MustVerifyEmail
                 ->exists();
         }
 
-        return (int) ($this->subscription_tier ?? 1) >= 2;
+        // Competição habilitada e sem restrição de pacote → acesso liberado
+        return true;
     }
 
     public function competitionPackage(): BelongsTo

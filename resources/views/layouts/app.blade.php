@@ -4,340 +4,473 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ config('app.name', 'Bolão Copa') }}{{ isset($title) ? ' — '.$title : '' }}</title>
+    <title>{{ config('app.name', 'BolaoFC') }}{{ isset($title) ? ' — '.$title : '' }}</title>
+
     <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.bunny.net/css?family=barlow:400,500,600&family=barlow-condensed:600,700,800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.0/dist/tabler-icons.min.css">
+
     <style>[x-cloak]{display:none!important}</style>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
 </head>
-<body class="h-full font-sans antialiased">
+<body class="antialiased">
 @php
     $authUser = Auth::user();
-    $allCompetitions = (array) config('football-data.competitions', []);
-    $currentCompetitionCode = strtoupper((string) request()->query('competition', session('competition', config('football-data.default_competition_code', 'WC'))));
-    $allowedCompetitions = [];
 
-    $competitionNameFallbacks = [
-        'WC' => 'Copa do Mundo',
-        'BSA' => 'Brasileirão Série A',
-    ];
+    /* Avatar initials (up to 2 chars) */
+    $initials = collect(explode(' ', $authUser->name))
+        ->filter()
+        ->map(fn($w) => mb_strtoupper(mb_substr($w, 0, 1)))
+        ->take(2)
+        ->implode('');
+
+    /* Competition resolver */
+    $allCompetitions       = (array) config('football-data.competitions', []);
+    $currentCompetitionCode = strtoupper((string) request()->query('competition', session('competition', config('football-data.default_competition_code', 'WC'))));
+    $allowedCompetitions   = [];
+    $competitionNameFallbacks = ['WC' => 'Copa do Mundo', 'BSA' => 'Brasileirão Série A'];
 
     foreach ($allCompetitions as $code => $settings) {
-        $normalized = strtoupper((string) $code);
-        $enabled = (bool) data_get($settings, 'enabled', false);
-        if (! $enabled && $normalized !== 'WC' && !($authUser && (bool) $authUser->is_admin)) {
-            continue;
-        }
-        if ($authUser && ! $authUser->canAccessCompetition($normalized)) {
-            continue;
-        }
+        $normalized   = strtoupper((string) $code);
+        $enabled      = (bool) data_get($settings, 'enabled', false);
+        if (!$enabled && $normalized !== 'WC' && !($authUser && (bool) $authUser->is_admin)) continue;
+        if ($authUser && !$authUser->canAccessCompetition($normalized)) continue;
         $configuredName = trim((string) data_get($settings, 'name', ''));
-        $resolvedName = $configuredName !== '' ? $configuredName : ($competitionNameFallbacks[$normalized] ?? $normalized);
-        if (strtoupper($resolvedName) === $normalized) {
-            $resolvedName = $competitionNameFallbacks[$normalized] ?? $resolvedName;
-        }
-
-        $allowedCompetitions[$normalized] = [
-            'name' => $resolvedName,
-            'season' => (int) data_get($settings, 'season', 0),
-            'enabled' => $enabled || $normalized === 'WC',
-        ];
+        $resolvedName   = $configuredName !== '' ? $configuredName : ($competitionNameFallbacks[$normalized] ?? $normalized);
+        if (strtoupper($resolvedName) === $normalized) $resolvedName = $competitionNameFallbacks[$normalized] ?? $resolvedName;
+        $allowedCompetitions[$normalized] = ['name' => $resolvedName, 'season' => (int) data_get($settings, 'season', 0), 'enabled' => $enabled || $normalized === 'WC'];
     }
-
-    if (! isset($allowedCompetitions['WC'])) {
-        $allowedCompetitions['WC'] = [
-            'name' => 'Copa do Mundo',
-            'season' => (int) config('football-data.competitions.WC.season', 2026),
-            'enabled' => true,
-        ];
+    if (!isset($allowedCompetitions['WC'])) {
+        $allowedCompetitions['WC'] = ['name' => 'Copa do Mundo', 'season' => (int) config('football-data.competitions.WC.season', 2026), 'enabled' => true];
     }
-
-    if (! array_key_exists($currentCompetitionCode, $allowedCompetitions)) {
-        $currentCompetitionCode = 'WC';
-    }
-
+    if (!array_key_exists($currentCompetitionCode, $allowedCompetitions)) $currentCompetitionCode = 'WC';
     session(['competition' => $currentCompetitionCode]);
-    $currentCompetition = $allowedCompetitions[$currentCompetitionCode];
-    $canSwitchCompetition = $authUser && ((bool) $authUser->is_admin || (int) ($authUser->subscription_tier ?? 1) >= 2);
+    $currentCompetition    = $allowedCompetitions[$currentCompetitionCode];
+    $canSwitchCompetition  = $authUser && count($allowedCompetitions) > 1;
+
+    /* Management & pending */
+    $managedPoolIds = $authUser->poolMemberships()
+        ->whereIn('role', ['owner', 'manager'])
+        ->where('status', 'active')
+        ->pluck('pool_id');
+    $isManagedPool  = $managedPoolIds->isNotEmpty();
+    $pendingTotal   = $isManagedPool
+        ? \App\Models\PoolMember::where('status', 'pending')->whereIn('pool_id', $managedPoolIds)->count()
+        : 0;
+
+    /* Helpers for active nav styling */
+    $sbActive   = 'flex items-center h-11 pl-5 gap-[14px] text-bolao-accent border-l-[3px] border-bolao-accent bg-bolao-accent/[0.08] font-medium transition-all';
+    $sbInactive = 'flex items-center h-11 pl-[19px] gap-[14px] text-bolao-muted border-l-[3px] border-transparent hover:bg-bolao-bg3 hover:text-slate-200 font-medium transition-all';
+    $sbAdmin    = fn($isActive) => $isActive
+        ? 'flex items-center h-11 pl-5 gap-[14px] text-amber-400 border-l-[3px] border-amber-400 bg-amber-400/[0.08] font-medium transition-all'
+        : 'flex items-center h-11 pl-[19px] gap-[14px] text-bolao-muted border-l-[3px] border-transparent hover:bg-bolao-bg3 hover:text-slate-200 font-medium transition-all';
 @endphp
 
-<div class="flex h-screen overflow-hidden" x-data="{ sidebarOpen: false }">
+{{-- ═══════════════════════════════════════════════════
+     ROOT x-data — sidebar overlay + competition/user menus
+     ════════════════════════════════════════════════ --}}
+<div x-data="{ sidebar: false, userMenu: false, compMenu: false }" class="h-screen flex flex-col overflow-hidden md:flex-row">
 
-    {{-- Overlay mobile --}}
-    <div x-show="sidebarOpen" x-cloak
-         class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
-         @click="sidebarOpen = false"></div>
+    {{-- ╔══════════════════════════════════════════╗
+         ║  SIDEBAR  (hidden on mobile → overlay)  ║
+         ║  Icon-only 64px tablet, 220px desktop   ║
+         ╚══════════════════════════════════════════╝ --}}
+    <aside class="bolao-sidebar hidden md:flex flex-col bg-bolao-bg2 border-r border-white/[0.07]">
 
-    {{-- Sidebar --}}
-    <aside class="fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col bg-pitch-900 border-r border-slate-800
-                  transition-transform duration-300 ease-in-out
-                  lg:static lg:inset-auto lg:z-auto lg:translate-x-0"
-           :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
-
-        {{-- Logo --}}
-        <div class="flex h-16 shrink-0 items-center gap-3 px-5 border-b border-slate-800">
-            <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white text-lg shadow-lg shadow-emerald-900/50 select-none">
-                ⚽
-            </div>
-            <div class="min-w-0" x-data="{ openCompetition: false }">
-                <p class="text-sm font-bold text-white leading-none">Bolão</p>
+        {{-- Logo / Competition --}}
+        <div class="flex h-14 shrink-0 items-center gap-2.5 px-[18px] border-b border-white/[0.07] overflow-hidden">
+            <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-black font-bc font-extrabold text-sm"
+                 style="background:linear-gradient(135deg,#f5a623,#e8390d)">B</div>
+            <div class="sb-label min-w-0" x-data="{ compMenu: false }">
+                <div class="font-bc font-extrabold text-[19px] leading-none text-white">
+                    Bolão<span class="text-bolao-accent">FC</span>
+                </div>
                 @if($canSwitchCompetition)
                 <div class="relative mt-1">
-                    <button type="button"
-                            @click="openCompetition = !openCompetition"
-                            class="inline-flex w-full items-center justify-between gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300 font-semibold leading-none hover:bg-emerald-500/20 transition-colors">
-                        <span class="truncate">{{ $currentCompetition['name'] }} {{ $currentCompetition['season'] }}</span>
-                        <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                        </svg>
+                    <button type="button" @click="compMenu = !compMenu"
+                            class="inline-flex items-center gap-1 rounded border border-bolao-accent/30 bg-bolao-accent/[0.08] px-2 py-0.5 text-[10px] font-semibold text-bolao-accent hover:bg-bolao-accent/[0.15] transition-colors">
+                        <span class="truncate max-w-[110px]">{{ $currentCompetition['name'] }} {{ $currentCompetition['season'] }}</span>
+                        <i class="ti ti-chevron-down text-[10px]"></i>
                     </button>
-                    <div x-show="openCompetition" x-cloak @click.outside="openCompetition = false"
-                         class="absolute left-0 z-50 mt-2 w-60 rounded-xl border border-slate-700 bg-pitch-800 shadow-2xl py-1.5">
+                    <div x-show="compMenu" x-cloak @click.outside="compMenu = false"
+                         x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
+                         class="absolute left-0 z-50 mt-1.5 w-60 rounded-xl border border-white/[0.07] bg-bolao-bg3 shadow-2xl py-1.5">
                         @foreach($allowedCompetitions as $code => $competition)
-                        <a href="{{ ($competition['enabled'] || ($authUser && (bool) $authUser->is_admin)) ? route('pools.index', ['competition' => $code]) : '#' }}"
-                           @click="openCompetition = false; sidebarOpen = false"
-                           class="mx-1 flex items-center justify-between rounded-lg px-3 py-2 text-xs {{ $currentCompetitionCode === $code ? 'text-emerald-300 bg-emerald-600/15' : 'text-slate-300 hover:bg-slate-700/60 hover:text-white' }}">
-                            <span class="flex min-w-0 items-center gap-2">
+                        <a href="{{ ($competition['enabled'] || $authUser->is_admin) ? route('dashboard', ['competition' => $code]) : '#' }}"
+                           @click="compMenu = false"
+                           class="mx-1 flex items-center justify-between rounded-lg px-3 py-2 text-xs {{ $currentCompetitionCode === $code ? 'text-bolao-accent bg-bolao-accent/10' : 'text-slate-300 hover:bg-bolao-bg4 hover:text-white' }}">
+                            <span class="flex items-center gap-2 min-w-0">
                                 <span class="font-semibold truncate">{{ $competition['name'] }}</span>
-                                <span class="shrink-0 text-slate-500">{{ $code }}</span>
-                                <span class="shrink-0 text-slate-400">{{ $competition['season'] }}</span>
+                                <span class="shrink-0 text-bolao-muted2">{{ $code }}</span>
                                 @if(!($competition['enabled'] ?? false))
-                                <span class="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">OFF</span>
+                                <span class="rounded bg-amber-500/20 px-1 py-0.5 text-[9px] font-bold text-amber-300">OFF</span>
                                 @endif
                             </span>
                             @if($currentCompetitionCode === $code)
-                            <span class="text-emerald-300">✓</span>
+                            <i class="ti ti-check text-bolao-accent text-xs"></i>
                             @endif
                         </a>
                         @endforeach
                     </div>
                 </div>
                 @else
-                <p class="text-xs text-emerald-400 font-semibold leading-none mt-0.5">Copa do Mundo {{ $allowedCompetitions['WC']['season'] }}</p>
+                <p class="text-[11px] text-bolao-accent font-semibold leading-none mt-0.5">
+                    {{ $currentCompetition['name'] }} {{ $currentCompetition['season'] }}
+                </p>
                 @endif
             </div>
         </div>
 
-        {{-- Nav links --}}
-        <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
-            <p class="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Principal</p>
+        {{-- Navigation --}}
+        <nav class="flex-1 overflow-y-auto overflow-x-hidden py-3 space-y-0.5">
+
+            <div class="px-5 mb-1.5 overflow-hidden">
+                <span class="sb-label text-[10px] font-bold uppercase tracking-widest text-bolao-muted2">Principal</span>
+            </div>
 
             <a href="{{ route('dashboard') }}"
-               @click="sidebarOpen = false"
-               class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
-                      {{ request()->routeIs('dashboard') ? 'bg-emerald-600/20 text-emerald-400 ring-1 ring-emerald-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
-                </svg>
-                Dashboard
+               class="{{ request()->routeIs('dashboard') ? $sbActive : $sbInactive }}">
+                <i class="ti ti-home text-xl shrink-0"></i>
+                <span class="sb-label text-sm">Dashboard</span>
             </a>
 
             <a href="{{ route('pools.index', ['competition' => $currentCompetitionCode]) }}"
-               @click="sidebarOpen = false"
-               class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
-                      {{ request()->routeIs('pools.*') ? 'bg-emerald-600/20 text-emerald-400 ring-1 ring-emerald-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-                </svg>
-                Meus Bolões
+               class="{{ request()->routeIs('pools.*') ? $sbActive : $sbInactive }}">
+                <i class="ti ti-trophy text-xl shrink-0"></i>
+                <span class="sb-label text-sm">Meus Bolões</span>
             </a>
 
-            @php
-                $isManagedPool = Auth::user()->poolMemberships()
-                    ->whereIn('role', ['owner', 'manager'])
-                    ->where('status', 'active')
-                    ->exists();
-            @endphp
             @if($isManagedPool)
             <a href="{{ route('management.pools') }}"
-               @click="sidebarOpen = false"
-               class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
-                      {{ request()->routeIs('management.*') ? 'bg-emerald-600/20 text-emerald-400 ring-1 ring-emerald-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
-                </svg>
-                Gestão
-                @php
-                    $pendingTotal = \App\Models\PoolMember::query()
-                        ->where('status', 'pending')
-                        ->whereIn('pool_id', Auth::user()->poolMemberships()
-                            ->whereIn('role', ['owner', 'manager'])
-                            ->where('status', 'active')
-                            ->pluck('pool_id'))
-                        ->count();
-                @endphp
+               class="{{ request()->routeIs('management.*') ? $sbActive : $sbInactive }}">
+                <i class="ti ti-layout-dashboard text-xl shrink-0"></i>
+                <span class="sb-label text-sm">Gestão</span>
                 @if($pendingTotal > 0)
-                <span class="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-black px-1">
+                <span class="ml-auto mr-4 sb-label flex h-5 min-w-5 items-center justify-center rounded-full bg-bolao-accent text-[10px] font-bold text-black px-1">
                     {{ $pendingTotal }}
                 </span>
                 @endif
             </a>
             @endif
 
-            @if(Auth::user()->is_admin)
-            <div class="pt-4">
-                <p class="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Administração</p>
-
-                <a href="{{ route('admin.users.approval') }}"
-                   @click="sidebarOpen = false"
-                   class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
-                          {{ request()->routeIs('admin.users.*') ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
-                    </svg>
-                    Usuários
-                </a>
-
-                <a href="{{ route('admin.pools.control') }}"
-                   @click="sidebarOpen = false"
-                   class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
-                          {{ request()->routeIs('admin.pools.*') ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M3 7h18M3 12h18M3 17h18"/>
-                    </svg>
-                    Grupos
-                </a>
-
-                <a href="{{ route('admin.api.sync') }}"
-                   @click="sidebarOpen = false"
-                   class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
-                          {{ request()->routeIs('admin.api.*') ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                    </svg>
-                    Sync API
-                </a>
-
-                <a href="{{ route('admin.matches.manual-correction') }}"
-                   @click="sidebarOpen = false"
-                   class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
-                          {{ request()->routeIs('admin.matches.*') ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                    </svg>
-                    Correção Manual
-                </a>
-
-                <a href="{{ route('admin.legal.index') }}"
-                   @click="sidebarOpen = false"
-                   class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
-                          {{ request()->routeIs('admin.legal.*') ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' }}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                    </svg>
-                    Jurídico
-                </a>
+            @if($authUser->is_admin)
+            <div class="px-5 pt-4 pb-1.5 overflow-hidden">
+                <span class="sb-label text-[10px] font-bold uppercase tracking-widest text-bolao-muted2">Admin</span>
             </div>
+
+            <a href="{{ route('admin.users.approval') }}"
+               class="{{ $sbAdmin(request()->routeIs('admin.users.*')) }}">
+                <i class="ti ti-users text-xl shrink-0"></i>
+                <span class="sb-label text-sm">Usuários</span>
+            </a>
+            <a href="{{ route('admin.pools.control') }}"
+               class="{{ $sbAdmin(request()->routeIs('admin.pools.*')) }}">
+                <i class="ti ti-tournament text-xl shrink-0"></i>
+                <span class="sb-label text-sm">Grupos</span>
+            </a>
+            <a href="{{ route('admin.api.sync') }}"
+               class="{{ $sbAdmin(request()->routeIs('admin.api.*')) }}">
+                <i class="ti ti-refresh text-xl shrink-0"></i>
+                <span class="sb-label text-sm">Sync API</span>
+            </a>
+            <a href="{{ route('admin.matches.manual-correction') }}"
+               class="{{ $sbAdmin(request()->routeIs('admin.matches.*')) }}">
+                <i class="ti ti-pencil text-xl shrink-0"></i>
+                <span class="sb-label text-sm">Correção Manual</span>
+            </a>
+            <a href="{{ route('admin.legal.index') }}"
+               class="{{ $sbAdmin(request()->routeIs('admin.legal.*')) }}">
+                <i class="ti ti-file-text text-xl shrink-0"></i>
+                <span class="sb-label text-sm">Jurídico</span>
+            </a>
             @endif
         </nav>
 
-        {{-- User menu --}}
-        <div class="shrink-0 border-t border-slate-800 p-3" x-data="{ open: false }">
-            <button @click="open = !open"
-                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 hover:bg-slate-800 transition-colors group">
-                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-emerald-800 text-xs font-bold text-white uppercase">
-                    {{ mb_substr(Auth::user()->name, 0, 2) }}
+        {{-- User footer --}}
+        <div class="shrink-0 border-t border-white/[0.07] p-2" x-data="{ userMenu: false }">
+            <button @click="userMenu = !userMenu"
+                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 hover:bg-bolao-bg3 transition-colors overflow-hidden">
+                <div class="bolao-avatar w-8 h-8 shrink-0 text-xs">{{ $initials }}</div>
+                <div class="sb-label flex-1 min-w-0 text-left">
+                    <p class="text-sm font-semibold text-slate-200 truncate">{{ $authUser->name }}</p>
+                    <p class="text-[11px] text-bolao-muted truncate">{{ $authUser->area ?: $authUser->email }}</p>
                 </div>
-                <div class="flex-1 min-w-0 text-left">
-                    <p class="text-sm font-medium text-slate-200 truncate">{{ Auth::user()->name }}</p>
-                    @if(Auth::user()->area)
-                    <p class="text-xs text-slate-500 truncate">{{ Auth::user()->area }}</p>
-                    @else
-                    <p class="text-xs text-slate-500 truncate">{{ Auth::user()->email }}</p>
-                    @endif
-                </div>
-                <svg class="w-4 h-4 text-slate-500 shrink-0 transition-transform duration-200"
-                     :class="open && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                </svg>
+                <i class="ti ti-chevron-up sb-label text-bolao-muted text-sm shrink-0 transition-transform duration-200"
+                   :class="userMenu ? 'rotate-180' : 'rotate-0'"></i>
             </button>
 
-            <div x-show="open" x-cloak
-                 x-transition:enter="transition ease-out duration-150"
-                 x-transition:enter-start="opacity-0 -translate-y-1"
-                 x-transition:enter-end="opacity-100 translate-y-0"
-                 class="mt-1 rounded-lg bg-pitch-800 border border-slate-700 py-1 shadow-xl">
+            <div x-show="userMenu" x-cloak
+                 x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
+                 class="mt-1 rounded-xl bg-bolao-bg3 border border-white/[0.07] py-1 shadow-xl">
                 <a href="{{ route('profile.edit') }}"
-                   @click="sidebarOpen = false"
-                   class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors rounded-md mx-1">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                    </svg>
-                    Meu Perfil
+                   class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-bolao-bg4 transition-colors rounded-lg mx-1">
+                    <i class="ti ti-user-circle text-base"></i> Meu Perfil
                 </a>
                 <a href="{{ route('legal.terms') }}"
-                   class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors rounded-md mx-1">
-                    Termos de Uso
+                   class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-bolao-bg4 transition-colors rounded-lg mx-1">
+                    <i class="ti ti-file-text text-base"></i> Termos de Uso
                 </a>
                 <a href="{{ route('legal.privacy-policy') }}"
-                   class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors rounded-md mx-1">
-                    Política de Privacidade
+                   class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-bolao-bg4 transition-colors rounded-lg mx-1">
+                    <i class="ti ti-shield text-base"></i> Privacidade
                 </a>
                 <a href="{{ route('about') }}"
-                   class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors rounded-md mx-1">
-                    Sobre
+                   class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-bolao-bg4 transition-colors rounded-lg mx-1">
+                    <i class="ti ti-info-circle text-base"></i> Sobre
                 </a>
+                <div class="my-1 h-px bg-white/[0.06] mx-2"></div>
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
                     <button type="submit"
-                            class="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-slate-700/60 transition-colors rounded-md mx-1">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                        </svg>
-                        Sair
+                            class="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-bolao-bg4 transition-colors rounded-lg mx-1">
+                        <i class="ti ti-logout text-base"></i> Sair
                     </button>
                 </form>
             </div>
-        </div>
 
-        {{-- Copyright --}}
-        <div class="shrink-0 px-4 pb-3 pt-1 text-center">
-            <p class="text-xs text-slate-500 leading-snug mb-2">
-                Plataforma recreativa de organização de palpites esportivos entre usuários.
-            </p>
-            <div class="mb-2 flex flex-wrap items-center justify-center gap-2 text-xs">
-                <a href="{{ route('legal.terms') }}" class="text-emerald-400 hover:text-emerald-300 transition-colors">Termos</a>
-                <a href="{{ route('legal.privacy-policy') }}" class="text-emerald-400 hover:text-emerald-300 transition-colors">Privacidade</a>
-                <a href="{{ route('about') }}" class="text-emerald-400 hover:text-emerald-300 transition-colors">Sobre</a>
+            <div class="sb-label px-3 pt-2 pb-1 text-center">
+                <p class="text-[10px] text-bolao-muted2 leading-snug">
+                    &copy; {{ date('Y') }} VixForge &middot; v{{ config('app.version') }}
+                </p>
             </div>
-            <p class="text-xs text-slate-600 leading-snug">
-                &copy; {{ date('Y') }} VixForge Sistemas<br>
-                <span class="text-slate-700">Versão {{ config('app.version') }}</span>
-            </p>
         </div>
     </aside>
 
-    {{-- Main area --}}
+    {{-- ╔═══════════════════════════════════════════╗
+         ║  CONTENT COLUMN                          ║
+         ╚═══════════════════════════════════════════╝ --}}
     <div class="flex flex-1 flex-col min-h-0 min-w-0">
-        {{-- Mobile topbar --}}
-        <div class="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-slate-800 bg-pitch-900/95 backdrop-blur px-4 lg:hidden">
-            <button @click="sidebarOpen = !sidebarOpen"
-                    class="rounded-lg p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                </svg>
-            </button>
-            <span class="text-sm font-bold text-white">⚽ Bolão {{ $currentCompetition['name'] }} {{ $currentCompetition['season'] }}</span>
-        </div>
 
-        <main class="flex-1 overflow-y-auto">
+        {{-- Mobile Header (visible only on mobile) --}}
+        <header class="flex md:hidden h-14 shrink-0 items-center justify-between px-4 bg-bolao-bg border-b border-white/[0.07] z-30">
+            <button @click="sidebar = true"
+                    class="flex h-9 w-9 items-center justify-center rounded-lg text-bolao-muted hover:text-slate-200 hover:bg-bolao-bg3 transition-colors">
+                <i class="ti ti-menu-2 text-xl"></i>
+            </button>
+            <div class="font-bc font-extrabold text-[20px] leading-none text-white select-none">
+                Bolão<span class="text-bolao-accent">FC</span>
+            </div>
+            <a href="{{ route('profile.edit') }}"
+               class="bolao-avatar w-9 h-9 text-[13px] hover:ring-2 hover:ring-bolao-accent/50 transition-all">
+                {{ $initials }}
+            </a>
+        </header>
+
+        {{-- Desktop Header (visible on tablet+) --}}
+        <header class="hidden md:flex h-14 shrink-0 items-center justify-between px-6 bg-bolao-bg border-b border-white/[0.07] z-30 sticky top-0">
+            <div class="flex items-center gap-3 min-w-0">
+                <span class="font-bc font-bold text-lg text-slate-200 truncate">
+                    @hasSection('page-heading')
+                        @yield('page-heading')
+                    @else
+                        {{ $currentCompetition['name'] }} {{ $currentCompetition['season'] }}
+                    @endif
+                </span>
+                @stack('page-title')
+            </div>
+            <div class="flex items-center gap-2">
+                @stack('header-actions')
+                <a href="{{ route('profile.edit') }}"
+                   class="bolao-avatar w-8 h-8 text-xs hover:ring-2 hover:ring-bolao-accent/50 transition-all">
+                    {{ $initials }}
+                </a>
+            </div>
+        </header>
+
+        {{-- Main slot --}}
+        <main class="flex-1 overflow-y-auto bolao-page-enter">
             {{ $slot }}
         </main>
+
+        {{-- Mobile Tab Bar --}}
+        <nav class="flex md:hidden shrink-0 items-start pt-2 bg-bolao-bg2 border-t border-white/[0.07] bolao-tabbar" style="height:68px">
+            <a href="{{ route('dashboard') }}"
+               class="flex flex-1 flex-col items-center gap-1 px-1 py-1 cursor-pointer transition-colors {{ request()->routeIs('dashboard') ? 'text-bolao-accent' : 'text-bolao-muted2 hover:text-bolao-muted' }}">
+                <i class="ti ti-home text-[22px]"></i>
+                <span class="text-[10px] font-bold uppercase tracking-wide leading-none">Início</span>
+            </a>
+
+            <a href="{{ route('pools.index', ['competition' => $currentCompetitionCode]) }}"
+               class="flex flex-1 flex-col items-center gap-1 px-1 py-1 cursor-pointer transition-colors {{ request()->routeIs('pools.*') ? 'text-bolao-accent' : 'text-bolao-muted2 hover:text-bolao-muted' }}">
+                <i class="ti ti-trophy text-[22px]"></i>
+                <span class="text-[10px] font-bold uppercase tracking-wide leading-none">Bolões</span>
+            </a>
+
+            @if($isManagedPool)
+            <a href="{{ route('management.pools') }}"
+               class="flex flex-1 flex-col items-center gap-1 px-1 py-1 cursor-pointer transition-colors relative {{ request()->routeIs('management.*') ? 'text-bolao-accent' : 'text-bolao-muted2 hover:text-bolao-muted' }}">
+                <span class="relative">
+                    <i class="ti ti-layout-dashboard text-[22px]"></i>
+                    @if($pendingTotal > 0)
+                    <span class="absolute -top-1 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-bolao-accent text-[9px] font-bold text-black px-0.5">{{ $pendingTotal }}</span>
+                    @endif
+                </span>
+                <span class="text-[10px] font-bold uppercase tracking-wide leading-none">Gestão</span>
+            </a>
+            @elseif($authUser->is_admin)
+            <a href="{{ route('admin.users.approval') }}"
+               class="flex flex-1 flex-col items-center gap-1 px-1 py-1 cursor-pointer transition-colors {{ request()->routeIs('admin.*') ? 'text-amber-400' : 'text-bolao-muted2 hover:text-bolao-muted' }}">
+                <i class="ti ti-shield text-[22px]"></i>
+                <span class="text-[10px] font-bold uppercase tracking-wide leading-none">Admin</span>
+            </a>
+            @endif
+
+            <a href="{{ route('profile.edit') }}"
+               class="flex flex-1 flex-col items-center gap-1 px-1 py-1 cursor-pointer transition-colors {{ request()->routeIs('profile.*') ? 'text-bolao-accent' : 'text-bolao-muted2 hover:text-bolao-muted' }}">
+                <i class="ti ti-user-circle text-[22px]"></i>
+                <span class="text-[10px] font-bold uppercase tracking-wide leading-none">Perfil</span>
+            </a>
+        </nav>
     </div>
-</div>
+
+    {{-- ╔══════════════════════════════════════════╗
+         ║  RIGHT PANEL (1100 px+)                 ║
+         ╚══════════════════════════════════════════╝ --}}
+    <aside class="bolao-right-panel overflow-y-auto border-l border-white/[0.07] bg-bolao-bg p-4">
+        @stack('right-panel')
+    </aside>
+
+</div>{{-- end root flex --}}
+
+{{-- ╔══════════════════════════════════════════════╗
+     ║  MOBILE SIDEBAR OVERLAY                     ║
+     ╚══════════════════════════════════════════════╝ --}}
+<div x-show="sidebar" x-cloak
+     x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+     class="md:hidden fixed inset-0 z-50 bg-black/70"
+     @click="sidebar = false" aria-hidden="true"></div>
+
+<aside x-show="sidebar" x-cloak
+       x-transition:enter="transition ease-out duration-250" x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0"
+       x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full"
+       class="md:hidden fixed inset-y-0 left-0 z-[60] w-72 flex flex-col bg-bolao-bg2 border-r border-white/[0.07] shadow-2xl">
+
+    {{-- Overlay header --}}
+    <div class="flex h-14 shrink-0 items-center justify-between px-4 border-b border-white/[0.07]">
+        <div class="font-bc font-extrabold text-[20px] leading-none text-white">
+            Bolão<span class="text-bolao-accent">FC</span>
+        </div>
+        <button @click="sidebar = false"
+                class="flex h-9 w-9 items-center justify-center rounded-lg text-bolao-muted hover:text-slate-200 hover:bg-bolao-bg3 transition-colors">
+            <i class="ti ti-x text-xl"></i>
+        </button>
+    </div>
+
+    {{-- Competition switcher (mobile overlay) --}}
+    @if($canSwitchCompetition)
+    <div class="px-4 py-2.5 border-b border-white/[0.07]" x-data="{ compMenuMobile: false }">
+        <button type="button" @click="compMenuMobile = !compMenuMobile"
+                class="inline-flex w-full items-center justify-between gap-1 rounded-lg border border-bolao-accent/30 bg-bolao-accent/[0.08] px-3 py-2 text-xs font-semibold text-bolao-accent hover:bg-bolao-accent/[0.15] transition-colors">
+            <span class="truncate">{{ $currentCompetition['name'] }} {{ $currentCompetition['season'] }}</span>
+            <i class="ti ti-chevron-down text-[11px] shrink-0 transition-transform" :class="compMenuMobile ? 'rotate-180' : ''"></i>
+        </button>
+        <div x-show="compMenuMobile" x-cloak
+             x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
+             class="mt-1.5 rounded-xl border border-white/[0.07] bg-bolao-bg3 py-1.5 shadow-2xl">
+            @foreach($allowedCompetitions as $code => $competition)
+            <a href="{{ ($competition['enabled'] || $authUser->is_admin) ? route('dashboard', ['competition' => $code]) : '#' }}"
+               @click="sidebar = false"
+               class="mx-1 flex items-center justify-between rounded-lg px-3 py-2 text-xs {{ $currentCompetitionCode === $code ? 'text-bolao-accent bg-bolao-accent/10' : 'text-slate-300 hover:bg-bolao-bg4 hover:text-white' }}">
+                <span class="flex items-center gap-2 min-w-0">
+                    <span class="font-semibold truncate">{{ $competition['name'] }}</span>
+                    <span class="shrink-0 text-bolao-muted2">{{ $code }}</span>
+                    @if(!($competition['enabled'] ?? false))
+                    <span class="rounded bg-amber-500/20 px-1 py-0.5 text-[9px] font-bold text-amber-300">OFF</span>
+                    @endif
+                </span>
+                @if($currentCompetitionCode === $code)
+                <i class="ti ti-check text-bolao-accent text-xs"></i>
+                @endif
+            </a>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
+    {{-- Overlay nav --}}
+    <nav class="flex-1 overflow-y-auto py-3 space-y-0.5">
+        <p class="px-5 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-bolao-muted2">Principal</p>
+
+        <a href="{{ route('dashboard') }}" @click="sidebar = false"
+           class="{{ request()->routeIs('dashboard') ? $sbActive : $sbInactive }}">
+            <i class="ti ti-home text-xl shrink-0"></i>
+            <span class="text-sm">Dashboard</span>
+        </a>
+        <a href="{{ route('pools.index', ['competition' => $currentCompetitionCode]) }}" @click="sidebar = false"
+           class="{{ request()->routeIs('pools.*') ? $sbActive : $sbInactive }}">
+            <i class="ti ti-trophy text-xl shrink-0"></i>
+            <span class="text-sm">Meus Bolões</span>
+        </a>
+        @if($isManagedPool)
+        <a href="{{ route('management.pools') }}" @click="sidebar = false"
+           class="{{ request()->routeIs('management.*') ? $sbActive : $sbInactive }}">
+            <i class="ti ti-layout-dashboard text-xl shrink-0"></i>
+            <span class="text-sm">Gestão</span>
+            @if($pendingTotal > 0)
+            <span class="ml-auto mr-4 flex h-5 min-w-5 items-center justify-center rounded-full bg-bolao-accent text-[10px] font-bold text-black px-1">{{ $pendingTotal }}</span>
+            @endif
+        </a>
+        @endif
+
+        @if($authUser->is_admin)
+        <p class="px-5 pt-4 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-bolao-muted2">Admin</p>
+        <a href="{{ route('admin.users.approval') }}" @click="sidebar = false"
+           class="{{ $sbAdmin(request()->routeIs('admin.users.*')) }}">
+            <i class="ti ti-users text-xl shrink-0"></i><span class="text-sm">Usuários</span>
+        </a>
+        <a href="{{ route('admin.pools.control') }}" @click="sidebar = false"
+           class="{{ $sbAdmin(request()->routeIs('admin.pools.*')) }}">
+            <i class="ti ti-tournament text-xl shrink-0"></i><span class="text-sm">Grupos</span>
+        </a>
+        <a href="{{ route('admin.api.sync') }}" @click="sidebar = false"
+           class="{{ $sbAdmin(request()->routeIs('admin.api.*')) }}">
+            <i class="ti ti-refresh text-xl shrink-0"></i><span class="text-sm">Sync API</span>
+        </a>
+        <a href="{{ route('admin.matches.manual-correction') }}" @click="sidebar = false"
+           class="{{ $sbAdmin(request()->routeIs('admin.matches.*')) }}">
+            <i class="ti ti-pencil text-xl shrink-0"></i><span class="text-sm">Correção Manual</span>
+        </a>
+        <a href="{{ route('admin.legal.index') }}" @click="sidebar = false"
+           class="{{ $sbAdmin(request()->routeIs('admin.legal.*')) }}">
+            <i class="ti ti-file-text text-xl shrink-0"></i><span class="text-sm">Jurídico</span>
+        </a>
+        @endif
+    </nav>
+
+    {{-- Overlay user footer --}}
+    <div class="shrink-0 border-t border-white/[0.07] p-3 space-y-1">
+        <div class="flex items-center gap-3 px-2 py-1.5">
+            <div class="bolao-avatar w-9 h-9 text-sm shrink-0">{{ $initials }}</div>
+            <div class="min-w-0">
+                <p class="text-sm font-semibold text-slate-200 truncate">{{ $authUser->name }}</p>
+                <p class="text-xs text-bolao-muted truncate">{{ $authUser->area ?: $authUser->email }}</p>
+            </div>
+        </div>
+        <a href="{{ route('profile.edit') }}" @click="sidebar = false"
+           class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-bolao-bg3 rounded-lg transition-colors">
+            <i class="ti ti-user-circle text-base"></i> Meu Perfil
+        </a>
+        <a href="{{ route('about') }}" @click="sidebar = false"
+           class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-bolao-bg3 rounded-lg transition-colors">
+            <i class="ti ti-info-circle text-base"></i> Sobre
+        </a>
+        <form method="POST" action="{{ route('logout') }}">
+            @csrf
+            <button type="submit"
+                    class="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-bolao-bg3 rounded-lg transition-colors">
+                <i class="ti ti-logout text-base"></i> Sair
+            </button>
+        </form>
+        <p class="px-3 text-[10px] text-bolao-muted2 text-center pb-1">
+            &copy; {{ date('Y') }} VixForge &middot; v{{ config('app.version') }}
+        </p>
+    </div>
+</aside>
 
 @livewireScripts
 @stack('scripts')

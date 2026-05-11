@@ -10,18 +10,22 @@ return [
 
     'competitions' => [
         'WC' => [
-            'id' => 2000,
-            'code' => 'WC',
-            'season' => (int) env('FOOTBALL_DATA_WC_SEASON', 2026),
+            'id'            => 2000,
+            'code'          => 'WC',
+            'name'          => 'Copa do Mundo',
+            'type'          => 'cup',     // cup | league
+            'season'        => (int) env('FOOTBALL_DATA_WC_SEASON', 2026),
             'default_stage' => env('FOOTBALL_DATA_WC_STAGE', 'GROUP_STAGE'),
-            'enabled' => (bool) env('FOOTBALL_DATA_WC_ENABLED', true),
+            'enabled'       => (bool) env('FOOTBALL_DATA_WC_ENABLED', true),
         ],
         'BSA' => [
-            'id' => 2013,
-            'code' => 'BSA',
-            'season' => (int) env('FOOTBALL_DATA_BSA_SEASON', 2026),
+            'id'            => 2013,
+            'code'          => 'BSA',
+            'name'          => 'Brasileirão Série A',
+            'type'          => 'league',  // cup | league
+            'season'        => (int) env('FOOTBALL_DATA_BSA_SEASON', 2026),
             'default_stage' => env('FOOTBALL_DATA_BSA_STAGE', 'REGULAR_SEASON'),
-            'enabled' => (bool) env('FOOTBALL_DATA_BSA_ENABLED', false),
+            'enabled'       => (bool) env('FOOTBALL_DATA_BSA_ENABLED', false),
         ],
     ],
 

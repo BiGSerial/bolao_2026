@@ -6,7 +6,8 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ config('app.name', 'Bolão Copa') }}</title>
     <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.bunny.net/css?family=barlow:400,500,600&family=barlow-condensed:600,700,800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.0/dist/tabler-icons.min.css">
     <style>[x-cloak]{display:none!important}</style>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -75,25 +76,30 @@
         }
     </script>
 </head>
-<body class="font-sans antialiased min-h-screen flex flex-col items-center justify-center bg-pitch-950 p-4"
+<body class="font-sans antialiased min-h-screen flex flex-col items-center justify-center bg-bolao-bg p-4"
       x-data="legalModalData()">
 
     {{-- Background decoration --}}
     <div class="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
-        <div class="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-emerald-900/20 blur-3xl"></div>
-        <div class="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-blue-900/20 blur-3xl"></div>
+        <div class="absolute -top-48 -right-48 w-[500px] h-[500px] rounded-full opacity-[0.06] blur-3xl"
+             style="background:radial-gradient(circle,#f5a623,transparent)"></div>
+        <div class="absolute -bottom-48 -left-48 w-[500px] h-[500px] rounded-full opacity-[0.04] blur-3xl"
+             style="background:radial-gradient(circle,#e8390d,transparent)"></div>
     </div>
 
     {{-- Page content --}}
     <div class="relative w-full max-w-md">
         {{-- Logo --}}
         <div class="mb-8 flex flex-col items-center gap-3">
-            <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-3xl shadow-lg shadow-emerald-900/50">
-                ⚽
+            <div class="flex h-14 w-14 items-center justify-center rounded-2xl text-black font-bc font-extrabold text-3xl shadow-lg"
+                 style="background:linear-gradient(135deg,#f5a623,#e8390d);box-shadow:0 8px 32px rgba(245,166,35,0.3)">
+                B
             </div>
             <div class="text-center">
-                <h1 class="text-2xl font-bold text-white">Bolão Copa do Mundo</h1>
-                <p class="text-sm text-slate-400 mt-1">2026 · USA · Canada · México</p>
+                <h1 class="font-bc font-extrabold text-[28px] leading-none text-white">
+                    Bolão<span class="text-bolao-accent">FC</span>
+                </h1>
+                <p class="text-sm text-bolao-muted mt-1">Copa do Mundo 2026 · USA · Canada · México</p>
             </div>
         </div>
 
@@ -102,18 +108,18 @@
             {{ $slot }}
         </div>
 
-        <div class="mt-4 text-center text-xs text-slate-500 space-y-2">
+        <div class="mt-4 text-center text-xs text-bolao-muted2 space-y-2">
             <p>Plataforma recreativa de organização de palpites esportivos entre usuários.</p>
             <div class="flex flex-wrap items-center justify-center gap-3">
                 <button type="button" @click="openLegal('eula')"
-                        class="text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer">
+                        class="text-bolao-accent hover:text-bolao-accent2 transition-colors cursor-pointer">
                     Termos de Uso
                 </button>
                 <button type="button" @click="openLegal('privacy')"
-                        class="text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer">
+                        class="text-bolao-accent hover:text-bolao-accent2 transition-colors cursor-pointer">
                     Privacidade
                 </button>
-                <a href="{{ route('about') }}" class="text-emerald-400 hover:text-emerald-300 transition-colors">Sobre</a>
+                <a href="{{ route('about') }}" class="text-bolao-accent hover:text-bolao-accent2 transition-colors">Sobre</a>
             </div>
         </div>
     </div>

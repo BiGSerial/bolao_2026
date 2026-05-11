@@ -4,40 +4,40 @@
 
 @layer base {
     body {
-        @apply bg-pitch-950 text-slate-100;
+        @apply bg-bolao-bg text-slate-100;
     }
 
     ::-webkit-scrollbar {
         @apply w-1.5 h-1.5;
     }
     ::-webkit-scrollbar-track {
-        @apply bg-pitch-900;
+        @apply bg-bolao-bg3;
     }
     ::-webkit-scrollbar-thumb {
-        @apply bg-slate-600 rounded-full;
+        @apply bg-bolao-bg4 rounded-full;
     }
     ::-webkit-scrollbar-thumb:hover {
-        @apply bg-slate-500;
+        @apply bg-bolao-muted2 rounded-full;
     }
 }
 
 @layer components {
     .card {
-        @apply bg-pitch-900 border border-slate-800 rounded-xl;
+        @apply bg-bolao-bg2 border border-white/[0.07] rounded-xl;
     }
 
     .card-hover {
-        @apply card transition-all duration-200 hover:border-slate-600 hover:shadow-lg hover:shadow-black/30;
+        @apply card transition-all duration-200 hover:border-white/[0.13] hover:shadow-lg hover:shadow-black/40;
     }
 
     .btn-primary {
-        @apply inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white
-               hover:bg-emerald-500 active:bg-emerald-700 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-pitch-950;
+        @apply inline-flex items-center justify-center gap-2 rounded-lg bg-bolao-accent px-4 py-2.5 text-sm font-semibold text-black
+               hover:bg-bolao-accent2 active:bg-bolao-accent2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-bolao-accent/50 focus:ring-offset-2 focus:ring-offset-bolao-bg;
     }
 
     .btn-secondary {
-        @apply inline-flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-200
-               hover:bg-slate-600 active:bg-slate-800 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-pitch-950;
+        @apply inline-flex items-center justify-center gap-2 rounded-lg bg-bolao-bg4 px-4 py-2.5 text-sm font-semibold text-slate-200
+               hover:bg-bolao-bg3 active:bg-bolao-bg4 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-white/10 focus:ring-offset-2 focus:ring-offset-bolao-bg;
     }
 
     .btn-danger {
@@ -46,8 +46,8 @@
     }
 
     .btn-ghost {
-        @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-400
-               hover:text-slate-200 hover:bg-slate-800 transition-colors duration-150 focus:outline-none;
+        @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-bolao-muted
+               hover:text-slate-200 hover:bg-bolao-bg3 transition-colors duration-150 focus:outline-none;
     }
 
     .btn-sm {
@@ -55,23 +55,22 @@
     }
 
     .input-field {
-        @apply w-full rounded-lg bg-pitch-800 border-slate-700 text-slate-100 placeholder-slate-500
-               focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors;
+        @apply w-full rounded-lg bg-bolao-bg4 border-white/[0.07] text-slate-100 placeholder-bolao-muted
+               focus:border-bolao-accent focus:ring-1 focus:ring-bolao-accent/30 transition-colors;
     }
 
-    /* Override browser autofill light background on dark inputs */
     .input-field:-webkit-autofill,
     .input-field:-webkit-autofill:hover,
     .input-field:-webkit-autofill:focus,
     .input-field:-webkit-autofill:active {
-        -webkit-box-shadow: 0 0 0 100px #0f2140 inset !important;
+        -webkit-box-shadow: 0 0 0 100px #252b38 inset !important;
         -webkit-text-fill-color: #f1f5f9 !important;
         caret-color: #f1f5f9;
     }
 
     .select-field {
-        @apply w-full rounded-lg bg-pitch-800 border-slate-700 text-slate-100
-               focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors;
+        @apply w-full rounded-lg bg-bolao-bg4 border-white/[0.07] text-slate-100
+               focus:border-bolao-accent focus:ring-1 focus:ring-bolao-accent/30 transition-colors;
     }
 
     .label {
@@ -197,6 +196,120 @@
     [x-cloak] { display: none !important; }
 }
 
+/* ─── BolaoFC Layout System ──────────────────────────────────── */
+
+/* Sidebar: icon-only 64 px on tablet, hover-expands to 220 px, always 220 px on desktop */
+.bolao-sidebar {
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+@media (min-width: 768px) {
+    .bolao-sidebar {
+        width: 64px;
+        transition: width 0.22s ease;
+    }
+    .bolao-sidebar:hover {
+        width: 220px;
+    }
+}
+
+@media (min-width: 1100px) {
+    .bolao-sidebar {
+        width: 220px !important;
+    }
+}
+
+/* Labels inside sidebar: invisible when collapsed, fade-in on hover/expanded */
+.sb-label {
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+@media (min-width: 768px) {
+    .sb-label {
+        opacity: 0;
+        transition: opacity 0.15s ease;
+        pointer-events: none;
+    }
+    .bolao-sidebar:hover .sb-label {
+        opacity: 1;
+        pointer-events: auto;
+    }
+}
+
+@media (min-width: 1100px) {
+    .sb-label {
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+}
+
+/* Right panel: only visible at 1100 px+ */
+.bolao-right-panel {
+    display: none;
+}
+
+@media (min-width: 1100px) {
+    .bolao-right-panel {
+        display: flex;
+        flex-direction: column;
+        width: 272px;
+        flex-shrink: 0;
+    }
+}
+
+/* Mobile tabbar safe-area inset (iOS notch) */
+.bolao-tabbar {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Page transition animation for slot content */
+.bolao-page-enter {
+    animation: fadeIn 0.18s ease-out;
+}
+
+/* Phase / status badges */
+.phase-badge {
+    @apply inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide;
+}
+.phase-groups  { @apply phase-badge bg-bolao-bg4 text-bolao-muted; }
+.phase-r16     { @apply phase-badge bg-blue-500/10 text-blue-400; }
+.phase-qf      { @apply phase-badge bg-bolao-accent/10 text-bolao-accent; }
+.phase-sf      { @apply phase-badge bg-purple-500/10 text-purple-400; }
+.phase-final   { @apply phase-badge bg-yellow-500/10 text-yellow-300; }
+
+/* Score / points chips */
+.pts-chip      { @apply inline-flex items-center rounded px-2 py-0.5 text-xs font-bold font-bc tracking-wide; }
+.pts-exact     { @apply pts-chip bg-bolao-green/10 text-bolao-green; }
+.pts-winner    { @apply pts-chip bg-bolao-blue/10 text-bolao-blue; }
+.pts-miss      { @apply pts-chip bg-bolao-red/10 text-bolao-red; }
+.pts-pending   { @apply pts-chip bg-bolao-accent/10 text-bolao-accent; }
+
+/* Right-panel widget */
+.rp-widget {
+    @apply bg-bolao-bg2 border border-white/[0.07] rounded-xl overflow-hidden mb-3;
+}
+.rp-widget-header {
+    @apply flex items-center justify-between px-3.5 py-2.5 border-b border-white/[0.07] text-[11px] font-bold uppercase tracking-widest text-bolao-muted;
+}
+.rp-widget-body {
+    @apply px-3.5 py-2;
+}
+
+/* Avatar initials */
+.bolao-avatar {
+    @apply flex shrink-0 items-center justify-center rounded-full font-bc font-bold text-white;
+    background: linear-gradient(135deg, #f5a623, #e8390d);
+}
+
+/* Live pulse dot */
+.live-dot {
+    @apply inline-block w-2 h-2 rounded-full bg-bolao-red;
+    animation: liveBlink 1.5s ease-in-out infinite;
+}
+
+/* ─── Legal document content ─────────────────────────────────── */
 /* Legal document content — white background, black text, shared across modal/acceptance/document pages */
 .legal-doc-body { color: #1a1a1a; background: #ffffff; }
 .legal-doc-body h1,.legal-doc-body h2,.legal-doc-body h3,.legal-doc-body h4 { color: #1a1a1a; font-weight: 600; margin-top: 0.85rem; margin-bottom: 0.15rem; }
