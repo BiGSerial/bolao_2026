@@ -27,6 +27,7 @@ return [
     */
     'waits' => [
         'redis:mail'       => 30,
+        'redis:broadcast'  => 10,
         'redis:scoring'    => 60,
         'redis:ranking'    => 120,
         'redis:api-funnel' => 300,
@@ -129,6 +130,20 @@ return [
             'timeout'              => 120,
             'nice'                 => 10,
         ],
+
+        'supervisor-broadcast' => [
+            'connection'           => 'redis',
+            'queue'                => ['broadcast'],
+            'balance'              => 'simple',
+            'minProcesses'         => 1,
+            'maxProcesses'         => 2,
+            'maxTime'              => 0,
+            'maxJobs'              => 0,
+            'memory'               => 64,
+            'tries'                => 2,
+            'timeout'              => 30,
+            'nice'                 => 3,
+        ],
     ],
 
     'environments' => [
@@ -151,6 +166,10 @@ return [
                 'balanceMaxShift'   => 1,
                 'balanceCooldown'   => 5,
             ],
+            'supervisor-broadcast' => [
+                'minProcesses'      => 1,
+                'maxProcesses'      => 2,
+            ],
         ],
 
         'local' => [
@@ -163,6 +182,10 @@ return [
                 'maxProcesses' => 2,
             ],
             'supervisor-api' => [
+                'minProcesses' => 1,
+                'maxProcesses' => 1,
+            ],
+            'supervisor-broadcast' => [
                 'minProcesses' => 1,
                 'maxProcesses' => 1,
             ],

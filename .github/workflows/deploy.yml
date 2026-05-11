@@ -94,7 +94,6 @@ jobs:
               docker compose build app reverb horizon scheduler
 
               echo "== [2/8] Instalando dependências PHP =="
-              docker compose run --rm app rm -rf /var/www/html/vendor
               docker compose run --rm \
                 -e COMPOSER_HOME=/tmp/composer \
                 app composer install --no-dev --optimize-autoloader --prefer-dist --no-interaction
@@ -103,7 +102,6 @@ jobs:
               docker compose run --rm \
                 -e NPM_CONFIG_CACHE=/tmp/npm-cache \
                 -e NODE_ENV=production \
-                --user "$(id -u):$(id -g)" \
                 app sh -c 'npm ci --include=dev && npm run build'
 
               echo "== Validando manifest do Vite =="
@@ -111,11 +109,11 @@ jobs:
 
               echo "== [4/8] Limpando caches antigos =="
               rm -f src/bootstrap/cache/*.php
-              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan optimize:clear
-              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan cache:clear
+              docker compose run --rm app php artisan optimize:clear
+              docker compose run --rm app php artisan cache:clear
 
               echo "== [5/8] Rodando migrations =="
-              docker compose run --rm --user "$(id -u):$(id -g)" app php artisan migrate --force --verbose
+              docker compose run --rm app php artisan migrate --force --verbose
 
               echo "== [6/8] Ajustando permissões =="
               chmod -R ug+rw src/storage src/bootstrap/cache || true
@@ -127,7 +125,7 @@ jobs:
 
               echo "== [8/8] Subindo containers e otimizando =="
               docker compose up -d --remove-orphans
-              docker compose exec -T --user "$(id -u):$(id -g)" app php artisan optimize
+              docker compose exec -T app php artisan optimize
               docker compose restart scheduler reverb
 
               echo "== Status final dos containers =="
