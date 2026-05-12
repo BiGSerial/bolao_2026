@@ -1,12 +1,11 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ config('app.name', 'Bolão Copa') }} · {{ $documentType->label() }}</title>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @livewireStyles
+    @include('layouts.partials.base-head', [
+        'title' => config('app.name', 'Bolão Copa').' · '.$documentType->label(),
+        'includeMarked' => true,
+        'includeLivewireStyles' => true,
+    ])
     @if($document)
     <script>
         const DOC_CONTENT = @json($document->content);
@@ -69,16 +68,7 @@
                 </div>
 
                 <script>
-                    (function () {
-                        var el = document.getElementById('doc-content');
-                        if (!el) return;
-                        if (typeof marked !== 'undefined') {
-                            marked.setOptions({ breaks: true, gfm: true });
-                            el.innerHTML = marked.parse(DOC_CONTENT || '');
-                        } else {
-                            el.innerHTML = (DOC_CONTENT || '').replace(/\n/g, '<br>');
-                        }
-                    })();
+                    window.renderLegalDocumentContent('doc-content', DOC_CONTENT || '');
                 </script>
             </section>
             @else

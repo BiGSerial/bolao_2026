@@ -1,18 +1,13 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ config('app.name', 'Bolão Copa') }}</title>
-    <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=barlow:400,500,600&family=barlow-condensed:600,700,800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.0/dist/tabler-icons.min.css">
-    <style>[x-cloak]{display:none!important}</style>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @livewireStyles
+    @include('layouts.partials.base-head', [
+        'title' => config('app.name', 'Bolão Copa'),
+        'csrf' => true,
+        'includeSweetalert' => true,
+        'includeMarked' => true,
+        'includeLivewireStyles' => true,
+    ])
 
     @php
         try {
@@ -41,43 +36,14 @@
                 version: @json($guestPrivacy?->version ?? ''),
             }
         };
-
-        function legalModalData() {
-            return {
-                legalModal: false,
-                legalModalTitle: '',
-                legalModalContent: '',
-                openLegal(type) {
-                    const doc = LEGAL_DOCS[type] || {};
-                    this.legalModalTitle = doc.title || 'Documento';
-                    this.legalModalContent = doc.content || '';
-                    this.legalModal = true;
-                    document.body.style.overflow = 'hidden';
-                    this.$nextTick(() => {
-                        const el = document.getElementById('legal-modal-body');
-                        if (el) el.scrollTop = 0;
-                    });
-                },
-                closeLegal() {
-                    this.legalModal = false;
-                    document.body.style.overflow = '';
-                },
-                renderMd(content) {
-                    if (!content) {
-                        return '<p style="color:#64748b;text-align:center;padding:2rem 0;font-style:italic">Documento não disponível no momento.</p>';
-                    }
-                    if (typeof marked !== 'undefined') {
-                        marked.setOptions({ breaks: true, gfm: true });
-                        return marked.parse(content);
-                    }
-                    return content.replace(/\n/g, '<br>');
-                }
-            };
-        }
     </script>
 </head>
 <body class="font-sans antialiased min-h-screen flex flex-col items-center justify-center bg-bolao-bg p-4"
-      x-data="legalModalData()">
+      x-data="createLegalModalData({
+          docs: LEGAL_DOCS,
+          modalBodyId: 'legal-modal-body',
+          emptyHtml: '<p style=\'color:#64748b;text-align:center;padding:2rem 0;font-style:italic\'>Documento não disponível no momento.</p>'
+      })">
 
     {{-- Background decoration --}}
     <div class="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden="true">

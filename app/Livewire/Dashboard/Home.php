@@ -249,6 +249,7 @@ class Home extends Component
         $selectedPool            = null;
         $selectedPoolRanking     = null;
         $selectedPoolMemberCount = 0;
+        $selectedPoolTopRankings = collect();
 
         if ($this->selectedPoolId) {
             $selectedPool = $myMembershipsForComp->firstWhere('pool_id', $this->selectedPoolId)?->pool;
@@ -261,6 +262,15 @@ class Home extends Component
                 $selectedPoolMemberCount = PoolMember::where('pool_id', $this->selectedPoolId)
                     ->where('status', 'active')
                     ->count();
+
+                $selectedPoolTopRankings = PoolRanking::query()
+                    ->where('pool_id', $this->selectedPoolId)
+                    ->with('user:id,name,display_name')
+                    ->orderByRaw('case when position is null then 1 else 0 end')
+                    ->orderBy('position')
+                    ->orderByDesc('points_total')
+                    ->limit(5)
+                    ->get();
             }
         }
 
@@ -311,6 +321,7 @@ class Home extends Component
             'selectedPool',
             'selectedPoolRanking',
             'selectedPoolMemberCount',
+            'selectedPoolTopRankings',
             'heroMatch',
             'heroPrediction',
             'heroCanPredict',

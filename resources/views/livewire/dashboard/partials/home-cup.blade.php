@@ -288,31 +288,29 @@
 {{-- ── My pool position ─────────────────────────────────────── --}}
 @if($selectedPool && $selectedPoolRanking)
 <section class="px-4 md:px-6 pt-5">
+    <div class="flex items-center justify-between mb-3">
+        <h2 class="font-bc font-bold text-[18px] uppercase tracking-[0.5px] text-white">Minha Posição</h2>
+        <a href="{{ route('pools.show', $selectedPool->slug) }}"
+           class="text-[13px] font-medium text-bolao-accent hover:text-bolao-accent2 transition-colors">
+            Ranking →
+        </a>
+    </div>
     <a href="{{ route('pools.show', $selectedPool->slug) }}"
-       class="flex items-center gap-4 bg-bolao-bg2 border border-bolao-accent/30 rounded-xl px-4 py-3.5 hover:border-bolao-accent/60 transition-colors">
-        <div class="min-w-0">
-            <p class="text-[10px] font-bold uppercase tracking-widest text-bolao-muted mb-0.5">
-                {{ $selectedPool->name }}
-            </p>
-            <p class="text-xs text-bolao-muted">
-                <i class="ti ti-users text-xs"></i>
-                {{ $selectedPoolMemberCount }} participante{{ $selectedPoolMemberCount !== 1 ? 's' : '' }}
-            </p>
+       class="flex items-center gap-[14px] bg-bolao-bg3 border border-bolao-accent rounded-xl px-4 py-[14px] hover:border-bolao-accent2 transition-colors">
+        <div>
+            <div class="text-[12px] text-bolao-muted mb-0.5">Classificação</div>
+            <div class="font-bc font-extrabold text-[36px] leading-none text-bolao-accent">
+                {{ $selectedPoolRanking->position }}<sup class="text-[14px]">°</sup>
+            </div>
         </div>
-        <div class="flex-1"></div>
-        <div class="text-center">
-            <p class="text-[10px] text-bolao-muted uppercase tracking-widest mb-0.5">Posição</p>
-            <p class="font-bc font-extrabold text-3xl text-bolao-accent leading-none">
-                {{ $selectedPoolRanking->position }}<sup class="text-lg">º</sup>
-            </p>
+        <div class="flex-1 min-w-0">
+            <div class="font-semibold text-[15px] text-white leading-tight truncate">{{ auth()->user()->public_name }}</div>
+            <div class="text-[13px] text-bolao-muted mt-0.5">{{ $selectedPoolMemberCount }} participante{{ $selectedPoolMemberCount !== 1 ? 's' : '' }}</div>
         </div>
-        <div class="text-center">
-            <p class="text-[10px] text-bolao-muted uppercase tracking-widest mb-0.5">Pontos</p>
-            <p class="font-bc font-extrabold text-3xl text-bolao-accent leading-none">
-                {{ $selectedPoolRanking->points_total }}
-            </p>
+        <div class="text-right">
+            <div class="font-bc font-extrabold text-[28px] leading-none text-bolao-accent">{{ $selectedPoolRanking->points_total }}</div>
+            <div class="text-[11px] text-bolao-muted mt-0.5">pts</div>
         </div>
-        <i class="ti ti-chevron-right text-bolao-muted text-sm flex-shrink-0"></i>
     </a>
 </section>
 @elseif($myMembershipsForComp->isEmpty())
@@ -494,37 +492,31 @@
 
 {{-- ── Right panel push ─────────────────────────────────────── --}}
 @push('right-panel')
-@if($selectedPool && $selectedPoolRanking)
+@if($selectedPool)
 <div class="rp-widget">
     <div class="rp-widget-header">
-        <span>{{ $selectedPool->name }}</span>
+        <span>Top Ranking</span>
         <a href="{{ route('pools.show', $selectedPool->slug) }}"
            class="text-bolao-accent hover:text-bolao-accent2 transition-colors normal-case tracking-normal text-[11px] font-semibold">
-            ver →
+            ver tudo →
         </a>
     </div>
-    <div class="rp-widget-body py-3 text-center">
-        <p class="text-[10px] text-bolao-muted uppercase tracking-widest mb-1">Sua posição</p>
-        <p class="font-bc font-extrabold text-4xl text-bolao-accent leading-none">
-            {{ $selectedPoolRanking->position }}<sup class="text-xl">º</sup>
-        </p>
-        <p class="font-bc font-bold text-2xl text-white mt-1 leading-none">
-            {{ $selectedPoolRanking->points_total }} <span class="text-sm font-normal text-bolao-muted">pts</span>
-        </p>
-        <div class="grid grid-cols-3 gap-1 mt-3 text-center">
-            <div class="bg-bolao-bg3 rounded-lg py-1.5">
-                <p class="font-bc font-bold text-base text-bolao-green">{{ $selectedPoolRanking->exact_scores }}</p>
-                <p class="text-[9px] text-bolao-muted">Exatos</p>
-            </div>
-            <div class="bg-bolao-bg3 rounded-lg py-1.5">
-                <p class="font-bc font-bold text-base text-bolao-blue">{{ $selectedPoolRanking->correct_results }}</p>
-                <p class="text-[9px] text-bolao-muted">Vencedor</p>
-            </div>
-            <div class="bg-bolao-bg3 rounded-lg py-1.5">
-                <p class="font-bc font-bold text-base text-bolao-muted">{{ $selectedPoolMemberCount }}</p>
-                <p class="text-[9px] text-bolao-muted">Jogadores</p>
-            </div>
+    <div class="rp-widget-body divide-y divide-white/[0.04]">
+        @forelse($selectedPoolTopRankings as $entry)
+        @php
+            $isMe = (int) $entry->user_id === (int) auth()->id();
+            $publicName = trim((string) ($entry->user?->display_name ?: $entry->user?->name ?: 'Participante'));
+            $initials = strtoupper(substr(preg_replace('/\s+.*$/', '', $publicName), 0, 2));
+        @endphp
+        <div class="py-2 flex items-center gap-2 {{ $isMe ? 'bg-bolao-accent/15 -mx-2 px-2 rounded-md' : '' }}">
+            <span class="w-4 text-center font-bc font-extrabold text-base {{ $isMe ? 'text-bolao-accent' : 'text-slate-200' }}">{{ $entry->position ?? '—' }}</span>
+            <span class="flex h-5 w-5 items-center justify-center rounded-full bg-bolao-bg4 text-[9px] font-bold text-bolao-accent2">{{ $initials ?: 'PL' }}</span>
+            <span class="min-w-0 flex-1 truncate text-xs font-semibold {{ $isMe ? 'text-white' : 'text-slate-200' }}">{{ $isMe ? 'Você' : $publicName }}</span>
+            <span class="font-bc font-extrabold text-xl {{ $isMe ? 'text-bolao-accent' : 'text-white' }}">{{ (int) $entry->points_total }}</span>
         </div>
+        @empty
+        <div class="py-2 text-xs text-bolao-muted">Ranking ainda não disponível.</div>
+        @endforelse
     </div>
 </div>
 @endif

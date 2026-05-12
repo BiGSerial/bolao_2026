@@ -1,13 +1,11 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ config('app.name', 'Bolão Copa') }} · Sobre</title>
-    <style>[x-cloak]{display:none!important}</style>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @livewireStyles
+    @include('layouts.partials.base-head', [
+        'title' => config('app.name', 'Bolão Copa').' · Sobre',
+        'includeMarked' => true,
+        'includeLivewireStyles' => true,
+    ])
 
     @php
         try {
@@ -28,41 +26,14 @@
             eula:    { title: @json($aboutEula?->title ?? 'Termos de Uso'), content: @json($aboutEula?->content ?? '') },
             privacy: { title: @json($aboutPrivacy?->title ?? 'Política de Privacidade'), content: @json($aboutPrivacy?->content ?? '') },
         };
-
-        function aboutPageData() {
-            return {
-                legalModal: false,
-                legalModalTitle: '',
-                legalModalContent: '',
-                openLegal(type) {
-                    const doc = LEGAL_DOCS[type] || {};
-                    this.legalModalTitle  = doc.title || 'Documento';
-                    this.legalModalContent = doc.content || '';
-                    this.legalModal = true;
-                    document.body.style.overflow = 'hidden';
-                    this.$nextTick(() => {
-                        const el = document.getElementById('about-modal-body');
-                        if (el) el.scrollTop = 0;
-                    });
-                },
-                closeLegal() {
-                    this.legalModal = false;
-                    document.body.style.overflow = '';
-                },
-                renderMd(content) {
-                    if (!content) return '<p style="color:#64748b;text-align:center;padding:2rem 0;font-style:italic">Documento não disponível.</p>';
-                    if (typeof marked !== 'undefined') {
-                        marked.setOptions({ breaks: true, gfm: true });
-                        return marked.parse(content);
-                    }
-                    return content.replace(/\n/g, '<br>');
-                }
-            };
-        }
     </script>
 </head>
 <body class="min-h-screen bg-pitch-950 font-sans antialiased flex items-center justify-center p-3 sm:p-6"
-      x-data="aboutPageData()">
+      x-data="createLegalModalData({
+          docs: LEGAL_DOCS,
+          modalBodyId: 'about-modal-body',
+          emptyHtml: '<p style=\'color:#64748b;text-align:center;padding:2rem 0;font-style:italic\'>Documento não disponível.</p>'
+      })">
 
     {{-- Background --}}
     <div class="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden="true">

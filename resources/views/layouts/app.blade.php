@@ -1,21 +1,13 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ config('app.name', 'BolaoFC') }}{{ isset($title) ? ' — '.$title : '' }}</title>
-
-    <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=barlow:400,500,600&family=barlow-condensed:600,700,800&display=swap" rel="stylesheet">
-
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.0/dist/tabler-icons.min.css">
-
-    <style>[x-cloak]{display:none!important}</style>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @livewireStyles
+    @include('layouts.partials.base-head', [
+        'title' => config('app.name', 'BolaoFC').(isset($title) ? ' — '.$title : ''),
+        'csrf' => true,
+        'includeSweetalert' => true,
+        'includeMarked' => true,
+        'includeLivewireStyles' => true,
+    ])
 </head>
 <body class="antialiased">
 @php
@@ -82,40 +74,31 @@
     <aside class="bolao-sidebar hidden md:flex flex-col bg-bolao-bg2 border-r border-white/[0.07]">
 
         {{-- Logo / Competition --}}
-        <div class="flex h-14 shrink-0 items-center gap-2.5 px-[18px] border-b border-white/[0.07] overflow-hidden">
+        <div class="flex h-14 shrink-0 items-center gap-2.5 px-[18px] border-b border-white/[0.07]">
             <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-black font-bc font-extrabold text-sm"
                  style="background:linear-gradient(135deg,#f5a623,#e8390d)">B</div>
-            <div class="sb-label min-w-0" x-data="{ compMenu: false }">
+            <div class="sb-label min-w-0">
                 <div class="font-bc font-extrabold text-[19px] leading-none text-white">
                     Bolão<span class="text-bolao-accent">FC</span>
                 </div>
                 @if($canSwitchCompetition)
-                <div class="relative mt-1">
-                    <button type="button" @click="compMenu = !compMenu"
-                            class="inline-flex items-center gap-1 rounded border border-bolao-accent/30 bg-bolao-accent/[0.08] px-2 py-0.5 text-[10px] font-semibold text-bolao-accent hover:bg-bolao-accent/[0.15] transition-colors">
-                        <span class="truncate max-w-[110px]">{{ $currentCompetition['name'] }} {{ $currentCompetition['season'] }}</span>
-                        <i class="ti ti-chevron-down text-[10px]"></i>
-                    </button>
-                    <div x-show="compMenu" x-cloak @click.outside="compMenu = false"
-                         x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
-                         class="absolute left-0 z-50 mt-1.5 w-60 rounded-xl border border-white/[0.07] bg-bolao-bg3 shadow-2xl py-1.5">
+                <div class="relative mt-1 w-[170px]">
+                    <select
+                        aria-label="Selecionar competição"
+                        onchange="if(this.value) window.location.href = this.value"
+                        class="w-full appearance-none rounded-md border border-bolao-accent/30 bg-bolao-accent/[0.08] px-2 py-1 pr-6 text-[10px] font-semibold leading-tight text-bolao-accent transition-colors hover:bg-bolao-accent/[0.14] focus:outline-none focus:ring-1 focus:ring-bolao-accent/50"
+                    >
                         @foreach($allowedCompetitions as $code => $competition)
-                        <a href="{{ ($competition['enabled'] || $authUser->is_admin) ? route('dashboard', ['competition' => $code]) : '#' }}"
-                           @click="compMenu = false"
-                           class="mx-1 flex items-center justify-between rounded-lg px-3 py-2 text-xs {{ $currentCompetitionCode === $code ? 'text-bolao-accent bg-bolao-accent/10' : 'text-slate-300 hover:bg-bolao-bg4 hover:text-white' }}">
-                            <span class="flex items-center gap-2 min-w-0">
-                                <span class="font-semibold truncate">{{ $competition['name'] }}</span>
-                                <span class="shrink-0 text-bolao-muted2">{{ $code }}</span>
-                                @if(!($competition['enabled'] ?? false))
-                                <span class="rounded bg-amber-500/20 px-1 py-0.5 text-[9px] font-bold text-amber-300">OFF</span>
-                                @endif
-                            </span>
-                            @if($currentCompetitionCode === $code)
-                            <i class="ti ti-check text-bolao-accent text-xs"></i>
-                            @endif
-                        </a>
+                        <option
+                            value="{{ route('dashboard', ['competition' => $code]) }}"
+                            @selected($currentCompetitionCode === $code)
+                            class="bg-bolao-bg3 text-slate-100"
+                        >
+                            {{ $competition['name'] }} {{ $competition['season'] }} ({{ $code }}){{ !($competition['enabled'] ?? false) ? ' [OFF]' : '' }}
+                        </option>
                         @endforeach
-                    </div>
+                    </select>
+                    <i class="ti ti-chevron-down pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-bolao-accent/80"></i>
                 </div>
                 @else
                 <p class="text-[11px] text-bolao-accent font-semibold leading-none mt-0.5">
@@ -132,10 +115,10 @@
                 <span class="sb-label text-[10px] font-bold uppercase tracking-widest text-bolao-muted2">Principal</span>
             </div>
 
-            <a href="{{ route('dashboard') }}"
+            <a href="{{ route('dashboard', ['competition' => $currentCompetitionCode]) }}"
                class="{{ request()->routeIs('dashboard') ? $sbActive : $sbInactive }}">
                 <i class="ti ti-home text-xl shrink-0"></i>
-                <span class="sb-label text-sm">Dashboard</span>
+                <span class="sb-label text-sm">Início</span>
             </a>
 
             <a href="{{ route('pools.index', ['competition' => $currentCompetitionCode]) }}"
@@ -261,7 +244,7 @@
         </header>
 
         {{-- Desktop Header (visible on tablet+) --}}
-        <header class="hidden md:flex h-14 shrink-0 items-center justify-between px-6 bg-bolao-bg border-b border-white/[0.07] z-30 sticky top-0">
+        <header class="hidden md:grid grid-cols-[1fr_auto_1fr] h-14 shrink-0 items-center px-6 bg-bolao-bg border-b border-white/[0.07] z-30 sticky top-0">
             <div class="flex items-center gap-3 min-w-0">
                 <span class="font-bc font-bold text-lg text-slate-200 truncate">
                     @hasSection('page-heading')
@@ -272,7 +255,10 @@
                 </span>
                 @stack('page-title')
             </div>
-            <div class="flex items-center gap-2">
+            <div class="justify-self-center">
+                @stack('header-center')
+            </div>
+            <div class="flex items-center gap-2 justify-self-end">
                 @stack('header-actions')
                 <a href="{{ route('profile.edit') }}"
                    class="bolao-avatar w-8 h-8 text-xs hover:ring-2 hover:ring-bolao-accent/50 transition-all">
@@ -288,7 +274,7 @@
 
         {{-- Mobile Tab Bar --}}
         <nav class="flex md:hidden shrink-0 items-start pt-2 bg-bolao-bg2 border-t border-white/[0.07] bolao-tabbar" style="height:68px">
-            <a href="{{ route('dashboard') }}"
+            <a href="{{ route('dashboard', ['competition' => $currentCompetitionCode]) }}"
                class="flex flex-1 flex-col items-center gap-1 px-1 py-1 cursor-pointer transition-colors {{ request()->routeIs('dashboard') ? 'text-bolao-accent' : 'text-bolao-muted2 hover:text-bolao-muted' }}">
                 <i class="ti ti-home text-[22px]"></i>
                 <span class="text-[10px] font-bold uppercase tracking-wide leading-none">Início</span>
@@ -363,31 +349,24 @@
 
     {{-- Competition switcher (mobile overlay) --}}
     @if($canSwitchCompetition)
-    <div class="px-4 py-2.5 border-b border-white/[0.07]" x-data="{ compMenuMobile: false }">
-        <button type="button" @click="compMenuMobile = !compMenuMobile"
-                class="inline-flex w-full items-center justify-between gap-1 rounded-lg border border-bolao-accent/30 bg-bolao-accent/[0.08] px-3 py-2 text-xs font-semibold text-bolao-accent hover:bg-bolao-accent/[0.15] transition-colors">
-            <span class="truncate">{{ $currentCompetition['name'] }} {{ $currentCompetition['season'] }}</span>
-            <i class="ti ti-chevron-down text-[11px] shrink-0 transition-transform" :class="compMenuMobile ? 'rotate-180' : ''"></i>
-        </button>
-        <div x-show="compMenuMobile" x-cloak
-             x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
-             class="mt-1.5 rounded-xl border border-white/[0.07] bg-bolao-bg3 py-1.5 shadow-2xl">
-            @foreach($allowedCompetitions as $code => $competition)
-            <a href="{{ ($competition['enabled'] || $authUser->is_admin) ? route('dashboard', ['competition' => $code]) : '#' }}"
-               @click="sidebar = false"
-               class="mx-1 flex items-center justify-between rounded-lg px-3 py-2 text-xs {{ $currentCompetitionCode === $code ? 'text-bolao-accent bg-bolao-accent/10' : 'text-slate-300 hover:bg-bolao-bg4 hover:text-white' }}">
-                <span class="flex items-center gap-2 min-w-0">
-                    <span class="font-semibold truncate">{{ $competition['name'] }}</span>
-                    <span class="shrink-0 text-bolao-muted2">{{ $code }}</span>
-                    @if(!($competition['enabled'] ?? false))
-                    <span class="rounded bg-amber-500/20 px-1 py-0.5 text-[9px] font-bold text-amber-300">OFF</span>
-                    @endif
-                </span>
-                @if($currentCompetitionCode === $code)
-                <i class="ti ti-check text-bolao-accent text-xs"></i>
-                @endif
-            </a>
-            @endforeach
+    <div class="px-4 py-2.5 border-b border-white/[0.07]">
+        <div class="relative">
+            <select
+                aria-label="Selecionar competição"
+                onchange="if(this.value){ window.location.href = this.value; }"
+                class="w-full appearance-none rounded-lg border border-bolao-accent/30 bg-bolao-accent/[0.08] px-3 py-2 pr-9 text-xs font-semibold text-bolao-accent transition-colors hover:bg-bolao-accent/[0.14] focus:outline-none focus:ring-1 focus:ring-bolao-accent/50"
+            >
+                @foreach($allowedCompetitions as $code => $competition)
+                <option
+                    value="{{ route('dashboard', ['competition' => $code]) }}"
+                    @selected($currentCompetitionCode === $code)
+                    class="bg-bolao-bg3 text-slate-100"
+                >
+                    {{ $competition['name'] }} {{ $competition['season'] }} ({{ $code }}){{ !($competition['enabled'] ?? false) ? ' [OFF]' : '' }}
+                </option>
+                @endforeach
+            </select>
+            <i class="ti ti-chevron-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-bolao-accent/80"></i>
         </div>
     </div>
     @endif
@@ -396,10 +375,10 @@
     <nav class="flex-1 overflow-y-auto py-3 space-y-0.5">
         <p class="px-5 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-bolao-muted2">Principal</p>
 
-        <a href="{{ route('dashboard') }}" @click="sidebar = false"
+        <a href="{{ route('dashboard', ['competition' => $currentCompetitionCode]) }}" @click="sidebar = false"
            class="{{ request()->routeIs('dashboard') ? $sbActive : $sbInactive }}">
             <i class="ti ti-home text-xl shrink-0"></i>
-            <span class="text-sm">Dashboard</span>
+            <span class="text-sm">Início</span>
         </a>
         <a href="{{ route('pools.index', ['competition' => $currentCompetitionCode]) }}" @click="sidebar = false"
            class="{{ request()->routeIs('pools.*') ? $sbActive : $sbInactive }}">

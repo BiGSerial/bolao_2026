@@ -1,42 +1,26 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ config('app.name', 'Bolão Copa') }} · Aceite obrigatório</title>
-    <style>
-        [x-cloak] { display: none !important; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @livewireStyles
+    @include('layouts.partials.base-head', [
+        'title' => config('app.name', 'Bolão Copa').' · Aceite obrigatório',
+        'includeMarked' => true,
+        'includeLivewireStyles' => true,
+    ])
 
     <script>
-        function acceptanceData() {
-            return {
-                acceptEula: {{ old('accept_eula') ? 'true' : 'false' }},
-                acceptPrivacyPolicy: {{ old('accept_privacy_policy') ? 'true' : 'false' }},
-                activeTab: 'eula',
-                eulaContent: @json($eula?->content ?? ''),
-                privacyContent: @json($privacyPolicy?->content ?? ''),
-                renderMd(content) {
-                    if (!content) {
-                        return '<p style="color:#64748b;font-style:italic;text-align:center;padding:1.5rem 0">Conteúdo não disponível.</p>';
-                    }
-                    return typeof marked !== 'undefined'
-                        ? marked.parse(content)
-                        : content.replace(/\n/g, '<br>');
-                }
-            };
-        }
+        const ACCEPTANCE_CONFIG = {
+            acceptEula: {{ old('accept_eula') ? 'true' : 'false' }},
+            acceptPrivacyPolicy: {{ old('accept_privacy_policy') ? 'true' : 'false' }},
+            eulaContent: @json($eula?->content ?? ''),
+            privacyContent: @json($privacyPolicy?->content ?? ''),
+        };
     </script>
 </head>
 <body class="min-h-screen bg-pitch-950 font-sans antialiased flex items-center justify-center p-3 sm:p-6"
-      x-data="acceptanceData()">
+      x-data="createAcceptanceData({
+          ...ACCEPTANCE_CONFIG,
+          emptyHtml: '<p style=\'color:#64748b;font-style:italic;text-align:center;padding:1.5rem 0\'>Conteúdo não disponível.</p>'
+      })">
 
     {{-- Background --}}
     <div class="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
