@@ -30,22 +30,18 @@
 @endif
 
 {{-- ── Live matches ──────────────────────────────────────────── --}}
+@if($live->isNotEmpty())
 <section class="px-4 md:px-6 pt-5">
     <div class="flex items-center gap-2 mb-3">
         <span class="live-dot"></span>
         <h2 class="font-bc font-bold text-sm uppercase tracking-wide text-white">Ao Vivo</h2>
-        @if($live->isNotEmpty())
         <span class="pts-chip bg-bolao-red/10 text-bolao-red">{{ $live->count() }}</span>
-        @else
-        <span class="pts-chip bg-white/5 text-bolao-muted2">simulação</span>
-        @endif
     </div>
 
-    @if($live->isNotEmpty())
     <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
         @foreach($live->take(4) as $match)
         @php
-            $href    = $matchLinks[$match->id] ?? null;
+            $href    = route('matches.show', ['match' => $match->id]);
             $minute  = $liveMinutes[$match->id] ?? null;
             $extraMin = data_get($match->raw_payload, 'injury_time');
             $liveLabel = match($match->status) {
@@ -56,9 +52,7 @@
                 default            => 'Pré-Jogo',
             };
         @endphp
-        @if($href)<a href="{{ $href }}" class="bg-bolao-bg2 border border-white/[0.07] rounded-xl px-4 py-4 min-h-[138px] relative overflow-hidden hover:border-white/[0.13] transition-colors">
-        @else<div class="bg-bolao-bg2 border border-white/[0.07] rounded-xl px-4 py-4 min-h-[138px] relative overflow-hidden">
-        @endif
+        <a href="{{ $href }}" class="bg-bolao-bg2 border border-white/[0.07] rounded-xl px-4 py-4 min-h-[138px] relative overflow-hidden hover:border-white/[0.13] transition-colors">
             <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-bolao-accent to-bolao-accent2"></div>
             <div class="flex items-center justify-between mb-3">
                 <span class="text-[10px] text-bolao-muted">Rodada {{ $match->matchday }}</span>
@@ -87,38 +81,11 @@
                     <x-match-team-logo :team="$match->awayTeam" size="sm" />
                 </div>
             </div>
-        @if($href)</a>@else</div>@endif
+        </a>
         @endforeach
     </div>
-    @else
-    <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-        @php
-            $simHome = $heroMatch?->homeTeam;
-            $simAway = $heroMatch?->awayTeam;
-        @endphp
-        <div class="bg-bolao-bg2 border border-white/[0.07] rounded-xl px-4 py-4 min-h-[138px] relative overflow-hidden opacity-90">
-            <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-bolao-accent to-bolao-accent2"></div>
-            <div class="flex items-center justify-between mb-3">
-                <span class="text-[10px] text-bolao-muted">Rodada 12</span>
-                <span class="inline-flex items-center gap-1 text-[10px] font-bold text-bolao-red">
-                    <span class="live-dot mr-0.5"></span> Ao Vivo · 67'
-                </span>
-            </div>
-            <div class="flex items-center justify-between gap-3">
-                <div class="flex items-center gap-2 flex-1 min-w-0">
-                    <x-match-team-logo :team="$simHome" size="sm" />
-                    <span class="text-xs font-semibold text-slate-200 truncate">{{ $simHome?->short_name ?? 'PAL' }}</span>
-                </div>
-                <div class="font-bc font-extrabold text-2xl text-white leading-none tracking-widest shrink-0 min-w-[72px] text-center px-1">2–1</div>
-                <div class="flex items-center gap-2 flex-1 min-w-0 justify-end">
-                    <span class="text-xs font-semibold text-slate-200 truncate text-right">{{ $simAway?->short_name ?? 'FLA' }}</span>
-                    <x-match-team-logo :team="$simAway" size="sm" />
-                </div>
-            </div>
-        </div>
-    </div>
-    @endif
 </section>
+@endif
 
 {{-- ── Hero: próximo jogo ────────────────────────────────────── --}}
 @if($heroMatch)

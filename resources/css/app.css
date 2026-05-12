@@ -294,6 +294,17 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* Reserve space for the fixed tabbar on mobile so content is never covered */
+.bolao-main-content {
+    padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 768px) {
+    .bolao-main-content {
+        padding-bottom: 0;
+    }
+}
+
 /* Page transition animation for slot content */
 .bolao-page-enter {
     animation: fadeIn 0.18s ease-out;

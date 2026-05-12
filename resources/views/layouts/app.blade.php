@@ -336,7 +336,7 @@
         </header>
 
         {{-- Main slot --}}
-        <main class="flex-1 overflow-y-auto bolao-page-enter">
+        <main class="flex-1 overflow-y-auto bolao-page-enter bolao-main-content">
             {{ $slot }}
 
             {{-- Site footer --}}
@@ -366,7 +366,7 @@
         </main>
 
         {{-- Mobile Tab Bar --}}
-        <nav class="flex md:hidden shrink-0 items-start pt-2 bg-bolao-bg2 border-t border-white/[0.07] bolao-tabbar" style="height:68px">
+        <nav class="fixed inset-x-0 bottom-0 z-40 flex md:hidden items-start pt-2 bg-bolao-bg2/95 backdrop-blur-sm border-t border-white/[0.07] bolao-tabbar" style="height:68px">
             <a href="{{ route('dashboard', ['competition' => $currentCompetitionCode]) }}"
                class="flex flex-1 flex-col items-center gap-1 px-1 py-1 cursor-pointer transition-colors {{ request()->routeIs('dashboard') ? 'text-bolao-accent' : 'text-bolao-muted2 hover:text-bolao-muted' }}">
                 <i class="ti ti-home text-[22px]"></i>

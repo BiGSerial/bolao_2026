@@ -197,7 +197,7 @@ class Home extends Component
 
         $live = FootballMatch::query()
             ->where($competitionScope)
-            ->whereIn('status', ['PRE_MATCH', 'IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'])
+            ->whereIn('status', ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'])
             ->with($teamWith)
             ->orderBy('utc_date')
             ->get();
