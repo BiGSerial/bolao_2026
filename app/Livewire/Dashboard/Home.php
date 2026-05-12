@@ -11,6 +11,7 @@ use App\Models\Standing;
 use App\Models\StandingRow;
 use App\Services\Predictions\PredictionService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -41,20 +42,63 @@ class Home extends Component
         session(['home_pool_'.$code => $poolId]);
     }
 
-    public function saveHeroPrediction(int $matchId, int $homeScore, int $awayScore): array
+    public function saveHeroPrediction($matchId, $homeScore, $awayScore): array
     {
+        Log::info('dashboard.hero_prediction.save.attempt', [
+            'user_id' => Auth::id(),
+            'selected_pool_id' => $this->selectedPoolId,
+            'match_id_raw' => $matchId,
+            'home_score_raw' => $homeScore,
+            'away_score_raw' => $awayScore,
+        ]);
+
         if (! $this->selectedPoolId) {
             return ['ok' => false, 'msg' => 'Nenhum bolão selecionado.'];
         }
+
         try {
+            $matchId = (int) $matchId;
+            $homeScore = is_numeric($homeScore) ? (int) $homeScore : 0;
+            $awayScore = is_numeric($awayScore) ? (int) $awayScore : 0;
+
             $pool  = Pool::findOrFail($this->selectedPoolId);
             $match = FootballMatch::findOrFail($matchId);
+
+            // Validação final sempre no backend: janela de palpite do bolão.
+            if ($match->isFinished() || $match->isPredictionLockedFor($pool)) {
+                return ['ok' => false, 'msg' => 'Janela de palpite encerrada para este bolão.'];
+            }
+
             app(PredictionService::class)->save(
-                $pool, $match, Auth::user(), max(0, $homeScore), max(0, $awayScore)
+                $pool,
+                $match,
+                Auth::user(),
+                max(0, min(20, $homeScore)),
+                max(0, min(20, $awayScore))
             );
+
+            Log::info('dashboard.hero_prediction.save.success', [
+                'user_id' => Auth::id(),
+                'pool_id' => $pool->id,
+                'match_id' => $match->id,
+                'home_score' => max(0, min(20, $homeScore)),
+                'away_score' => max(0, min(20, $awayScore)),
+            ]);
+
             return ['ok' => true];
         } catch (\Throwable $e) {
-            return ['ok' => false, 'msg' => $e->getMessage()];
+            Log::error('dashboard.hero_prediction.save.error', [
+                'user_id' => Auth::id(),
+                'selected_pool_id' => $this->selectedPoolId,
+                'match_id' => $matchId,
+                'home_score' => $homeScore,
+                'away_score' => $awayScore,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return ['ok' => false, 'msg' => 'Não foi possível salvar o palpite agora.'];
         }
     }
 
@@ -271,14 +315,48 @@ class Home extends Component
                     ->orderByDesc('points_total')
                     ->limit(5)
                     ->get();
+
+                // Top sempre limitado a 5 itens.
+                // Se o usuário estiver fora do top 5, ele ocupa o 5º elemento com sua posição real destacada.
+                if ($selectedPoolRanking && (int) ($selectedPoolRanking->position ?? 0) > 5) {
+                    $topFour = PoolRanking::query()
+                        ->where('pool_id', $this->selectedPoolId)
+                        ->with('user:id,name,display_name')
+                        ->orderByRaw('case when position is null then 1 else 0 end')
+                        ->orderBy('position')
+                        ->orderByDesc('points_total')
+                        ->limit(4)
+                        ->get();
+
+                    $myRanking = PoolRanking::query()
+                        ->where('pool_id', $this->selectedPoolId)
+                        ->where('user_id', $userId)
+                        ->with('user:id,name,display_name')
+                        ->first();
+
+                    if ($myRanking) {
+                        $myRanking->setAttribute('forced_fifth_slot', true);
+                        $selectedPoolTopRankings = $topFour->concat(collect([$myRanking]))->values();
+                    }
+                }
             }
         }
 
-        /* ── Hero match (first live, else first upcoming) ────────── */
-        $heroMatch      = $live->first() ?? $upcoming->first();
+        /* ── Hero match: first upcoming that matches the pool stage, else any upcoming ── */
+        $heroMatch      = null;
         $heroPrediction = null;
         $heroCanPredict = false;
         $heroLockTime   = null;
+        $heroLockedForPool = false;
+        $heroStageMismatch = false;
+
+        if ($upcoming->isNotEmpty()) {
+            if ($selectedPool && $selectedPool->stage) {
+                $heroMatch = $upcoming->firstWhere('stage', $selectedPool->stage) ?? $upcoming->first();
+            } else {
+                $heroMatch = $upcoming->first();
+            }
+        }
 
         if ($heroMatch && $selectedPool) {
             $heroPrediction = Prediction::where('pool_id', $this->selectedPoolId)
@@ -286,9 +364,11 @@ class Home extends Component
                 ->where('football_match_id', $heroMatch->id)
                 ->first();
 
-            $heroCanPredict = $heroMatch->stage === $selectedPool->stage
-                && ! $heroMatch->isFinished()
-                && ! $heroMatch->isPredictionLockedFor($selectedPool);
+            $heroStageMismatch = $selectedPool->stage && $heroMatch->stage
+                && $heroMatch->stage !== $selectedPool->stage;
+            $heroLockedForPool = $heroMatch->isFinished() || $heroMatch->isPredictionLockedFor($selectedPool);
+
+            $heroCanPredict = ! $heroStageMismatch && ! $heroLockedForPool;
 
             $heroLockTime = $heroMatch->predictionLockTimeFor($selectedPool)
                 ?->timezone('America/Sao_Paulo');
@@ -300,6 +380,16 @@ class Home extends Component
             $recentPredictions = Prediction::where('pool_id', $this->selectedPoolId)
                 ->where('user_id', $userId)
                 ->whereIn('football_match_id', $recent->pluck('id')->all())
+                ->get()
+                ->keyBy('football_match_id');
+        }
+
+        /* ── Predictions for upcoming matches (status chips) ─────── */
+        $upcomingPredictions = collect();
+        if ($selectedPool && $upcoming->isNotEmpty()) {
+            $upcomingPredictions = Prediction::where('pool_id', $this->selectedPoolId)
+                ->where('user_id', $userId)
+                ->whereIn('football_match_id', $upcoming->pluck('id')->all())
                 ->get()
                 ->keyBy('football_match_id');
         }
@@ -326,7 +416,10 @@ class Home extends Component
             'heroPrediction',
             'heroCanPredict',
             'heroLockTime',
+            'heroLockedForPool',
+            'heroStageMismatch',
             'recentPredictions',
+            'upcomingPredictions',
         ));
     }
 

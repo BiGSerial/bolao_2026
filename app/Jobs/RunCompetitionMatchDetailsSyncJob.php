@@ -17,7 +17,8 @@ class RunCompetitionMatchDetailsSyncJob implements ShouldQueue
         private readonly string $code,
         private readonly int $season,
         private readonly string $stage,
-        private readonly int $limit
+        private readonly int $limit,
+        private readonly string $syncType = 'scheduled_auto'
     ) {
         $this->onQueue(config('queue-priority.sync.api_funnel', 'api-funnel'));
     }
@@ -29,6 +30,7 @@ class RunCompetitionMatchDetailsSyncJob implements ShouldQueue
             '--season' => $this->season,
             '--stage' => $this->stage,
             '--limit' => $this->limit,
+            '--sync-type' => $this->syncType,
         ]);
     }
 }

@@ -38,6 +38,11 @@ return [
         'max_wait_seconds'         => (int) env('API_FOOTBALL_RATE_MAX_WAIT_SECONDS', 30),
     ],
 
+    'complementary' => [
+        // Fora de jogos ao vivo, a API paga atua apenas como complemento da football-data.
+        'max_daily_updates_outside_live' => (int) env('API_FOOTBALL_COMPLEMENTARY_MAX_DAILY_UPDATES', 30),
+    ],
+
     'response_cache' => [
         'enabled' => (bool) env('API_FOOTBALL_RESPONSE_CACHE_ENABLED', true),
         'key_prefix' => env('API_FOOTBALL_RESPONSE_CACHE_PREFIX', 'api-football:response:'),

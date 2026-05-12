@@ -90,7 +90,8 @@ Schedule::call(function (): void {
         };
 
         if (shouldDispatchForWindow("scheduler:af:$code:$season:$stage", $afMin, $afMax)) {
-            RunCompetitionMatchDetailsSyncJob::dispatch($code, $season, $stage, $detailsLimit);
+            $syncType = $hasLive ? 'live_priority' : 'complementary_off_live';
+            RunCompetitionMatchDetailsSyncJob::dispatch($code, $season, $stage, $detailsLimit, $syncType);
         }
     }
 })

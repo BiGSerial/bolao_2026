@@ -10,13 +10,10 @@ import '@fontsource/instrument-sans/400.css';
 import '@fontsource/instrument-sans/500.css';
 import '@fontsource/instrument-sans/600.css';
 import '@tabler/icons-webfont/dist/tabler-icons.css';
-import Alpine from 'alpinejs';
 import Swal from 'sweetalert2';
 import { marked } from 'marked';
 import Chart from 'chart.js/auto';
 
-window.Alpine = Alpine;
 window.Swal = Swal;
 window.marked = marked;
 window.Chart = Chart;
-Alpine.start();

@@ -12,10 +12,13 @@ use App\Services\Api\Connectors\ApiFootballConnector;
 use App\Services\Api\Connectors\FootballDataConnector;
 use App\Services\FootballData\Projections\ApiFootballDetailProjectionService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 class SyncWorldCupMatchDetailsService
 {
+    private string $apiFootballSyncType = 'not_used';
+
     public function __construct(
         private readonly FootballDataConnector $footballDataConnector,
         private readonly ApiFootballConnector $apiFootballConnector,
@@ -26,6 +29,7 @@ class SyncWorldCupMatchDetailsService
     public function syncBatch(int $limit = 8, ?string $competitionCode = null, ?int $seasonYear = null, ?string $stage = null): array
     {
         $this->apiFootballConnector->resetMetrics();
+        $this->apiFootballSyncType = 'not_used';
 
         $matches = $this->matchesToSync($limit, $competitionCode, $seasonYear, $stage)
             ->loadMissing(['homeTeam:id,name,short_name,tla', 'awayTeam:id,name,short_name,tla']);
@@ -113,6 +117,8 @@ class SyncWorldCupMatchDetailsService
             'enriched' => $enriched,
             'api_football_requests' => (int) ($apiFootballMetrics['requests'] ?? 0),
             'api_football_failures' => (int) ($apiFootballMetrics['failures'] ?? 0),
+            'api_football_sync_type' => $this->apiFootballSyncType,
+            'sync_mode' => 'batch',
         ];
     }
 
@@ -122,10 +128,12 @@ class SyncWorldCupMatchDetailsService
     private function buildApiFootballEnrichmentIndex(Collection $matches, ?string $competitionCode, ?int $seasonYear): array
     {
         if (! (bool) config('api-football.enabled', true)) {
+            $this->apiFootballSyncType = 'disabled';
             return [];
         }
 
         if ((string) config('api-football.token', '') === '') {
+            $this->apiFootballSyncType = 'missing_token';
             return [];
         }
 
@@ -139,6 +147,11 @@ class SyncWorldCupMatchDetailsService
         $season = (int) ($seasonYear ?: ($competitionCfg['season'] ?? 0));
 
         if ($leagueId <= 0 || $season <= 0) {
+            $this->apiFootballSyncType = 'competition_not_mapped';
+            return [];
+        }
+
+        if (! $this->canUseApiFootballForCurrentBatch($matches)) {
             return [];
         }
 
@@ -189,6 +202,56 @@ class SyncWorldCupMatchDetailsService
         }
 
         return $matchIndex;
+    }
+
+    /**
+     * Fora de jogos ao vivo, API-Football atua apenas como complemento (máx. 30 atualizações/dia).
+     */
+    private function canUseApiFootballForCurrentBatch(Collection $matches): bool
+    {
+        $hasLiveMatches = $matches->contains(function (FootballMatch $match): bool {
+            return in_array((string) $match->status, ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'], true);
+        });
+
+        if ($hasLiveMatches) {
+            $this->apiFootballSyncType = 'live_priority';
+
+            return true;
+        }
+
+        $maxDailyComplementaryUpdates = max(0, (int) config('api-football.complementary.max_daily_updates_outside_live', 30));
+        if ($maxDailyComplementaryUpdates === 0) {
+            $this->apiFootballSyncType = 'complementary_disabled';
+
+            return false;
+        }
+
+        $dayKey = now('America/Sao_Paulo')->format('Ymd');
+        $counterKey = 'api-football:complementary:daily-updates:'.$dayKey;
+        $lock = Cache::lock($counterKey.':lock', 5);
+        $acquired = $lock->block(3);
+
+        if (! $acquired) {
+            $this->apiFootballSyncType = 'complementary_lock_timeout';
+
+            return false;
+        }
+
+        try {
+            $currentCount = (int) Cache::get($counterKey, 0);
+            if ($currentCount >= $maxDailyComplementaryUpdates) {
+                $this->apiFootballSyncType = 'complementary_daily_cap_reached';
+
+                return false;
+            }
+
+            Cache::put($counterKey, $currentCount + 1, now('America/Sao_Paulo')->endOfDay()->addHour());
+            $this->apiFootballSyncType = 'complementary_off_live';
+
+            return true;
+        } finally {
+            optional($lock)->release();
+        }
     }
 
     private function syncMatchStateFromApiFootball(FootballMatch $match, array $apiFootballPayload): void

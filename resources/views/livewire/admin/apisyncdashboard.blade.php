@@ -104,6 +104,7 @@
                         <tr class="border-b border-slate-800">
                             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Data/Hora</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">API / Sync</th>
                             <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Total</th>
                             <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Alterados</th>
                             <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">HTTP</th>
@@ -124,6 +125,14 @@
                                     <span class="badge-red">Falha</span>
                                 @endif
                             </td>
+                            <td class="px-4 py-3 text-xs text-slate-300 whitespace-nowrap">
+                                @php
+                                    $apis = (array) data_get($log->meta, 'apis_synced', [$log->provider ?: 'unknown']);
+                                    $syncType = (string) data_get($log->meta, 'sync_type', 'n/a');
+                                @endphp
+                                <span class="block font-semibold text-slate-200">{{ implode(' + ', array_map(fn ($api) => strtoupper((string) $api), $apis)) }}</span>
+                                <span class="block text-slate-500">{{ str_replace('_', ' ', strtoupper($syncType)) }}</span>
+                            </td>
                             <td class="px-4 py-3 text-sm text-slate-400 text-right hidden sm:table-cell">
                                 {{ $log->records_total ?: '—' }}
                             </td>
@@ -141,7 +150,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="6" class="px-4 py-12 text-center text-sm text-slate-500">
+                            <td colspan="7" class="px-4 py-12 text-center text-sm text-slate-500">
                                 Nenhum log de sincronização encontrado.
                             </td>
                         </tr>

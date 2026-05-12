@@ -619,7 +619,7 @@
                                     <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2"
                                            oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,2)"
                                            @input="curH = $event.target.value.replace(/[^0-9]/g,'').slice(0,2)"
-                                           wire:model="scores.{{ $match->id }}.home"
+                                           wire:model.live="scores.{{ $match->id }}.home"
                                            @if($isLocked) disabled @endif
                                            class="score-input w-10 text-center rounded-md text-xs font-bold tabular-nums
                                                   {{ $isLocked
@@ -630,7 +630,7 @@
                                     <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2"
                                            oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,2)"
                                            @input="curA = $event.target.value.replace(/[^0-9]/g,'').slice(0,2)"
-                                           wire:model="scores.{{ $match->id }}.away"
+                                           wire:model.live="scores.{{ $match->id }}.away"
                                            @if($isLocked) disabled @endif
                                            class="score-input w-10 text-center rounded-md text-xs font-bold tabular-nums
                                                   {{ $isLocked
@@ -640,7 +640,8 @@
                                 </div>
                                 @if(!$isLocked)
                                 {{-- Indicador: já salvo --}}
-                                <div x-show="showSaved" x-cloak
+                                <div x-show="showSaved"
+                                     @if(!$prediction) style="display:none" @endif
                                      class="flex items-center gap-1 text-emerald-400 text-xs ml-auto shrink-0">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
@@ -650,7 +651,7 @@
                                 {{-- Botão salvar: aparece quando alterado ou sem palpite --}}
                                 <button type="submit"
                                         x-show="showSave"
-                                        x-cloak
+                                        @if($prediction) style="display:none" @endif
                                         class="btn-primary !px-2.5 !py-1 text-xs ml-auto"
                                         wire:loading.attr="disabled" wire:target="savePrediction({{ $match->id }})">
                                     <svg wire:loading wire:target="savePrediction({{ $match->id }})" class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">

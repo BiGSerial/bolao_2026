@@ -43,6 +43,9 @@ class SyncWorldCupGroupStage extends Command
                 'message' => 'Sync ignorado: fora da janela de sincronizacao.',
                 'meta' => [
                     'apis_synced' => ['football_data'],
+                    'sync_type' => 'scheduled_base',
+                    'sync_mode' => 'batch',
+                    'data_source' => 'database_only',
                     'status' => 'skipped',
                     'competition_code' => $ctx['code'],
                     'season' => $ctx['season'],
@@ -83,6 +86,9 @@ class SyncWorldCupGroupStage extends Command
                 'message' => 'Sync executado com sucesso.',
                 'meta' => [
                     'apis_synced' => ['football_data'],
+                    'sync_type' => 'scheduled_base',
+                    'sync_mode' => 'batch',
+                    'data_source' => 'database_only',
                     'status' => 'success',
                     'competition_code' => $ctx['code'],
                     'season' => $ctx['season'],
@@ -107,6 +113,9 @@ class SyncWorldCupGroupStage extends Command
                 'message' => $e->getMessage(),
                 'meta' => [
                     'apis_synced' => ['football_data'],
+                    'sync_type' => 'scheduled_base',
+                    'sync_mode' => 'batch',
+                    'data_source' => 'database_only',
                     'status' => $httpStatus === 429 ? 'rate_limited' : 'failed',
                     'competition_code' => $ctx['code'],
                     'season' => $ctx['season'],

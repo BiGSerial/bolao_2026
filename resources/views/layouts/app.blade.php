@@ -9,7 +9,7 @@
         'includeLivewireStyles' => true,
     ])
 </head>
-<body class="antialiased">
+<body class="antialiased" x-data="{ sidebar: false, userMenu: false, compMenu: false }">
 @php
     $authUser = Auth::user();
 
@@ -44,6 +44,25 @@
     $currentCompetition    = $allowedCompetitions[$currentCompetitionCode];
     $canSwitchCompetition  = $authUser && count($allowedCompetitions) > 1;
 
+    /* Header center: selected pool title for current competition */
+    $headerPoolName = null;
+    $selectedPoolSessionKey = 'home_pool_'.$currentCompetitionCode;
+    $selectedPoolId = session($selectedPoolSessionKey);
+    $activeMembershipsForCompetition = $authUser->poolMemberships()
+        ->where('status', 'active')
+        ->whereHas('pool.competition', fn ($q) => $q->where('code', $currentCompetitionCode))
+        ->with('pool:id,name')
+        ->get();
+
+    if (is_numeric($selectedPoolId)) {
+        $selectedMembership = $activeMembershipsForCompetition->first(fn ($m) => (int) $m->pool_id === (int) $selectedPoolId);
+        $headerPoolName = $selectedMembership?->pool?->name;
+    }
+
+    if (! $headerPoolName && $activeMembershipsForCompetition->count() === 1) {
+        $headerPoolName = $activeMembershipsForCompetition->first()?->pool?->name;
+    }
+
     /* Management & pending */
     $managedPoolIds = $authUser->poolMemberships()
         ->whereIn('role', ['owner', 'manager'])
@@ -65,7 +84,7 @@
 {{-- ═══════════════════════════════════════════════════
      ROOT x-data — sidebar overlay + competition/user menus
      ════════════════════════════════════════════════ --}}
-<div x-data="{ sidebar: false, userMenu: false, compMenu: false }" class="h-screen flex flex-col overflow-hidden md:flex-row">
+<div class="h-screen flex flex-col overflow-hidden md:flex-row">
 
     {{-- ╔══════════════════════════════════════════╗
          ║  SIDEBAR  (hidden on mobile → overlay)  ║
@@ -228,40 +247,89 @@
          ╚═══════════════════════════════════════════╝ --}}
     <div class="flex flex-1 flex-col min-h-0 min-w-0">
 
-        {{-- Mobile Header (visible only on mobile) --}}
-        <header class="flex md:hidden h-14 shrink-0 items-center justify-between px-4 bg-bolao-bg border-b border-white/[0.07] z-30">
-            <button @click="sidebar = true"
-                    class="flex h-9 w-9 items-center justify-center rounded-lg text-bolao-muted hover:text-slate-200 hover:bg-bolao-bg3 transition-colors">
-                <i class="ti ti-menu-2 text-xl"></i>
-            </button>
-            <div class="font-bc font-extrabold text-[20px] leading-none text-white select-none">
+        {{-- Mobile Header --}}
+        <header class="flex md:hidden h-14 shrink-0 items-center gap-3 px-4 bg-bolao-bg border-b border-white/[0.07] z-30">
+            {{-- Left: competition name — dropdown when multiple, plain text when single --}}
+            @if($canSwitchCompetition)
+            <div class="relative flex-1 min-w-0" x-data="{ open: false }" @click.outside="open = false">
+                <button @click="open = !open" class="flex items-center gap-1 min-w-0 text-left w-full">
+                    <div class="min-w-0">
+                        <p class="font-bc font-bold text-[13px] leading-tight text-slate-300 truncate">
+                            {{ $currentCompetition['name'] }} {{ $currentCompetition['season'] }}
+                        </p>
+                        @if($headerPoolName)
+                        <p class="text-[11px] font-semibold leading-tight text-bolao-accent truncate mt-0.5">
+                            {{ $headerPoolName }}
+                        </p>
+                        @endif
+                    </div>
+                    <i class="ti ti-chevron-down text-[11px] text-bolao-muted shrink-0 transition-transform duration-150"
+                       :class="open ? 'rotate-180' : ''"></i>
+                </button>
+                <div x-show="open" x-cloak
+                     x-transition:enter="transition ease-out duration-150"
+                     x-transition:enter-start="opacity-0 -translate-y-1"
+                     x-transition:enter-end="opacity-100 translate-y-0"
+                     x-transition:leave="transition ease-in duration-100"
+                     x-transition:leave-start="opacity-100 translate-y-0"
+                     x-transition:leave-end="opacity-0 -translate-y-1"
+                     class="absolute left-0 top-full mt-2 z-50 min-w-[220px] rounded-xl border border-white/[0.1] bg-bolao-bg2 shadow-xl py-1">
+                    @foreach($allowedCompetitions as $code => $competition)
+                    <a href="{{ route('dashboard', ['competition' => $code]) }}"
+                       class="flex items-center justify-between px-4 py-2.5 text-sm transition-colors
+                              {{ $currentCompetitionCode === $code
+                                  ? 'text-bolao-accent font-semibold bg-bolao-accent/[0.08]'
+                                  : 'text-slate-300 hover:text-white hover:bg-bolao-bg3' }}">
+                        <span>{{ $competition['name'] }} {{ $competition['season'] }}</span>
+                        @if($currentCompetitionCode === $code)
+                        <i class="ti ti-check text-xs text-bolao-accent"></i>
+                        @endif
+                    </a>
+                    @endforeach
+                </div>
+            </div>
+            @else
+            <div class="flex-1 min-w-0">
+                <p class="font-bc font-bold text-[13px] leading-tight text-slate-300 truncate">
+                    {{ $currentCompetition['name'] }} {{ $currentCompetition['season'] }}
+                </p>
+                @if($headerPoolName)
+                <p class="text-[11px] font-semibold leading-tight text-bolao-accent truncate mt-0.5">
+                    {{ $headerPoolName }}
+                </p>
+                @endif
+            </div>
+            @endif
+            {{-- Right: app name --}}
+            <div class="font-bc font-extrabold text-[18px] leading-none text-white shrink-0 select-none">
                 Bolão<span class="text-bolao-accent">FC</span>
             </div>
-            <a href="{{ route('profile.edit') }}"
-               class="bolao-avatar w-9 h-9 text-[13px] hover:ring-2 hover:ring-bolao-accent/50 transition-all">
-                {{ $initials }}
-            </a>
         </header>
 
-        {{-- Desktop Header (visible on tablet+) --}}
-        <header class="hidden md:grid grid-cols-[1fr_auto_1fr] h-14 shrink-0 items-center px-6 bg-bolao-bg border-b border-white/[0.07] z-30 sticky top-0">
-            <div class="flex items-center gap-3 min-w-0">
-                <span class="font-bc font-bold text-lg text-slate-200 truncate">
-                    @hasSection('page-heading')
-                        @yield('page-heading')
-                    @else
+        {{-- Desktop Header (tablet+) --}}
+        <header class="bolao-desktop-header bg-bolao-bg border-b border-white/[0.07]">
+            {{-- Left: competition name --}}
+            <div class="flex items-center min-w-0">
+                <div class="min-w-0">
+                    <p class="font-bc font-bold text-base leading-none text-slate-200 truncate">
                         {{ $currentCompetition['name'] }} {{ $currentCompetition['season'] }}
-                    @endif
-                </span>
-                @stack('page-title')
+                    </p>
+                </div>
             </div>
-            <div class="justify-self-center">
+            {{-- Center: active pool name --}}
+            <div class="flex flex-col items-center justify-center min-w-0 px-6">
+                @if($headerPoolName)
+                <span class="font-bc font-bold text-base leading-none text-bolao-accent truncate max-w-[320px]">
+                    {{ $headerPoolName }}
+                </span>
+                @endif
                 @stack('header-center')
             </div>
-            <div class="flex items-center gap-2 justify-self-end">
+            {{-- Right: user avatar + page actions --}}
+            <div class="flex items-center gap-2 justify-end">
                 @stack('header-actions')
                 <a href="{{ route('profile.edit') }}"
-                   class="bolao-avatar w-8 h-8 text-xs hover:ring-2 hover:ring-bolao-accent/50 transition-all">
+                   class="bolao-avatar w-8 h-8 shrink-0 text-xs hover:ring-2 hover:ring-bolao-accent/50 transition-all">
                     {{ $initials }}
                 </a>
             </div>
@@ -270,6 +338,31 @@
         {{-- Main slot --}}
         <main class="flex-1 overflow-y-auto bolao-page-enter">
             {{ $slot }}
+
+            {{-- Site footer --}}
+            <footer class="mt-8 border-t border-white/[0.07] px-6 py-5">
+                <div class="flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
+                    <p class="text-[11px] text-bolao-muted2 leading-snug">
+                        &copy; {{ date('Y') }} <span class="text-bolao-muted font-medium">VixForge Sistemas</span>
+                        &middot; v{{ config('app.version') }}
+                        &middot; Apenas diversão, sem apostas financeiras
+                    </p>
+                    <nav class="flex items-center gap-4 flex-wrap justify-center sm:justify-end">
+                        <a href="{{ route('legal.terms') }}"
+                           class="text-[11px] text-bolao-muted hover:text-slate-300 transition-colors">
+                            Termos de Uso
+                        </a>
+                        <a href="{{ route('legal.privacy-policy') }}"
+                           class="text-[11px] text-bolao-muted hover:text-slate-300 transition-colors">
+                            Privacidade
+                        </a>
+                        <a href="{{ route('about') }}"
+                           class="text-[11px] text-bolao-muted hover:text-slate-300 transition-colors">
+                            Sobre
+                        </a>
+                    </nav>
+                </div>
+            </footer>
         </main>
 
         {{-- Mobile Tab Bar --}}

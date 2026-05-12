@@ -72,10 +72,23 @@ $cardInfo = function (string $card): array {
 @once
 <style>
     .hero-gradient {
-        background:
-            radial-gradient(ellipse 80% 60% at 15% 50%, rgba(59,130,246,.12) 0%, transparent 65%),
-            radial-gradient(ellipse 80% 60% at 85% 50%, rgba(244,63,94,.12) 0%, transparent 65%),
-            radial-gradient(ellipse 100% 80% at 50% 0%,  rgba(15,30,60,.8)   0%, transparent 80%);
+        background: #13161b;
+    }
+    .match-panel-flat {
+        background: #13161b !important;
+    }
+    .match-panel-accent {
+        position: relative;
+        overflow: hidden;
+    }
+    .match-panel-accent::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, #f5a623, #e8930d);
     }
     .stat-bar-fill {
         transition: width 1s cubic-bezier(0.22, 1, 0.36, 1);
@@ -133,11 +146,11 @@ $cardInfo = function (string $card): array {
     {{-- ════════════════════════════════
          MATCH HERO
     ════════════════════════════════ --}}
-    <div class="mx-4 mb-1 rounded-2xl border border-slate-700/40 overflow-hidden hero-gradient relative">
+    <div class="mx-4 mb-3 card rounded-xl overflow-hidden hero-gradient relative">
 
         {{-- Subtle top accent line --}}
-        <div class="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent"></div>
-        <div class="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-rose-500/30 to-transparent"></div>
+        <div class="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-bolao-accent to-bolao-accent2"></div>
+        <div class="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
 
         {{-- Group · Date --}}
         <div class="flex items-center justify-center gap-2 pt-4 pb-2">
@@ -372,7 +385,7 @@ $cardInfo = function (string $card): array {
 
                 {{-- Panel 0: Home lineup --}}
                 <div style="width:33.333%" class="pr-1">
-                    <div class="card p-3">
+                    <div class="card match-panel-flat match-panel-accent p-4">
                         <div class="flex items-center gap-2 mb-2">
                             @if($match->homeTeam?->crest)
                                 <img src="{{ $match->homeTeam->crest }}" alt="" class="h-5 w-5 object-contain">
@@ -382,7 +395,7 @@ $cardInfo = function (string $card): array {
                         <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 mb-2">Titulares</p>
                         <div class="space-y-1">
                             @forelse($hLineup as $p)
-                            <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-2.5 py-2">
+                            <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-3 py-2.5">
                                 <div class="flex items-center gap-2">
                                     <span class="text-[10px] font-black text-blue-300 tabular-nums shrink-0">{{ $p['number'] ?? '—' }}</span>
                                     <span class="text-xs font-semibold text-slate-200 truncate">{{ $p['name'] }}</span>
@@ -395,7 +408,7 @@ $cardInfo = function (string $card): array {
                         <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mt-4 mb-2">Reservas</p>
                         <div class="space-y-1">
                             @forelse($hBench as $p)
-                            <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-2.5 py-1.5">
+                            <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-3 py-2">
                                 <div class="flex items-center gap-2">
                                     <span class="text-[9px] font-semibold text-slate-500 tabular-nums shrink-0">{{ $p['number'] ?? '—' }}</span>
                                     <span class="text-[11px] text-slate-400 truncate">{{ $p['name'] }}</span>
@@ -411,13 +424,13 @@ $cardInfo = function (string $card): array {
                 {{-- Panel 1: Stats --}}
                 <div style="width:33.333%" class="px-1">
                     @if(collect($rows)->every(fn($r) => $r['home'] === '-' && $r['away'] === '-'))
-                        <div class="card p-10 text-center">
+                        <div class="card match-panel-flat match-panel-accent p-10 text-center">
                             <div class="text-4xl mb-3">📊</div>
                             <p class="text-slate-300 font-semibold">Estatísticas indisponíveis</p>
                             <p class="text-sm text-slate-600 mt-1">{{ $this->statsUnavailableMessage() }}</p>
                         </div>
                     @else
-                        <div class="card overflow-hidden">
+                        <div class="card match-panel-flat match-panel-accent overflow-hidden">
                             @foreach($rows as $row)
                             @php $b = $bar($row['home'], $row['away']); @endphp
                             <div class="px-3 py-3 {{ !$loop->last ? 'border-b border-slate-800/50' : '' }}">
@@ -452,7 +465,7 @@ $cardInfo = function (string $card): array {
 
                 {{-- Panel 2: Away lineup --}}
                 <div style="width:33.333%" class="pl-1">
-                    <div class="card p-3">
+                    <div class="card match-panel-flat match-panel-accent p-4">
                         <div class="flex items-center justify-end gap-2 mb-2">
                             <p class="text-xs font-bold uppercase tracking-wider text-rose-400 text-right">{{ $match->awayTeam?->localized_name ?? 'Visitante' }}</p>
                             @if($match->awayTeam?->crest)
@@ -462,7 +475,7 @@ $cardInfo = function (string $card): array {
                         <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 mb-2 text-right">Titulares</p>
                         <div class="space-y-1">
                             @forelse($aLineup as $p)
-                            <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-2.5 py-2">
+                            <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-3 py-2.5">
                                 <div class="flex items-center gap-2">
                                     <span class="text-xs font-semibold text-slate-200 truncate text-right flex-1">{{ $p['name'] }}</span>
                                     <span class="text-[10px] font-black text-blue-300 tabular-nums shrink-0">{{ $p['number'] ?? '—' }}</span>
@@ -475,7 +488,7 @@ $cardInfo = function (string $card): array {
                         <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mt-4 mb-2 text-right">Reservas</p>
                         <div class="space-y-1">
                             @forelse($aBench as $p)
-                            <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-2.5 py-1.5">
+                            <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-3 py-2">
                                 <div class="flex items-center gap-2">
                                     <span class="text-[11px] text-slate-400 truncate text-right flex-1">{{ $p['name'] }}</span>
                                     <span class="text-[9px] font-semibold text-slate-500 tabular-nums shrink-0">{{ $p['number'] ?? '—' }}</span>
@@ -509,7 +522,7 @@ $cardInfo = function (string $card): array {
     <div class="desktop-grid">
 
         <section class="space-y-3">
-            <div class="card p-3">
+            <div class="card match-panel-flat match-panel-accent p-4">
                 <div class="flex items-center gap-2 mb-2">
                     @if($match->homeTeam?->crest)
                         <img src="{{ $match->homeTeam->crest }}" alt="" class="h-5 w-5 object-contain">
@@ -519,7 +532,7 @@ $cardInfo = function (string $card): array {
                 <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 mb-2">Titulares</p>
                 <div class="space-y-1">
                     @forelse($hLineup as $p)
-                    <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-2.5 py-2">
+                    <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-3 py-2.5">
                         <div class="flex items-center gap-2">
                             <span class="text-[10px] font-black text-blue-300 tabular-nums shrink-0">{{ $p['number'] ?? '—' }}</span>
                             <span class="text-xs font-semibold text-slate-200 truncate">{{ $p['name'] }}</span>
@@ -532,7 +545,7 @@ $cardInfo = function (string $card): array {
                 <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mt-4 mb-2">Reservas</p>
                 <div class="space-y-1">
                     @forelse($hBench as $p)
-                    <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-2.5 py-1.5">
+                    <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-3 py-2">
                         <div class="flex items-center gap-2">
                             <span class="text-[9px] font-semibold text-slate-500 tabular-nums shrink-0">{{ $p['number'] ?? '—' }}</span>
                             <span class="text-[11px] text-slate-400 truncate">{{ $p['name'] }}</span>
@@ -547,13 +560,13 @@ $cardInfo = function (string $card): array {
 
         <section class="space-y-3">
             @if(collect($rows)->every(fn($r) => $r['home'] === '-' && $r['away'] === '-'))
-                <div class="card p-10 text-center">
+                <div class="card match-panel-flat match-panel-accent p-10 text-center">
                     <div class="text-4xl mb-3">📊</div>
                     <p class="text-slate-300 font-semibold">Estatísticas indisponíveis</p>
                     <p class="text-sm text-slate-600 mt-1">{{ $this->statsUnavailableMessage() }}</p>
                 </div>
             @else
-                <div class="card overflow-hidden">
+                <div class="card match-panel-flat match-panel-accent overflow-hidden">
                     @foreach($rows as $row)
                     @php $b = $bar($row['home'], $row['away']); @endphp
                     <div class="px-3 py-3 {{ !$loop->last ? 'border-b border-slate-800/50' : '' }}">
@@ -587,7 +600,7 @@ $cardInfo = function (string $card): array {
         </section>
 
         <section class="space-y-3">
-            <div class="card p-3">
+            <div class="card match-panel-flat match-panel-accent p-4">
                 <div class="flex items-center justify-end gap-2 mb-2">
                     <p class="text-xs font-bold uppercase tracking-wider text-rose-400 text-right">{{ $match->awayTeam?->localized_name ?? 'Visitante' }}</p>
                     @if($match->awayTeam?->crest)
@@ -597,7 +610,7 @@ $cardInfo = function (string $card): array {
                 <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 mb-2 text-right">Titulares</p>
                 <div class="space-y-1">
                     @forelse($aLineup as $p)
-                    <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-2.5 py-2">
+                    <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-3 py-2.5">
                         <div class="flex items-center gap-2">
                             <span class="text-xs font-semibold text-slate-200 truncate text-right flex-1">{{ $p['name'] }}</span>
                             <span class="text-[10px] font-black text-blue-300 tabular-nums shrink-0">{{ $p['number'] ?? '—' }}</span>
@@ -610,7 +623,7 @@ $cardInfo = function (string $card): array {
                 <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mt-4 mb-2 text-right">Reservas</p>
                 <div class="space-y-1">
                     @forelse($aBench as $p)
-                    <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-2.5 py-1.5">
+                    <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-3 py-2">
                         <div class="flex items-center gap-2">
                             <span class="text-[11px] text-slate-400 truncate text-right flex-1">{{ $p['name'] }}</span>
                             <span class="text-[9px] font-semibold text-slate-500 tabular-nums shrink-0">{{ $p['number'] ?? '—' }}</span>

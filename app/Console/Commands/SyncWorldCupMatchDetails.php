@@ -16,7 +16,8 @@ class SyncWorldCupMatchDetails extends Command
         {--limit=8 : Quantidade máxima de jogos por execução}
         {--code= : Codigo da competicao (ex: WC, BSA)}
         {--season= : Temporada (ex: 2026)}
-        {--stage= : Fase para filtro (ex: GROUP_STAGE)}';
+        {--stage= : Fase para filtro (ex: GROUP_STAGE)}
+        {--sync-type=scheduled_auto : Tipo de sincronizacao (ex: scheduled_auto, live_priority, complementary_off_live, manual_admin)}';
 
     protected $description = 'Sincroniza detalhes de partidas por competicao/temporada em lote, com cache em banco.';
 
@@ -32,10 +33,17 @@ class SyncWorldCupMatchDetails extends Command
         );
 
         $limit = max(1, (int) $this->option('limit'));
+        $requestedSyncType = strtolower(trim((string) $this->option('sync-type')));
+        if ($requestedSyncType === '') {
+            $requestedSyncType = 'scheduled_auto';
+        }
+
         $result = $service->syncBatch($limit, $ctx['code'], $ctx['season'], $ctx['stage']);
         $standingsInfo = $this->syncStandingsIfDue($client, $standingsSyncService, $ctx['code'], $ctx['season'], $ctx['stage']);
         $apiFootballRequests = (int) ($result['api_football_requests'] ?? 0);
         $apiFootballFailures = (int) ($result['api_football_failures'] ?? 0);
+        $apiFootballSyncType = (string) ($result['api_football_sync_type'] ?? 'not_used');
+        $apisSynced = $apiFootballRequests > 0 ? ['football_data', 'api_football'] : ['football_data'];
 
         ApiSyncLog::create([
             'provider' => 'football_data',
@@ -50,7 +58,11 @@ class SyncWorldCupMatchDetails extends Command
                 'competition_code' => $ctx['code'],
                 'season' => $ctx['season'],
                 'stage' => $ctx['stage'],
-                'apis_synced' => $apiFootballRequests > 0 ? ['football_data', 'api_football'] : ['football_data'],
+                'apis_synced' => $apisSynced,
+                'sync_type' => $requestedSyncType,
+                'sync_mode' => (string) ($result['sync_mode'] ?? 'batch'),
+                'api_football_sync_type' => $apiFootballSyncType,
+                'data_source' => 'database_only',
                 'api_request_counts' => [
                     'football_data' => max(0, (int) ($result['selected'] ?? 0)),
                     'api_football' => max(0, $apiFootballRequests),
@@ -80,6 +92,10 @@ class SyncWorldCupMatchDetails extends Command
                     'season' => $ctx['season'],
                     'stage' => $ctx['stage'],
                     'apis_synced' => ['api_football'],
+                    'sync_type' => $requestedSyncType,
+                    'sync_mode' => (string) ($result['sync_mode'] ?? 'batch'),
+                    'api_football_sync_type' => $apiFootballSyncType,
+                    'data_source' => 'database_only',
                     'api_request_counts' => [
                         'api_football' => max(0, $apiFootballRequests),
                     ],
