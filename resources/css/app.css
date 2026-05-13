@@ -369,6 +369,18 @@
     @apply px-3.5 py-2;
 }
 
+.rp-rank-row {
+    transition: background-color 220ms ease, transform 220ms ease;
+}
+
+.rp-rank-row.rp-rank-up {
+    animation: rpRankUp 420ms ease;
+}
+
+.rp-rank-row.rp-rank-down {
+    animation: rpRankDown 420ms ease;
+}
+
 /* Avatar initials */
 .bolao-avatar {
     @apply flex shrink-0 items-center justify-center rounded-full font-bc font-bold text-white;
@@ -398,6 +410,28 @@
         transform: scale(0.86);
         opacity: 0.7;
         box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
+
+@keyframes rpRankUp {
+    0% {
+        transform: translateY(8px);
+        background-color: rgba(16, 185, 129, 0.14);
+    }
+    100% {
+        transform: translateY(0);
+        background-color: transparent;
+    }
+}
+
+@keyframes rpRankDown {
+    0% {
+        transform: translateY(-8px);
+        background-color: rgba(239, 68, 68, 0.12);
+    }
+    100% {
+        transform: translateY(0);
+        background-color: transparent;
     }
 }
 

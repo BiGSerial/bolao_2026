@@ -1,5 +1,5 @@
 <div class="max-w-xl mx-auto p-6"
-     x-data="{ currentPassword: '', newPassword: '', confirmPassword: '' }">
+     x-data="{ newPassword: '', confirmPassword: '' }">
     <h1 class="text-2xl font-semibold mb-2">Troca obrigatoria de senha</h1>
     <p class="text-sm text-gray-600 mb-6">No primeiro acesso, voce precisa definir uma nova senha.</p>
 
@@ -10,18 +10,6 @@
     @endif
 
     <div class="space-y-4">
-        <div>
-            <label class="block text-sm mb-1">Senha atual</label>
-            <input
-                type="password"
-                x-model="currentPassword"
-                autocomplete="current-password"
-                class="input-field"
-                placeholder="Digite sua senha atual"
-            />
-            @error('current_password') <p class="text-sm text-red-600 mt-1">{{ $message }}</p> @enderror
-        </div>
-
         <div>
             <label class="block text-sm mb-1">Nova senha</label>
             <input
@@ -48,7 +36,7 @@
 
         <button
             type="button"
-            @click="$wire.save(currentPassword, newPassword, confirmPassword)"
+            @click="$wire.save(newPassword, confirmPassword)"
             wire:loading.attr="disabled"
             wire:target="save"
             class="inline-flex items-center px-4 py-2 rounded bg-indigo-600 text-white font-medium hover:bg-indigo-500 disabled:opacity-50"

@@ -1,18 +1,22 @@
-<div class="p-4 sm:p-6 lg:p-8 animate-fade-in">
+<div class="animate-fade-in">
+    @php
+        $currentMember = $pool->members()->where('user_id', auth()->id())->first();
+        $memberStatus = (string) ($currentMember->status ?? 'active');
+        $memberRole = (string) ($currentMember->role ?? 'member');
+        $myRanking = \App\Models\PoolRanking::query()
+            ->where('pool_id', $pool->id)
+            ->where('user_id', auth()->id())
+            ->first();
+    @endphp
+    @include('livewire.pools.partials.pool-header-nav', [
+        'pool' => $pool,
+        'activeItem' => 'config',
+        'memberStatus' => $memberStatus,
+        'memberRole' => $memberRole,
+        'myRanking' => $myRanking,
+    ])
 
-    {{-- Header --}}
-    <div class="flex items-center gap-4 mb-6">
-        <a href="{{ route('pools.show', $pool->slug) }}"
-           class="flex items-center justify-center h-9 w-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-            </svg>
-        </a>
-        <div>
-            <h1 class="text-2xl font-bold text-white">Configurações</h1>
-            <p class="text-sm text-slate-400 mt-0.5">{{ $pool->name }}</p>
-        </div>
-    </div>
+<div class="p-4 sm:p-6 lg:p-8">
 
     @if(session('status'))
     <div class="alert-success mb-6">{{ session('status') }}</div>
@@ -314,6 +318,7 @@
             </div>
         </div>
     </form>
+</div>
 </div>
 
 @script

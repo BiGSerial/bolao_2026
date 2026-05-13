@@ -49,6 +49,20 @@
 
     /* Header center: selected pool title for current competition */
     $headerPoolName = null;
+    $routePool = request()->route('pool');
+
+    // 1) Prefer pool from current route (always reflects the screen currently open)
+    if ($routePool instanceof \App\Models\Pool) {
+        $headerPoolName = $routePool->name;
+    } elseif (is_string($routePool) && $routePool !== '') {
+        $poolFromSlug = \App\Models\Pool::query()
+            ->where('slug', $routePool)
+            ->whereHas('competition', fn ($q) => $q->where('code', $currentCompetitionCode))
+            ->first(['id', 'name']);
+        $headerPoolName = $poolFromSlug?->name;
+    }
+
+    // 2) Fallback to selected pool in session for that competition
     $selectedPoolSessionKey = 'home_pool_'.$currentCompetitionCode;
     $selectedPoolId = session($selectedPoolSessionKey);
     $activeMembershipsForCompetition = $authUser->poolMemberships()
@@ -57,7 +71,7 @@
         ->with('pool:id,name')
         ->get();
 
-    if (is_numeric($selectedPoolId)) {
+    if (! $headerPoolName && is_numeric($selectedPoolId)) {
         $selectedMembership = $activeMembershipsForCompetition->first(fn ($m) => (int) $m->pool_id === (int) $selectedPoolId);
         $headerPoolName = $selectedMembership?->pool?->name;
     }
@@ -412,6 +426,17 @@
                 <i class="ti ti-user-circle text-[22px]"></i>
                 <span class="text-[10px] font-bold uppercase tracking-wide leading-none">Perfil</span>
             </a>
+
+            <form method="POST"
+                  action="{{ route('logout') }}"
+                  class="flex flex-1 js-logout-confirm">
+                @csrf
+                <button type="submit"
+                        class="flex w-full flex-col items-center gap-1 px-1 py-1 cursor-pointer transition-colors text-bolao-muted2 hover:text-red-400">
+                    <i class="ti ti-logout text-[22px]"></i>
+                    <span class="text-[10px] font-bold uppercase tracking-wide leading-none">Sair</span>
+                </button>
+            </form>
         </nav>
     </div>
 
@@ -588,6 +613,7 @@
     var isOpen = false, dragging = false, fromEdge = false;
     var tsx = 0, tsy = 0, lastX = 0, lastT = 0, vx = 0;
     var panel = null;
+    var rankPositions = new Map();
 
     document.addEventListener('DOMContentLoaded', function () {
         panel = document.getElementById('rp-drawer');
@@ -604,17 +630,47 @@
         if (!live) return;
         var html = live.innerHTML;
         var desktop = document.getElementById('rp-desktop-content');
-        if (desktop) desktop.innerHTML = html;
+        if (desktop) {
+            desktop.innerHTML = html;
+            animateRankingRows(desktop);
+        }
         if (isOpen) {
             var mobile = document.getElementById('rp-content');
-            if (mobile) mobile.innerHTML = html;
+            if (mobile) {
+                mobile.innerHTML = html;
+                animateRankingRows(mobile);
+            }
         }
     }
 
     function syncContent() {
         var live = document.getElementById('rp-live-data');
         var dest = document.getElementById('rp-content');
-        if (live && dest) dest.innerHTML = live.innerHTML;
+        if (live && dest) {
+            dest.innerHTML = live.innerHTML;
+            animateRankingRows(dest);
+        }
+    }
+
+    function animateRankingRows(root) {
+        if (!root) return;
+        var rows = root.querySelectorAll('.rp-rank-row[data-rank-key][data-rank-pos]');
+        rows.forEach(function (row) {
+            var key = row.getAttribute('data-rank-key');
+            var pos = parseInt(row.getAttribute('data-rank-pos') || '0', 10);
+            if (!key || !Number.isFinite(pos) || pos <= 0) return;
+
+            var prevPos = rankPositions.get(key);
+            rankPositions.set(key, pos);
+            if (!Number.isFinite(prevPos) || prevPos === pos) return;
+
+            row.classList.remove('rp-rank-up', 'rp-rank-down');
+            void row.offsetWidth;
+            row.classList.add(pos < prevPos ? 'rp-rank-up' : 'rp-rank-down');
+            window.setTimeout(function () {
+                row.classList.remove('rp-rank-up', 'rp-rank-down');
+            }, 450);
+        });
     }
 
     function setT(x, anim) {
@@ -669,6 +725,32 @@
         }
     }, { passive: true });
 })();
+
+document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!form.classList || !form.classList.contains('js-logout-confirm')) return;
+    e.preventDefault();
+    Swal.fire({
+        title: 'Sair da conta?',
+        text: 'Você precisará entrar novamente para continuar.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sim, sair',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#f5a623',
+        cancelButtonColor: '#252b38',
+        reverseButtons: true,
+        background: '#13161b',
+        color: '#e2e8f0',
+        customClass: {
+            popup: 'border border-white/10 rounded-xl',
+            confirmButton: 'font-semibold',
+            cancelButton: 'font-semibold'
+        }
+    }).then(function (result) {
+        if (result.isConfirmed) form.submit();
+    });
+});
 </script>
 
 @livewireScripts

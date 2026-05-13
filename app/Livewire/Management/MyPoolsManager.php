@@ -26,6 +26,11 @@ class MyPoolsManager extends Component
 
     public function selectPool(int $poolId): void
     {
+        $exists = $this->myPools()->whereKey($poolId)->exists();
+        if (! $exists) {
+            return;
+        }
+
         $this->selectedPoolId = $poolId;
         $this->filterStatus = '';
         $this->search = '';

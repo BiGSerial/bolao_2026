@@ -496,11 +496,45 @@
 
 {{-- ── Right panel data — re-renderizado pelo Livewire, lido por JS ── --}}
 <div id="rp-live-data" class="hidden" aria-hidden="true">
+@if($live->isNotEmpty())
+<div class="rp-widget">
+    <div class="rp-widget-header">
+        <span>Jogos Ao Vivo</span>
+    </div>
+    <div class="rp-widget-body divide-y divide-white/[0.04]">
+        @foreach($live->take(3) as $match)
+        @php
+            $minute = $liveMinutes[$match->id] ?? null;
+            $stats = $liveMatchStats[$match->id] ?? [];
+        @endphp
+        <a href="{{ route('matches.show', ['match' => $match->id]) }}" class="block py-2 hover:bg-white/[0.02] -mx-2 px-2 rounded-md transition-colors">
+            <div class="flex items-center justify-between gap-2">
+                <span class="text-xs text-slate-300 truncate">{{ $match->homeTeam?->short_name ?? $match->homeTeam?->tla ?? '?' }}</span>
+                <span class="font-bc font-extrabold text-xl text-white">{{ $match->home_score_full_time ?? 0 }}–{{ $match->away_score_full_time ?? 0 }}</span>
+                <span class="text-xs text-slate-300 truncate text-right">{{ $match->awayTeam?->short_name ?? $match->awayTeam?->tla ?? '?' }}</span>
+            </div>
+            <div class="mt-1 flex items-center justify-between text-[10px] text-bolao-muted">
+                <span class="text-bolao-red">{{ $minute ? $minute . "'" : 'AO VIVO' }}</span>
+                <span>
+                    @if(isset($stats['shots_home'], $stats['shots_away']) && $stats['shots_home'] !== null)
+                        Finalizações {{ $stats['shots_home'] }}-{{ $stats['shots_away'] }}
+                    @elseif(isset($stats['poss_home'], $stats['poss_away']) && $stats['poss_home'] !== null)
+                        Posse {{ $stats['poss_home'] }}%-{{ $stats['poss_away'] }}%
+                    @else
+                        Atualizando…
+                    @endif
+                </span>
+            </div>
+        </a>
+        @endforeach
+    </div>
+</div>
+@endif
 
 @if($selectedPool)
 <div class="rp-widget">
     <div class="rp-widget-header">
-        <span>Top Ranking</span>
+        <span>Ranking Ao Vivo</span>
         <a href="{{ route('pools.show', $selectedPool->slug) }}"
            class="text-bolao-accent hover:text-bolao-accent2 transition-colors normal-case tracking-normal text-[11px] font-semibold">
             ver tudo →
@@ -515,7 +549,9 @@
             $publicName = trim((string) ($entry->user?->display_name ?: $entry->user?->name ?: 'Participante'));
             $initials = strtoupper(substr(preg_replace('/\s+.*$/', '', $publicName), 0, 2));
         @endphp
-        <div class="py-2 flex items-center gap-2 {{ $isMe ? 'bg-bolao-accent/15 -mx-2 px-2 rounded-md' : '' }}">
+        <div class="rp-rank-row py-2 flex items-center gap-2 {{ $isMe ? 'bg-bolao-accent/15 -mx-2 px-2 rounded-md' : '' }}"
+             data-rank-key="{{ (int) $entry->user_id }}"
+             data-rank-pos="{{ (int) ($displaySlot ?: 0) }}">
             <span class="w-4 text-center font-bc font-extrabold text-base {{ $isMe ? 'text-bolao-accent' : 'text-slate-200' }}">{{ $displaySlot ?: '—' }}</span>
             <span class="flex h-5 w-5 items-center justify-center rounded-full bg-bolao-bg4 text-[9px] font-bold text-bolao-accent2">{{ $initials ?: 'PL' }}</span>
             <span class="min-w-0 flex-1 truncate text-xs font-semibold {{ $isMe ? 'text-white' : 'text-slate-200' }}">
@@ -639,12 +675,20 @@
 </div>
 
 <div class="rp-widget">
-    <div class="rp-widget-body text-center py-4" x-data="{ copied: false }">
+    @php
+        $inviteLandingUrl = route('pools.index', ['competition' => $currentCompetitionCode]);
+        $inviteShareText = "Participe do meu bolao no BolaoFC!\n\n";
+        $inviteShareText .= "Bolao: {$selectedPool->name}\n";
+        $inviteShareText .= "Codigo de convite: {$selectedPool->invite_code}\n\n";
+        $inviteShareText .= "Acesse e entre agora: {$inviteLandingUrl}\n\n";
+        $inviteShareText .= "BolaoFC - palpites ao vivo, ranking em tempo real e disputa entre amigos.";
+    @endphp
+    <div class="rp-widget-body text-center py-4" x-data="{ copied: false, inviteText: @js($inviteShareText) }">
         <div class="text-3xl mb-2">🎉</div>
         <p class="font-bc font-bold text-3xl leading-none text-white mb-2">Convide amigos!</p>
         <p class="text-xs text-bolao-muted mb-4">Quanto mais gente, mais emoção no bolão.</p>
         <button
-            @click.prevent.stop="navigator.clipboard.writeText('{{ $selectedPool->invite_code }}').then(() => { copied = true; setTimeout(() => copied = false, 1400); })"
+            @click.prevent.stop="navigator.clipboard.writeText(inviteText).then(() => { copied = true; setTimeout(() => copied = false, 1600); })"
             class="w-full h-10 bg-bolao-accent hover:bg-bolao-accent2 text-black font-bc font-bold text-sm uppercase tracking-wide rounded-lg transition-colors inline-flex items-center justify-center"
             type="button"
             :class="copied ? 'bg-bolao-green text-white hover:bg-bolao-green' : ''">

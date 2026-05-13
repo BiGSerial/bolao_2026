@@ -22,6 +22,9 @@ class Home extends Component
     #[On('echo:matches,MatchUpdated')]
     public function refreshMatches(): void {}
 
+    #[On('echo-private:pool.{selectedPoolId},RankingUpdated')]
+    public function refreshPoolRanking(): void {}
+
     public function mount(): void
     {
         $code = strtoupper((string) request()->query(
@@ -205,6 +208,10 @@ class Home extends Component
         $liveMinutes = [];
         foreach ($live as $match) {
             $liveMinutes[$match->id] = $this->resolveLiveMinute($match);
+        }
+        $liveMatchStats = [];
+        foreach ($live as $match) {
+            $liveMatchStats[$match->id] = $this->extractLiveStats($match);
         }
 
         $upcoming = FootballMatch::query()
@@ -401,6 +408,7 @@ class Home extends Component
             'upcoming',
             'live',
             'liveMinutes',
+            'liveMatchStats',
             'recent',
             'groupStandings',
             'currentCompetitionCode',
@@ -458,5 +466,31 @@ class Home extends Component
             ->diffInMinutes(now('America/Sao_Paulo'), false);
 
         return max(1, min(130, $elapsed <= 0 ? 1 : $elapsed + 1));
+    }
+
+    private function extractLiveStats(FootballMatch $match): array
+    {
+        $payload = (array) ($match->raw_payload ?? []);
+
+        $homeShots = data_get($payload, 'stats.shots.home');
+        $awayShots = data_get($payload, 'stats.shots.away');
+        if (!is_numeric($homeShots) || !is_numeric($awayShots)) {
+            $homeShots = data_get($payload, 'api_football_statistics.home.shots_total');
+            $awayShots = data_get($payload, 'api_football_statistics.away.shots_total');
+        }
+
+        $homePoss = data_get($payload, 'stats.possession.home');
+        $awayPoss = data_get($payload, 'stats.possession.away');
+        if (!is_numeric($homePoss) || !is_numeric($awayPoss)) {
+            $homePoss = data_get($payload, 'api_football_statistics.home.possession');
+            $awayPoss = data_get($payload, 'api_football_statistics.away.possession');
+        }
+
+        return [
+            'shots_home' => is_numeric($homeShots) ? (int) $homeShots : null,
+            'shots_away' => is_numeric($awayShots) ? (int) $awayShots : null,
+            'poss_home' => is_numeric($homePoss) ? (int) $homePoss : null,
+            'poss_away' => is_numeric($awayPoss) ? (int) $awayPoss : null,
+        ];
     }
 }

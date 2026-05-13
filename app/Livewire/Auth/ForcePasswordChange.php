@@ -11,7 +11,7 @@ use Livewire\Component;
 #[Layout('layouts.app')]
 class ForcePasswordChange extends Component
 {
-    public function save(string $currentPassword, string $password, string $passwordConfirmation): void
+    public function save(string $password, string $passwordConfirmation): void
     {
         $user = auth()->user();
 
@@ -26,17 +26,13 @@ class ForcePasswordChange extends Component
 
         $validator = Validator::make(
             [
-                'current_password'      => $currentPassword,
                 'password'              => $password,
                 'password_confirmation' => $passwordConfirmation,
             ],
             [
-                'current_password' => ['required', 'current_password'],
                 'password'         => ['required', 'confirmed', Password::defaults()],
             ],
             [
-                'current_password.required'         => 'Informe sua senha atual.',
-                'current_password.current_password' => 'A senha atual esta incorreta.',
                 'password.required'                 => 'Informe a nova senha.',
                 'password.confirmed'                => 'A confirmacao da nova senha nao confere.',
             ]
@@ -58,6 +54,7 @@ class ForcePasswordChange extends Component
             'password'             => Hash::make($password),
             'must_change_password' => false,
             'password_changed_at'  => now(),
+            'email_verified_at'    => $user->email_verified_at ?: now(),
         ]);
 
         $this->dispatch('swal:password-changed', [

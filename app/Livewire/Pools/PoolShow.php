@@ -19,6 +19,7 @@ class PoolShow extends Component
     public Pool $pool;
     public array $scores = [];
     public string $activeTab = 'jogos';
+    public bool $showAllRounds = false;
     public ?string $bulkGroup = null;
     public bool $showInstructions = false;
     /** @var array<string,string> */
@@ -29,6 +30,10 @@ class PoolShow extends Component
         $this->pool = $pool;
         $this->pool->loadMissing(['competition:id,code', 'season:id,current_matchday']);
         $this->countryNamesByTla = config('country_names.by_tla', []);
+        $tab = strtolower((string) request()->query('tab', ''));
+        if (in_array($tab, ['jogos', 'ranking', 'resumo'], true)) {
+            $this->activeTab = $tab;
+        }
         $this->assertMember();
     }
 
@@ -129,6 +134,16 @@ class PoolShow extends Component
         $this->activeTab = $tab;
     }
 
+    public function enableAllRounds(): void
+    {
+        $this->showAllRounds = true;
+    }
+
+    public function enableFocusRounds(): void
+    {
+        $this->showAllRounds = false;
+    }
+
     private function assertMember(): PoolMember
     {
         $isAdmin = (bool) Auth::user()?->is_admin;
@@ -188,15 +203,13 @@ class PoolShow extends Component
             ->orderBy('utc_date')
             ->get();
 
-        if ($this->isBrasileiraoPool()) {
-            $currentMatchday = $this->resolveCurrentMatchday($matches);
-            if ($currentMatchday !== null) {
-                $matches = $matches->filter(
-                    fn (FootballMatch $match) => $match->matchday !== null
-                        && (int) $match->matchday >= $currentMatchday
-                        && (int) $match->matchday <= ($currentMatchday + 1)
-                )->values();
-            }
+        $currentMatchday = $this->resolveCurrentMatchday($matches);
+        if (! $this->showAllRounds && $currentMatchday !== null) {
+            $matches = $matches->filter(
+                fn (FootballMatch $match) => $match->matchday !== null
+                    && (int) $match->matchday >= $currentMatchday
+                    && (int) $match->matchday <= ($currentMatchday + 1)
+            )->values();
         }
 
         $predictions = Prediction::query()
@@ -216,18 +229,10 @@ class PoolShow extends Component
 
         $groupedMatches = $matches->groupBy(fn (FootballMatch $m) => $m->group_name ?: 'SEM GRUPO');
 
-        if ($this->isBrasileiraoPool()) {
-            $currentMatchday = $this->resolveCurrentMatchday($matches);
-            $nearestTickerMatches = $matches
-                ->filter(fn (FootballMatch $m) => $currentMatchday !== null && (int) ($m->matchday ?? 0) === $currentMatchday)
-                ->sortBy(fn (FootballMatch $m) => ($m->local_date ?? $m->utc_date))
-                ->values();
-        } else {
-            $nearestTickerMatches = $matches
-                ->filter(fn (FootballMatch $m) => (int) ($m->matchday ?? 0) === 1)
-                ->sortBy(fn (FootballMatch $m) => ($m->local_date ?? $m->utc_date))
-                ->values();
-        }
+        $nearestTickerMatches = $matches
+            ->filter(fn (FootballMatch $m) => $currentMatchday !== null && (int) ($m->matchday ?? 0) === $currentMatchday)
+            ->sortBy(fn (FootballMatch $m) => ($m->local_date ?? $m->utc_date))
+            ->values();
 
         $statusLabels = [];
         $liveMinutes = [];
@@ -260,7 +265,7 @@ class PoolShow extends Component
 
         return view('livewire.pools.poolshow', compact(
             'member', 'groupedMatches', 'predictions', 'statusLabels',
-            'liveMinutes', 'predictionStatuses', 'rankings', 'rankingRows', 'rankingColumns', 'myRanking', 'totalMatches', 'predictedCount', 'nearestTickerMatches'
+            'liveMinutes', 'predictionStatuses', 'rankings', 'rankingRows', 'rankingColumns', 'myRanking', 'totalMatches', 'predictedCount', 'nearestTickerMatches', 'currentMatchday'
         ));
     }
 

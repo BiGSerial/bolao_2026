@@ -1,11 +1,11 @@
 <div class="flex h-full min-h-screen animate-fade-in" x-data="{ mobilePanelOpen: false }">
 
     {{-- ===== Painel esquerdo: lista de bolões ===== --}}
-    <aside class="hidden lg:flex w-72 shrink-0 flex-col border-r border-slate-800 bg-pitch-900">
+    <aside class="hidden md:flex w-72 shrink-0 flex-col border-r border-white/[0.07] bg-bolao-bg2">
 
-        <div class="px-5 py-4 border-b border-slate-800">
+        <div class="px-5 py-4 border-b border-white/[0.07]">
             <h1 class="text-base font-bold text-white">Gestão de Bolões</h1>
-            <p class="text-xs text-slate-500 mt-0.5">Seus bolões ativos</p>
+            <p class="text-xs text-bolao-muted mt-0.5">Seus bolões ativos</p>
         </div>
 
         <nav class="flex-1 overflow-y-auto p-2 space-y-2">
@@ -14,18 +14,18 @@
                 [$compCode, $compName, $compSeason] = array_pad(explode('|', (string) $groupKey), 3, '—');
                 $hasSelectedInGroup = $groupPools->contains(fn ($pool) => $selectedPoolId === $pool->id);
             @endphp
-            <div class="rounded-lg border border-slate-800/80 bg-pitch-950/40"
+            <div class="rounded-lg border border-white/[0.07] bg-bolao-bg"
                  x-data="{ open: {{ $hasSelectedInGroup ? 'true' : 'false' }} }">
                 <button type="button"
                         @click="open = !open"
                         class="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left">
                     <div class="min-w-0">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-emerald-400 truncate">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-bolao-accent truncate">
                             {{ $compCode }} · {{ $compSeason }}
                         </p>
-                        <p class="text-[11px] text-slate-500 truncate">{{ $compName }}</p>
+                        <p class="text-[11px] text-bolao-muted truncate">{{ $compName }}</p>
                     </div>
-                    <svg class="w-4 h-4 text-slate-500 transition-transform duration-200"
+                    <svg class="w-4 h-4 text-bolao-muted transition-transform duration-200"
                          :class="open ? 'rotate-180' : ''"
                          fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -41,10 +41,10 @@
                     <button wire:click="selectPool({{ $pool->id }})"
                             class="w-full text-left rounded-lg px-3 py-3 transition-colors
                                    {{ $isSelected
-                                      ? 'bg-emerald-600/20 ring-1 ring-emerald-500/30'
-                                      : 'hover:bg-slate-800' }}">
+                                      ? 'bg-bolao-accent/10 ring-1 ring-bolao-accent/30'
+                                      : 'hover:bg-bolao-bg3' }}">
                         <div class="flex items-start justify-between gap-2">
-                            <p class="text-sm font-medium {{ $isSelected ? 'text-emerald-400' : 'text-slate-300' }} leading-tight">
+                            <p class="text-sm font-medium {{ $isSelected ? 'text-bolao-accent' : 'text-slate-300' }} leading-tight">
                                 {{ $pool->name }}
                             </p>
                             @if($hasPending)
@@ -54,9 +54,9 @@
                             @endif
                         </div>
                         <div class="flex items-center gap-2 mt-1.5">
-                            <span class="text-xs text-slate-500">{{ $pool->active_count }} ativos</span>
-                            <span class="text-slate-700">·</span>
-                            <span class="text-xs text-slate-500">{{ $pool->total_members }} total</span>
+                            <span class="text-xs text-bolao-muted">{{ $pool->active_count }} ativos</span>
+                            <span class="text-bolao-muted2">·</span>
+                            <span class="text-xs text-bolao-muted">{{ $pool->total_members }} total</span>
                         </div>
                     </button>
                     @endforeach
@@ -80,18 +80,18 @@
         <div class="flex-1 flex items-center justify-center">
             <div class="text-center">
                 <div class="text-5xl mb-4">🏆</div>
-                <p class="text-slate-400">Selecione um bolão para gerenciar</p>
+                <p class="text-bolao-muted">Selecione um bolão para gerenciar</p>
             </div>
         </div>
         @else
 
         {{-- Header do bolão selecionado --}}
-        <div class="sticky top-0 z-10 border-b border-slate-800 bg-pitch-900/95 backdrop-blur px-4 sm:px-6 py-4">
+        <div class="sticky top-0 z-10 border-b border-white/[0.07] bg-bolao-bg2/95 backdrop-blur px-4 sm:px-6 py-4">
             <div class="flex items-center justify-between gap-4 flex-wrap">
                 <div class="flex items-center gap-3 min-w-0">
                     {{-- Mobile: seletor de bolão --}}
                     <button @click="mobilePanelOpen = true"
-                            class="lg:hidden flex items-center justify-center h-8 w-8 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200">
+                            class="md:hidden flex items-center justify-center h-8 w-8 rounded-lg bg-bolao-bg3 text-bolao-muted hover:text-slate-200">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                         </svg>
@@ -99,10 +99,10 @@
                     <div class="min-w-0">
                         <h2 class="text-lg font-bold text-white truncate">{{ $selectedPool->name }}</h2>
                         <p class="text-xs text-slate-400 flex items-center gap-2 flex-wrap">
-                            <span>Código: <span class="font-mono text-emerald-400">{{ $selectedPool->invite_code }}</span></span>
-                            <span class="text-slate-700">·</span>
+                            <span>Código: <span class="font-mono text-bolao-accent">{{ $selectedPool->invite_code }}</span></span>
+                            <span class="text-bolao-muted2">·</span>
                             <span>{{ strtoupper((string) ($selectedPool->competition?->code ?? '—')) }} {{ $selectedPool->season?->year ?? '—' }}</span>
-                            <span class="text-slate-700">·</span>
+                            <span class="text-bolao-muted2">·</span>
                             <span>{{ match($selectedPool->visibility) { 'public' => '🌐 Público', 'invite_only' => '🔗 Convite', default => '🔒 Privado' } }}</span>
                         </p>
                     </div>
@@ -141,16 +141,16 @@
                                {{ ($filterStatus === $status || ($status === 'all' && $filterStatus === ''))
                                   ? 'bg-slate-700 text-white'
                                   : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800' }}">
-                    <span class="{{ $color }} font-bold">{{ $count }}</span>
-                    {{ $label }}
-                </button>
+                            <span class="{{ $color }} font-bold">{{ $count }}</span>
+                            {{ $label }}
+                        </button>
                 @endif
                 @endforeach
             </div>
         </div>
 
         {{-- Busca --}}
-        <div class="px-4 sm:px-6 py-3 border-b border-slate-800">
+        <div class="px-4 sm:px-6 py-3 border-b border-white/[0.07]">
             <div class="relative max-w-sm">
                 <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500"
                      fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -184,7 +184,7 @@
                 <div class="overflow-x-auto">
                     <table class="min-w-full">
                         <thead>
-                            <tr class="border-b border-slate-800">
+                            <tr class="border-b border-white/[0.07]">
                                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Participante</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">Email</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden lg:table-cell">Apelido</th>
@@ -194,7 +194,7 @@
                                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Ações</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-800/60">
+                        <tbody class="divide-y divide-white/[0.06]">
                             @foreach($members as $member)
                             @php
                                 $statusBadge = match($member->status) {
@@ -218,7 +218,7 @@
                                     default   => '🎯 Membro',
                                 };
                             @endphp
-                            <tr class="hover:bg-slate-800/20 transition-colors" wire:key="mgr-{{ $member->id }}">
+                            <tr class="hover:bg-bolao-bg3/30 transition-colors" wire:key="mgr-{{ $member->id }}">
                                 <td class="px-4 py-3.5">
                                     <div class="flex items-center gap-3">
                                         <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white uppercase
@@ -253,7 +253,7 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-3.5">
-                                    <span class="text-xs text-slate-400">{{ $roleLabel }}</span>
+                                    <span class="text-xs text-bolao-muted">{{ $roleLabel }}</span>
                                 </td>
                                 <td class="px-4 py-3.5">
                                     <span class="{{ $statusBadge }}">{{ $statusLabel }}</span>
@@ -318,10 +318,10 @@
     <div x-show="mobilePanelOpen" x-cloak
          class="fixed inset-0 z-50 lg:hidden flex">
         <div class="absolute inset-0 bg-black/60" @click="mobilePanelOpen = false"></div>
-        <aside class="relative w-72 flex flex-col bg-pitch-900 border-r border-slate-800 h-full overflow-y-auto">
-            <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+        <aside class="relative w-72 flex flex-col bg-bolao-bg2 border-r border-white/[0.07] h-full overflow-y-auto">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-white/[0.07]">
                 <h2 class="text-sm font-bold text-white">Meus Bolões</h2>
-                <button @click="mobilePanelOpen = false" class="text-slate-400 hover:text-slate-200">
+                <button @click="mobilePanelOpen = false" class="text-bolao-muted hover:text-slate-200">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
@@ -332,17 +332,17 @@
                 @php
                     [$compCode, $compName, $compSeason] = array_pad(explode('|', (string) $groupKey), 3, '—');
                 @endphp
-                <div class="rounded-lg border border-slate-800/80 bg-pitch-950/40" x-data="{ open: true }">
+                <div class="rounded-lg border border-white/[0.07] bg-bolao-bg" x-data="{ open: true }">
                     <button type="button"
                             @click="open = !open"
                             class="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left">
                         <div class="min-w-0">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-emerald-400 truncate">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-bolao-accent truncate">
                                 {{ $compCode }} · {{ $compSeason }}
                             </p>
-                            <p class="text-[11px] text-slate-500 truncate">{{ $compName }}</p>
+                            <p class="text-[11px] text-bolao-muted truncate">{{ $compName }}</p>
                         </div>
-                        <svg class="w-4 h-4 text-slate-500 transition-transform duration-200"
+                        <svg class="w-4 h-4 text-bolao-muted transition-transform duration-200"
                              :class="open ? 'rotate-180' : ''"
                              fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -350,12 +350,12 @@
                     </button>
                     <div x-show="open" x-collapse class="space-y-1 p-2 pt-0">
                         @foreach($groupPools as $pool)
-                        <button wire:click="selectPool({{ $pool->id }}); $nextTick(() => { mobilePanelOpen = false })"
+                        <button wire:click="selectPool({{ $pool->id }})"
                                 @click="mobilePanelOpen = false"
                                 class="w-full text-left rounded-lg px-3 py-3 transition-colors
-                                       {{ $selectedPoolId === $pool->id ? 'bg-emerald-600/20 ring-1 ring-emerald-500/30' : 'hover:bg-slate-800' }}">
+                                       {{ $selectedPoolId === $pool->id ? 'bg-bolao-accent/10 ring-1 ring-bolao-accent/30' : 'hover:bg-bolao-bg3' }}">
                             <div class="flex items-start justify-between gap-2">
-                                <p class="text-sm font-medium {{ $selectedPoolId === $pool->id ? 'text-emerald-400' : 'text-slate-300' }}">
+                                <p class="text-sm font-medium {{ $selectedPoolId === $pool->id ? 'text-bolao-accent' : 'text-slate-300' }}">
                                     {{ $pool->name }}
                                 </p>
                                 @if(($pool->pending_count ?? 0) > 0)
@@ -364,7 +364,7 @@
                                 </span>
                                 @endif
                             </div>
-                            <p class="text-xs text-slate-500 mt-1">{{ $pool->active_count }} ativos · {{ $pool->total_members }} total</p>
+                            <p class="text-xs text-bolao-muted mt-1">{{ $pool->active_count }} ativos · {{ $pool->total_members }} total</p>
                         </button>
                         @endforeach
                     </div>
