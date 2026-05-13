@@ -296,7 +296,7 @@
 
 /* Reserve space for the fixed tabbar on mobile so content is never covered */
 .bolao-main-content {
-    padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
 }
 
 @media (min-width: 768px) {

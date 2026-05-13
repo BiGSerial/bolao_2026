@@ -494,8 +494,8 @@
 </section>
 @endif
 
-{{-- ── Right panel push ─────────────────────────────────────── --}}
-@push('right-panel')
+{{-- ── Right panel data — re-renderizado pelo Livewire, lido por JS ── --}}
+<div id="rp-live-data" class="hidden" aria-hidden="true">
 
 @if($selectedPool)
 <div class="rp-widget">
@@ -668,4 +668,4 @@
     </div>
 </div>
 @endif
-@endpush
+</div>

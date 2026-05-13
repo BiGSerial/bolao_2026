@@ -9,7 +9,10 @@
         'includeLivewireStyles' => true,
     ])
 </head>
-<body class="antialiased" x-data="{ sidebar: false, userMenu: false, compMenu: false }">
+<body class="antialiased"
+      x-data="{ sidebar: false, userMenu: false, compMenu: false, rightPanel: false }"
+      @rp-opened.window="rightPanel = true"
+      @rp-closed.window="rightPanel = false">
 @php
     $authUser = Auth::user();
 
@@ -300,9 +303,15 @@
                 @endif
             </div>
             @endif
-            {{-- Right: app name --}}
-            <div class="font-bc font-extrabold text-[18px] leading-none text-white shrink-0 select-none">
-                Bolão<span class="text-bolao-accent">FC</span>
+            {{-- Right: app name + right panel toggle --}}
+            <div class="flex items-center gap-2 shrink-0">
+                <div class="font-bc font-extrabold text-[18px] leading-none text-white select-none">
+                    Bolão<span class="text-bolao-accent">FC</span>
+                </div>
+                <button onclick="window.dispatchEvent(new CustomEvent('rp-open'))"
+                        class="flex h-9 w-9 items-center justify-center rounded-lg text-bolao-muted hover:text-slate-200 hover:bg-bolao-bg3 transition-colors">
+                    <i class="ti ti-layout-sidebar-right text-xl"></i>
+                </button>
             </div>
         </header>
 
@@ -366,7 +375,7 @@
         </main>
 
         {{-- Mobile Tab Bar --}}
-        <nav class="fixed inset-x-0 bottom-0 z-40 flex md:hidden items-start pt-2 bg-bolao-bg2/95 backdrop-blur-sm border-t border-white/[0.07] bolao-tabbar" style="height:68px">
+        <nav class="fixed inset-x-0 bottom-0 z-40 flex md:hidden items-start pt-2 bg-bolao-bg2 border-t border-bolao-accent bolao-tabbar" style="height:68px">
             <a href="{{ route('dashboard', ['competition' => $currentCompetitionCode]) }}"
                class="flex flex-1 flex-col items-center gap-1 px-1 py-1 cursor-pointer transition-colors {{ request()->routeIs('dashboard') ? 'text-bolao-accent' : 'text-bolao-muted2 hover:text-bolao-muted' }}">
                 <i class="ti ti-home text-[22px]"></i>
@@ -410,7 +419,7 @@
          ║  RIGHT PANEL (1100 px+)                 ║
          ╚══════════════════════════════════════════╝ --}}
     <aside class="bolao-right-panel overflow-y-auto border-l border-white/[0.07] bg-bolao-bg p-4">
-        @stack('right-panel')
+        <div id="rp-desktop-content"></div>
     </aside>
 
 </div>{{-- end root flex --}}
@@ -543,6 +552,124 @@
         </p>
     </div>
 </aside>
+
+{{-- ╔══════════════════════════════════════════════╗
+     ║  MOBILE RIGHT PANEL                         ║
+     ╚══════════════════════════════════════════════╝ --}}
+
+{{-- Backdrop — Alpine controla opacidade/visibilidade --}}
+<div x-show="rightPanel" x-cloak
+     x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+     class="md:hidden fixed inset-0 z-50 bg-black/70"
+     onclick="window.dispatchEvent(new CustomEvent('rp-close'))" aria-hidden="true"></div>
+
+{{-- Drawer — sempre no DOM, posição controlada por JS (segue o dedo) --}}
+<aside id="rp-drawer"
+       class="md:hidden fixed inset-y-0 right-0 z-[60] w-72 flex flex-col bg-bolao-bg2 border-l border-bolao-accent/60 shadow-2xl"
+       style="transform: translateX(100%); will-change: transform;">
+
+    <div class="flex h-14 shrink-0 items-center justify-between px-4 border-b border-white/[0.07]">
+        <button onclick="window.dispatchEvent(new CustomEvent('rp-close'))"
+                class="flex h-9 w-9 items-center justify-center rounded-lg text-bolao-muted hover:text-slate-200 hover:bg-bolao-bg3 transition-colors">
+            <i class="ti ti-x text-xl"></i>
+        </button>
+        <p class="font-bc font-bold text-base text-slate-200">Painel</p>
+        <div class="w-9"></div>
+    </div>
+
+    <div id="rp-content" class="flex-1 overflow-y-auto p-4 space-y-4 pb-24"></div>
+</aside>
+
+<script>
+(function () {
+    var W = 288; // w-72
+    var EDGE = 44;
+    var isOpen = false, dragging = false, fromEdge = false;
+    var tsx = 0, tsy = 0, lastX = 0, lastT = 0, vx = 0;
+    var panel = null;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        panel = document.getElementById('rp-drawer');
+        var live = document.getElementById('rp-live-data');
+        if (live) {
+            syncAll(); // popula os dois painéis no carregamento
+            new MutationObserver(syncAll)
+                .observe(live, { childList: true, subtree: true, characterData: true });
+        }
+    });
+
+    function syncAll() {
+        var live = document.getElementById('rp-live-data');
+        if (!live) return;
+        var html = live.innerHTML;
+        var desktop = document.getElementById('rp-desktop-content');
+        if (desktop) desktop.innerHTML = html;
+        if (isOpen) {
+            var mobile = document.getElementById('rp-content');
+            if (mobile) mobile.innerHTML = html;
+        }
+    }
+
+    function syncContent() {
+        var live = document.getElementById('rp-live-data');
+        var dest = document.getElementById('rp-content');
+        if (live && dest) dest.innerHTML = live.innerHTML;
+    }
+
+    function setT(x, anim) {
+        if (!panel) return;
+        panel.style.transition = anim ? 'transform 0.28s cubic-bezier(0.32,0.72,0,1)' : 'none';
+        panel.style.transform = 'translateX(' + Math.max(0, x) + 'px)';
+    }
+
+    function open(anim) {
+        syncContent();
+        setT(0, anim !== false);
+        if (!isOpen) { isOpen = true; window.dispatchEvent(new CustomEvent('rp-opened')); }
+    }
+
+    function close(anim) {
+        setT(W, anim !== false);
+        if (isOpen) { isOpen = false; window.dispatchEvent(new CustomEvent('rp-closed')); }
+    }
+
+    window.addEventListener('rp-open',  function () { open(); });
+    window.addEventListener('rp-close', function () { close(); });
+
+    document.addEventListener('touchstart', function (e) {
+        if (window.innerWidth >= 768) return;
+        tsx = e.touches[0].clientX;
+        tsy = e.touches[0].clientY;
+        lastX = tsx; lastT = Date.now(); vx = 0;
+        fromEdge = tsx > window.innerWidth - EDGE;
+        dragging = fromEdge || isOpen;
+    }, { passive: true });
+
+    document.addEventListener('touchmove', function (e) {
+        if (!dragging || window.innerWidth >= 768) return;
+        var x = e.touches[0].clientX;
+        var dx = x - tsx;
+        var dy = Math.abs(e.touches[0].clientY - tsy);
+        if (dy > 40 && dy > Math.abs(dx)) { dragging = false; return; }
+        var now = Date.now();
+        if (now > lastT) vx = (x - lastX) / (now - lastT);
+        lastX = x; lastT = now;
+        setT(isOpen ? Math.max(0, dx) : Math.max(0, Math.min(W, W + dx)), false);
+    }, { passive: true });
+
+    document.addEventListener('touchend', function (e) {
+        if (!dragging || window.innerWidth >= 768) return;
+        dragging = false;
+        var dx = e.changedTouches[0].clientX - tsx;
+        if (!isOpen) {
+            (dx < -(W * 0.35) || (vx < -0.4 && dx < -20)) ? open() : setT(W, true);
+        } else {
+            (dx > W * 0.35 || (vx > 0.4 && dx > 20)) ? close() : open();
+        }
+    }, { passive: true });
+})();
+</script>
 
 @livewireScripts
 @stack('scripts')
