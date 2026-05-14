@@ -1,4 +1,4 @@
-# Bolao 2026
+# BolãoFC
 
 Guia de configuracao para subir uma nova instancia do site.
 
