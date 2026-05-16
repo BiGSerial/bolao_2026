@@ -5,6 +5,17 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         <title>{{ config('app.name', 'Laravel') }}</title>
+        <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon.png') }}">
+        <link rel="shortcut icon" href="{{ asset('favicon.png') }}">
+        <link rel="apple-touch-icon" href="{{ asset('favicon.png') }}">
+        <script>
+            (() => {
+                const hasConsent = document.cookie.split('; ').some((cookie) => cookie.startsWith('cookie_consent=accepted'));
+                if (!hasConsent) {
+                    document.documentElement.classList.add('cookie-consent-locked');
+                }
+            })();
+        </script>
 
         <!-- Styles / Scripts -->
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
@@ -269,5 +280,6 @@
         @if (Route::has('login'))
             <div class="h-14.5 hidden lg:block"></div>
         @endif
+        @include('layouts.partials.cookie-consent')
     </body>
 </html>

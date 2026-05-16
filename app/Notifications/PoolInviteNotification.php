@@ -32,10 +32,10 @@ class PoolInviteNotification extends Notification implements ShouldQueue
         $appName = config('app.name');
 
         return (new MailMessage)
-            ->subject("Convite para o bolão \"{$pool->name}\" — {$appName}")
+            ->subject("Convite para entrar no bolão \"{$pool->name}\" — {$appName}")
             ->greeting("Olá, {$recipientName}!")
             ->line("Você recebeu um convite para participar do bolão **{$pool->name}**.")
-            ->line('Aceite o convite e comece a fazer seus palpites para concorrer com seus amigos.')
+            ->line('Aceite o convite e comece a registrar seus palpites com sua turma.')
             ->action('Aceitar convite', $url)
             ->line('Ainda não tem cadastro? Não se preocupe — crie sua conta e a entrada no bolão será feita automaticamente.')
             ->line('Este convite expira em **7 dias**.')

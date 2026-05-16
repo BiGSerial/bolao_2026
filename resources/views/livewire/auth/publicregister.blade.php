@@ -29,6 +29,22 @@
             @error('display_name') <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p> @enderror
         </div>
 
+        <div>
+            <label class="label">Senha <span class="text-red-400">*</span></label>
+            <input type="password" wire:model.blur="password"
+                   autocomplete="new-password" placeholder="Mínimo 8 caracteres"
+                   class="input-field">
+            @error('password') <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p> @enderror
+        </div>
+
+        <div>
+            <label class="label">Confirmar senha <span class="text-red-400">*</span></label>
+            <input type="password" wire:model.blur="password_confirmation"
+                   autocomplete="new-password" placeholder="Repita a senha"
+                   class="input-field">
+            @error('password_confirmation') <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p> @enderror
+        </div>
+
         {{-- Aceite dos termos --}}
         <div class="pt-3 border-t border-slate-800 space-y-2">
             <label class="flex items-start gap-2.5 cursor-pointer group">

@@ -32,6 +32,7 @@ class PoolCreate extends Component
     public int $points_exact_score = 5;
     public int $points_correct_result = 3;
     public int $points_correct_goals = 1;
+    public string $correct_goals_mode = 'both_teams';
     public string $competition_code = '';
 
     /** @var string[] */
@@ -155,6 +156,7 @@ class PoolCreate extends Component
             'points_exact_score' => ['required', 'integer', 'min:0', 'max:20'],
             'points_correct_result' => ['required', 'integer', 'min:0', 'max:20'],
             'points_correct_goals' => ['required', 'integer', 'min:0', 'max:20'],
+            'correct_goals_mode' => ['required', 'in:both_teams,winner_only'],
             'sectors' => ['array', 'max:30'],
             'sectors.*' => ['string', 'max:80'],
             'tieBreakers' => ['array', 'max:5'],
@@ -192,6 +194,7 @@ class PoolCreate extends Component
                 'points_exact_score' => $data['points_exact_score'],
                 'points_correct_result' => $data['points_correct_result'],
                 'points_correct_goals' => $data['points_correct_goals'],
+                'correct_goals_mode' => $data['correct_goals_mode'],
                 'stage' => $context['stage'],
             ]);
 

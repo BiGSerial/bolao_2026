@@ -178,9 +178,20 @@
                             <div>
                                 <label class="label">Gols de um time</label>
                                 <input type="number" min="0" max="20" wire:model="points_correct_goals" class="input-field">
-                                <p class="mt-1 text-xs text-slate-600">Valor aplicado para mandante e visitante.</p>
+                                <p class="mt-1 text-xs text-slate-600">Bônus por acerto de gols conforme a regra abaixo.</p>
                                 @error('points_correct_goals') <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p> @enderror
                             </div>
+                        </div>
+                        <div>
+                            <label class="label">Regra do bônus de gols</label>
+                            <select wire:model="correct_goals_mode" class="select-field">
+                                <option value="both_teams">Gols de qualquer time</option>
+                                <option value="winner_only">Somente gols do vencedor</option>
+                            </select>
+                            <p class="mt-1 text-xs text-slate-600">
+                                Ex.: palpite 3x1 e jogo 4x1. Com essa regra ativa, soma o bônus por acertar 1 dos placares de gols.
+                            </p>
+                            @error('correct_goals_mode') <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p> @enderror
                         </div>
                     </div>
 

@@ -28,12 +28,12 @@ class WelcomeWithTemporaryPasswordNotification extends Notification implements S
         $appName       = config('app.name');
 
         return (new MailMessage)
-            ->subject("Bem-vindo(a) ao {$appName} — seus dados de acesso")
+            ->subject("Acesso criado no {$appName} — senha temporária")
             ->greeting("Olá, {$recipientName}!")
-            ->line('Seu cadastro foi criado com sucesso. Confira abaixo seus dados de acesso:')
+            ->line('Seu acesso foi criado com sucesso. Confira abaixo seus dados iniciais:')
             ->line("**Apelido:** {$displayName}")
             ->line("**Senha temporária:** {$this->temporaryPassword}")
-            ->line('Por segurança, você deverá criar uma nova senha no primeiro acesso.')
+            ->line('Por segurança, você deverá criar uma nova senha no primeiro acesso em até **13 horas**.')
             ->action('Acessar agora', route('login'))
             ->line('Se você não solicitou este cadastro ou recebeu este e-mail por engano, desconsidere-o.')
             ->salutation('Atenciosamente,');

@@ -111,8 +111,7 @@
 
         {{-- Logo / Competition --}}
         <div class="flex h-14 shrink-0 items-center gap-2.5 px-[18px] border-b border-white/[0.07]">
-            <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-black font-bc font-extrabold text-sm"
-                 style="background:linear-gradient(135deg,#f5a623,#e8390d)">B</div>
+            <x-application-logo class="h-8 w-8 shrink-0" />
             <div class="sb-label min-w-0">
                 <div class="font-bc font-extrabold text-[19px] leading-none text-white">
                     Bolão<span class="text-bolao-accent">FC</span>
@@ -319,9 +318,7 @@
             @endif
             {{-- Right: app name + right panel toggle --}}
             <div class="flex items-center gap-2 shrink-0">
-                <div class="font-bc font-extrabold text-[18px] leading-none text-white select-none">
-                    Bolão<span class="text-bolao-accent">FC</span>
-                </div>
+                <x-application-logo class="h-8 w-8 shrink-0" />
                 <button onclick="window.dispatchEvent(new CustomEvent('rp-open'))"
                         class="flex h-9 w-9 items-center justify-center rounded-lg text-bolao-muted hover:text-slate-200 hover:bg-bolao-bg3 transition-colors">
                     <i class="ti ti-layout-sidebar-right text-xl"></i>
@@ -465,8 +462,11 @@
 
     {{-- Overlay header --}}
     <div class="flex h-14 shrink-0 items-center justify-between px-4 border-b border-white/[0.07]">
-        <div class="font-bc font-extrabold text-[20px] leading-none text-white">
-            Bolão<span class="text-bolao-accent">FC</span>
+        <div class="flex items-center gap-2">
+            <x-application-logo class="h-8 w-8 shrink-0" />
+            <div class="font-bc font-extrabold text-[20px] leading-none text-white">
+                Bolão<span class="text-bolao-accent">FC</span>
+            </div>
         </div>
         <button @click="sidebar = false"
                 class="flex h-9 w-9 items-center justify-center rounded-lg text-bolao-muted hover:text-slate-200 hover:bg-bolao-bg3 transition-colors">
@@ -754,6 +754,7 @@ document.addEventListener('submit', function (e) {
 </script>
 
 @livewireScripts
+@include('layouts.partials.cookie-consent')
 @stack('scripts')
 </body>
 </html>

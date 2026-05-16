@@ -12,18 +12,28 @@ use App\Models\StandingRow;
 use App\Services\Predictions\PredictionService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Livewire\Attributes\On;
 use Livewire\Component;
 
 class Home extends Component
 {
     public ?int $selectedPoolId = null;
 
-    #[On('echo:matches,MatchUpdated')]
     public function refreshMatches(): void {}
 
-    #[On('echo-private:pool.{selectedPoolId},RankingUpdated')]
     public function refreshPoolRanking(): void {}
+
+    protected function getListeners(): array
+    {
+        $listeners = [
+            'echo:matches,MatchUpdated' => 'refreshMatches',
+        ];
+
+        if ($this->selectedPoolId) {
+            $listeners["echo-private:pool.{$this->selectedPoolId},RankingUpdated"] = 'refreshPoolRanking';
+        }
+
+        return $listeners;
+    }
 
     public function mount(): void
     {
@@ -166,7 +176,7 @@ class Home extends Component
             ->where('user_id', $userId)
             ->where('status', 'active')
             ->with([
-                'pool:id,name,slug,status,stage,competition_id,competition_season_id,points_exact_score,points_correct_result,points_correct_goals,prediction_lock_minutes,allow_prediction_changes,allow_pending_member_predictions',
+                'pool:id,name,slug,status,stage,competition_id,competition_season_id,points_exact_score,points_correct_result,points_correct_goals,correct_goals_mode,prediction_lock_minutes,allow_prediction_changes,allow_pending_member_predictions',
                 'pool.competition:id,code',
             ])
             ->latest('id')
@@ -401,6 +411,52 @@ class Home extends Component
                 ->keyBy('football_match_id');
         }
 
+        /* ── Live match predictions by pool (current user) ──────── */
+        $livePoolPredictions = collect();
+        if ($live->isNotEmpty() && $myMembershipsForComp->isNotEmpty()) {
+            $poolById = $myMembershipsForComp
+                ->mapWithKeys(fn ($membership) => [$membership->pool_id => $membership->pool]);
+
+            $livePredictions = Prediction::query()
+                ->where('user_id', $userId)
+                ->whereIn('pool_id', $poolById->keys()->all())
+                ->whereIn('football_match_id', $live->pluck('id')->all())
+                ->orderBy('pool_id')
+                ->get();
+
+            foreach ($live as $liveMatch) {
+                $homeReal = is_numeric($liveMatch->home_score_full_time) ? (int) $liveMatch->home_score_full_time : null;
+                $awayReal = is_numeric($liveMatch->away_score_full_time) ? (int) $liveMatch->away_score_full_time : null;
+
+                $rows = $livePredictions
+                    ->where('football_match_id', $liveMatch->id)
+                    ->map(function (Prediction $prediction) use ($poolById, $homeReal, $awayReal) {
+                        $pool = $poolById->get($prediction->pool_id);
+                        if (! $pool) {
+                            return null;
+                        }
+
+                        return [
+                            'pool_id' => (int) $pool->id,
+                            'pool_name' => (string) $pool->name,
+                            'prediction' => (string) $prediction->home_score.'x'.(string) $prediction->away_score,
+                            'points' => $this->calculatePerMatchPoints(
+                                pool: $pool,
+                                predictionHome: (int) $prediction->home_score,
+                                predictionAway: (int) $prediction->away_score,
+                                homeReal: $homeReal,
+                                awayReal: $awayReal,
+                            ),
+                        ];
+                    })
+                    ->filter()
+                    ->sortBy('pool_name', SORT_NATURAL | SORT_FLAG_CASE)
+                    ->values();
+
+                $livePoolPredictions[(int) $liveMatch->id] = $rows;
+            }
+        }
+
         return view('livewire.dashboard.home', compact(
             'myMemberships',
             'myMembershipsForComp',
@@ -428,6 +484,7 @@ class Home extends Component
             'heroStageMismatch',
             'recentPredictions',
             'upcomingPredictions',
+            'livePoolPredictions',
         ));
     }
 
@@ -492,5 +549,52 @@ class Home extends Component
             'poss_home' => is_numeric($homePoss) ? (int) $homePoss : null,
             'poss_away' => is_numeric($awayPoss) ? (int) $awayPoss : null,
         ];
+    }
+
+    private function calculatePerMatchPoints(
+        Pool $pool,
+        int $predictionHome,
+        int $predictionAway,
+        ?int $homeReal,
+        ?int $awayReal,
+    ): ?int {
+        if ($homeReal === null || $awayReal === null) {
+            return null;
+        }
+
+        $exactScorePoints = max(0, (int) ($pool->points_exact_score ?? 5));
+        $correctResultPoints = max(0, (int) ($pool->points_correct_result ?? 3));
+        $correctGoalsPoints = max(0, (int) ($pool->points_correct_goals ?? 1));
+
+        $isExact = $predictionHome === $homeReal && $predictionAway === $awayReal;
+        if ($isExact) {
+            return $exactScorePoints;
+        }
+
+        $points = 0;
+        if ($this->resultOf($homeReal, $awayReal) === $this->resultOf($predictionHome, $predictionAway)) {
+            $points += $correctResultPoints;
+            $hitHomeGoals = $predictionHome === $homeReal;
+            $hitAwayGoals = $predictionAway === $awayReal;
+            $correctGoalsMode = (string) ($pool->correct_goals_mode ?? 'both_teams');
+            if ($correctGoalsMode === 'winner_only') {
+                if ($homeReal > $awayReal && $hitHomeGoals) {
+                    $points += $correctGoalsPoints;
+                } elseif ($awayReal > $homeReal && $hitAwayGoals) {
+                    $points += $correctGoalsPoints;
+                }
+            } else {
+                if ($hitHomeGoals || $hitAwayGoals) {
+                    $points += $correctGoalsPoints;
+                }
+            }
+        }
+
+        return $points;
+    }
+
+    private function resultOf(int $home, int $away): string
+    {
+        return $home > $away ? 'H' : ($home < $away ? 'A' : 'D');
     }
 }

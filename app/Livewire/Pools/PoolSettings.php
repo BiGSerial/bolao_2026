@@ -31,6 +31,7 @@ class PoolSettings extends Component
     public int $points_exact_score = 5;
     public int $points_correct_result = 3;
     public int $points_correct_goals = 1;
+    public string $correct_goals_mode = 'both_teams';
     public string $status = 'active';
 
     /** @var string[] */
@@ -60,6 +61,7 @@ class PoolSettings extends Component
         $this->points_exact_score = (int) ($pool->points_exact_score ?? 5);
         $this->points_correct_result = (int) ($pool->points_correct_result ?? 3);
         $this->points_correct_goals = (int) ($pool->points_correct_goals ?? 1);
+        $this->correct_goals_mode = (string) ($pool->correct_goals_mode ?? 'both_teams');
         $this->status = $pool->status;
         $this->sectors = $pool->sectors ?? [];
         $this->tieBreakers = $this->sanitizeTieBreakers($pool->tie_breakers ?? []);
@@ -166,6 +168,7 @@ class PoolSettings extends Component
             'points_exact_score' => ['required', 'integer', 'min:0', 'max:20'],
             'points_correct_result' => ['required', 'integer', 'min:0', 'max:20'],
             'points_correct_goals' => ['required', 'integer', 'min:0', 'max:20'],
+            'correct_goals_mode' => ['required', 'in:both_teams,winner_only'],
             'status' => ['required', 'in:active,blocked,archived'],
             'sectors' => ['array', 'max:30'],
             'sectors.*' => ['string', 'max:80'],
@@ -190,6 +193,7 @@ class PoolSettings extends Component
             'points_exact_score' => $data['points_exact_score'],
             'points_correct_result' => $data['points_correct_result'],
             'points_correct_goals' => $data['points_correct_goals'],
+            'correct_goals_mode' => $data['correct_goals_mode'],
             'status' => $data['status'],
             'sectors' => !empty($data['sectors']) ? array_values($data['sectors']) : null,
             'tie_breakers' => !empty($data['tieBreakers']) ? $data['tieBreakers'] : null,

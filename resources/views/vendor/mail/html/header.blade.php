@@ -1,10 +1,17 @@
 @props(['url'])
 <tr>
-    <td style="padding:20px 28px; border-bottom:1px solid #1e3a6a; background:linear-gradient(90deg,#05224f,#06316f);">
+    <td style="padding:18px 24px; border-bottom:1px solid rgba(245,166,35,0.24); background:linear-gradient(90deg,#0f172a,#111827);">
         <a href="{{ $url }}" style="text-decoration:none; font-family:Arial, Helvetica, sans-serif;">
-            <span style="display:inline-block; vertical-align:middle; width:36px; height:36px; line-height:36px; text-align:center; border-radius:10px; background:#10b981; color:#ffffff; font-size:18px; margin-right:10px;">⚽</span>
-            <span style="vertical-align:middle; color:#10b981; font-size:20px; font-weight:700;">{{ config('app.name', 'Bolão') }}</span>
+            <img
+                src="{{ rtrim((string) config('app.url'), '/') . '/img/logo.png' }}"
+                alt="BolãoFC"
+                width="34"
+                height="34"
+                style="display:inline-block; vertical-align:middle; width:34px; height:34px; object-fit:contain; margin-right:10px;"
+            >
+            <span style="vertical-align:middle; color:#f8fafc; font-size:20px; font-weight:800; letter-spacing:-0.3px;">
+                Bolão<span style="color:#f5a623;">FC</span>
+            </span>
         </a>
     </td>
 </tr>
-

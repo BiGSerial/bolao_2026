@@ -38,9 +38,9 @@ class CustomVerifyEmailNotification extends VerifyEmail implements ShouldQueue
         $appName          = config('app.name');
 
         return (new MailMessage)
-            ->subject("Confirme seu e-mail — {$appName}")
+            ->subject("Confirme seu e-mail para ativar sua conta — {$appName}")
             ->greeting("Olá, {$recipientName}!")
-            ->line('Obrigado por se cadastrar! Para ativar sua conta, confirme seu endereço de e-mail clicando no botão abaixo.')
+            ->line('Obrigado pelo cadastro. Para ativar sua conta, confirme seu endereço de e-mail no botão abaixo.')
             ->action('Confirmar e-mail', $verificationUrl)
             ->line('Este link de confirmação expira em **60 minutos**.')
             ->line('Se você não criou uma conta em nossa plataforma, desconsidere este e-mail.')

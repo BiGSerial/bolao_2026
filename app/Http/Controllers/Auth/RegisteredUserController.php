@@ -9,7 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -35,6 +35,7 @@ class RegisteredUserController extends Controller
             'display_name' => ['required', 'string', 'max:80'],
             'area' => ['nullable', 'string', 'max:100'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            'password' => ['required', 'confirmed', Password::defaults()],
         ], [
             'name.required' => 'Informe seu nome completo.',
             'name.max' => 'O nome não pode ter mais de 255 caracteres.',
@@ -45,18 +46,20 @@ class RegisteredUserController extends Controller
             'email.email' => 'Informe um e-mail válido.',
             'email.unique' => 'Este e-mail já está cadastrado.',
             'email.max' => 'O e-mail não pode ter mais de 255 caracteres.',
+            'password.required' => 'Informe sua senha.',
+            'password.confirmed' => 'A confirmação da senha não confere.',
         ]);
-
-        $temporaryPassword = Str::password(12, symbols: false);
 
         $user = User::create([
             'name' => $request->name,
             'display_name' => $request->display_name,
             'area' => $request->area,
             'email' => $request->email,
-            'password' => Hash::make($temporaryPassword),
+            'password' => Hash::make($request->password),
             'status' => 'active',
-            'must_change_password' => true,
+            'must_change_password' => false,
+            'temporary_password_expires_at' => null,
+            'password_changed_at' => now(),
         ]);
 
         event(new Registered($user));
