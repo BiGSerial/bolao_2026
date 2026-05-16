@@ -36,12 +36,12 @@ class PasswordResetRequestedNotification extends Notification implements ShouldQ
         $appName = config('app.name');
 
         return (new MailMessage)
-            ->subject("Redefinição de senha — {$appName}")
+            ->subject("Redefinição de senha solicitada — {$appName}")
             ->greeting("Olá, {$recipientName}!")
             ->line('Recebemos uma solicitação para redefinir a senha da sua conta.')
             ->line('Clique no botão abaixo para criar uma nova senha. **O link expira em 60 minutos.**')
             ->action('Redefinir minha senha', $resetUrl)
-            ->line('Se você não fez essa solicitação, recomendamos que troque sua senha imediatamente.')
+            ->line('Se você não fez essa solicitação, ignore este e-mail. Por segurança, revise sua senha e seus acessos.')
             ->line('**Detalhes da solicitação:**')
             ->line("Endereço IP: {$this->context['ip']}")
             ->line("Navegador: {$this->context['user_agent']}")

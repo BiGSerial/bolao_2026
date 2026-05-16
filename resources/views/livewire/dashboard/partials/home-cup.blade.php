@@ -51,6 +51,7 @@
             $href    = route('matches.show', ['match' => $match->id]);
             $minute  = $liveMinutes[$match->id] ?? null;
             $extraMin = data_get($match->raw_payload, 'injury_time', data_get($match->raw_payload, 'extra'));
+            $poolRows = $livePoolPredictions[$match->id] ?? collect();
             $liveLabel = match($match->status) {
                 'IN_PLAY'          => 'Ao Vivo',
                 'PAUSED'           => 'Intervalo',
@@ -89,6 +90,24 @@
                     </span>
                     <x-match-team-logo :team="$match->awayTeam" size="sm" />
                 </div>
+            </div>
+            <div class="mt-3 border-t border-white/[0.07] pt-2 space-y-1.5">
+                @forelse($poolRows as $row)
+                <div class="flex items-center justify-between gap-2 rounded-md border border-white/[0.08] bg-bolao-bg3/70 px-2 py-1">
+                    <div class="min-w-0 text-[10px] text-slate-300 truncate">
+                        <span class="font-semibold text-slate-200">{{ $row['pool_name'] }}</span>
+                        <span class="text-bolao-muted"> - </span>
+                        <span class="font-bc font-bold text-[11px] text-bolao-accent">{{ $row['prediction'] }}</span>
+                    </div>
+                    <span class="shrink-0 inline-flex items-center justify-center min-w-[42px] rounded-md border border-amber-400/35 bg-amber-400/15 px-1.5 py-0.5 font-bc font-extrabold text-[11px] text-amber-300">
+                        {{ is_numeric($row['points']) ? ((int) $row['points']).' pts' : '—' }}
+                    </span>
+                </div>
+                @empty
+                <div class="text-[10px] text-bolao-muted">
+                    Sem palpites seus neste jogo.
+                </div>
+                @endforelse
             </div>
         </a>
         @endforeach
@@ -530,45 +549,6 @@
     </div>
 </div>
 @endif
-
-@if($selectedPool)
-<div class="rp-widget">
-    <div class="rp-widget-header">
-        <span>Ranking Ao Vivo</span>
-        <a href="{{ route('pools.show', $selectedPool->slug) }}"
-           class="text-bolao-accent hover:text-bolao-accent2 transition-colors normal-case tracking-normal text-[11px] font-semibold">
-            ver tudo →
-        </a>
-    </div>
-    <div class="rp-widget-body divide-y divide-white/[0.04]">
-        @forelse($selectedPoolTopRankings as $entry)
-        @php
-            $isMe = (int) $entry->user_id === (int) auth()->id();
-            $forcedFifth = (bool) data_get($entry, 'forced_fifth_slot', false);
-            $displaySlot = $forcedFifth ? 5 : (int) ($entry->position ?? $loop->iteration);
-            $publicName = trim((string) ($entry->user?->display_name ?: $entry->user?->name ?: 'Participante'));
-            $initials = strtoupper(substr(preg_replace('/\s+.*$/', '', $publicName), 0, 2));
-        @endphp
-        <div class="rp-rank-row py-2 flex items-center gap-2 {{ $isMe ? 'bg-bolao-accent/15 -mx-2 px-2 rounded-md' : '' }}"
-             data-rank-key="{{ (int) $entry->user_id }}"
-             data-rank-pos="{{ (int) ($displaySlot ?: 0) }}">
-            <span class="w-4 text-center font-bc font-extrabold text-base {{ $isMe ? 'text-bolao-accent' : 'text-slate-200' }}">{{ $displaySlot ?: '—' }}</span>
-            <span class="flex h-5 w-5 items-center justify-center rounded-full bg-bolao-bg4 text-[9px] font-bold text-bolao-accent2">{{ $initials ?: 'PL' }}</span>
-            <span class="min-w-0 flex-1 truncate text-xs font-semibold {{ $isMe ? 'text-white' : 'text-slate-200' }}">
-                {{ $isMe ? 'Você' : $publicName }}
-                @if($forcedFifth)
-                <span class="text-[10px] text-bolao-muted ml-1">#{{ (int) ($entry->position ?? 0) }}</span>
-                @endif
-            </span>
-            <span class="font-bc font-extrabold text-xl {{ $isMe ? 'text-bolao-accent' : 'text-white' }}">{{ (int) $entry->points_total }}</span>
-        </div>
-        @empty
-        <div class="py-2 text-xs text-bolao-muted">Ranking ainda não disponível.</div>
-        @endforelse
-    </div>
-</div>
-@endif
-
 @if($upcoming->isNotEmpty())
 <div class="rp-widget">
     <div class="rp-widget-header">

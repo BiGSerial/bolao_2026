@@ -61,6 +61,7 @@
                                     $isInPlayTicker  = $matchTicker->status === 'IN_PLAY';
                                     $isFinishedTicker = $matchTicker->status === 'FINISHED';
                                     $tickerMinute    = $liveMinutes[$matchTicker->id] ?? null;
+                                    $tickerDate      = ($matchTicker->utc_date ?? $matchTicker->local_date)?->timezone('America/Sao_Paulo');
                                     $tickerCardClass = $isLiveTicker
                                         ? 'border-amber-500/45 bg-[#1e1e1e]'
                                         : 'border-[#2a2a2a] bg-[#1e1e1e]';
@@ -68,6 +69,13 @@
                                         ? 'bg-amber-500/10 text-amber-300 border-amber-500/35'
                                         : 'bg-[#232323] text-[#666] border-[#333]';
                                     $statusLabel = $statusLabels[$matchTicker->id] ?? ucfirst(strtolower($matchTicker->status));
+                                    if (in_array($matchTicker->status, ['TIMED', 'SCHEDULED'], true) && $tickerDate) {
+                                        if ($tickerDate->isToday()) {
+                                            $statusLabel = 'Hoje';
+                                        } elseif ($tickerDate->isTomorrow()) {
+                                            $statusLabel = 'Amanhã';
+                                        }
+                                    }
                                 @endphp
                                 <a href="{{ route('matches.show', ['match' => $matchTicker->id]) }}"
                                    class="ticker-item shrink-0 rounded-lg border px-2.5 py-1.5 hover:border-[#444] transition-colors block {{ $tickerCardClass }}">
@@ -110,11 +118,12 @@
 
                                 @if($duplicateTickerItems)
                                     @foreach($nearestTickerMatches as $matchTicker)
-                                    @php
+                                @php
                                         $isLiveTicker    = in_array($matchTicker->status, ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'], true);
                                         $isInPlayTicker  = $matchTicker->status === 'IN_PLAY';
                                         $isFinishedTicker = $matchTicker->status === 'FINISHED';
                                         $tickerMinute    = $liveMinutes[$matchTicker->id] ?? null;
+                                        $tickerDate      = ($matchTicker->utc_date ?? $matchTicker->local_date)?->timezone('America/Sao_Paulo');
                                         $tickerCardClass = $isLiveTicker
                                             ? 'border-amber-500/45 bg-[#1e1e1e]'
                                             : 'border-[#2a2a2a] bg-[#1e1e1e]';
@@ -122,6 +131,13 @@
                                             ? 'bg-amber-500/10 text-amber-300 border-amber-500/35'
                                             : 'bg-[#232323] text-[#666] border-[#333]';
                                         $statusLabel = $statusLabels[$matchTicker->id] ?? ucfirst(strtolower($matchTicker->status));
+                                        if (in_array($matchTicker->status, ['TIMED', 'SCHEDULED'], true) && $tickerDate) {
+                                            if ($tickerDate->isToday()) {
+                                                $statusLabel = 'Hoje';
+                                            } elseif ($tickerDate->isTomorrow()) {
+                                                $statusLabel = 'Amanhã';
+                                            }
+                                        }
                                     @endphp
                                     <a href="{{ route('matches.show', ['match' => $matchTicker->id]) }}"
                                        class="ticker-item shrink-0 rounded-lg border px-2.5 py-1.5 hover:border-[#444] transition-colors block {{ $tickerCardClass }}">
@@ -574,6 +590,13 @@
                     $matchDate  = ($match->utc_date ?? $match->local_date)?->timezone('America/Sao_Paulo');
                     $liveMinute = $liveMinutes[$match->id] ?? null;
                     $statusLabel = $statusLabels[$match->id] ?? '';
+                    if (in_array($match->status, ['TIMED', 'SCHEDULED'], true) && $matchDate) {
+                        if ($matchDate->isToday()) {
+                            $statusLabel = 'Hoje';
+                        } elseif ($matchDate->isTomorrow()) {
+                            $statusLabel = 'Amanhã';
+                        }
+                    }
 
                     $cardRingClass = match(true) {
                         $isLive && $match->status === 'IN_PLAY'             => 'ring-1 ring-red-500/30',

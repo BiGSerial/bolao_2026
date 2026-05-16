@@ -26,6 +26,13 @@ $awayScore = $match->away_score_full_time ?? 0;
 $liveMinute  = $this->resolveLiveMinute();
 $extraMinute = $isLive ? data_get($match->raw_payload, 'injury_time', data_get($match->raw_payload, 'extra')) : null;
 $matchDate   = ($match->utc_date ?? $match->local_date)?->timezone('America/Sao_Paulo');
+if (in_array($match->status, ['TIMED', 'SCHEDULED'], true) && $matchDate) {
+    if ($matchDate->isToday()) {
+        $statusLabel = 'Hoje';
+    } elseif ($matchDate->isTomorrow()) {
+        $statusLabel = 'Amanhã';
+    }
+}
 
 $rows     = $this->statsRows();
 $hLineup  = $this->homeLineup();

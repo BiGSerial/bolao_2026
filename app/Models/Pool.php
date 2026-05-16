@@ -14,7 +14,7 @@ class Pool extends Model
     protected $fillable = [
         'owner_id','competition_id','competition_season_id','name','slug','description','instructions','sectors','tie_breakers','visibility','status','invite_code',
         'allow_prediction_changes','prediction_lock_minutes','allow_pending_member_predictions','stage',
-        'points_exact_score', 'points_correct_result', 'points_correct_goals',
+        'points_exact_score', 'points_correct_result', 'points_correct_goals', 'correct_goals_mode',
     ];
 
     protected function casts(): array
@@ -25,6 +25,7 @@ class Pool extends Model
             'points_exact_score' => 'integer',
             'points_correct_result' => 'integer',
             'points_correct_goals' => 'integer',
+            'correct_goals_mode' => 'string',
             'sectors' => 'array',
             'tie_breakers' => 'array',
         ];

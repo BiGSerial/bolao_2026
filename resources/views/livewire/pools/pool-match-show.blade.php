@@ -15,6 +15,14 @@ $homeScore = $match->home_score_full_time ?? 0;
 $awayScore = $match->away_score_full_time ?? 0;
 
 $liveMinute = $isLive ? data_get($match->raw_payload, 'minute') : null;
+$matchDate  = ($match->utc_date ?? $match->local_date)?->timezone('America/Sao_Paulo');
+if (in_array($match->status, ['TIMED', 'SCHEDULED'], true) && $matchDate) {
+    if ($matchDate->isToday()) {
+        $statusLabel = 'Hoje';
+    } elseif ($matchDate->isTomorrow()) {
+        $statusLabel = 'Amanhã';
+    }
+}
 
 $rows     = $this->statsRows();
 $hLineup  = $this->homeLineup();
@@ -130,7 +138,7 @@ $cardInfo = function (string $card): array {
             <span class="h-1 w-1 rounded-full bg-slate-700"></span>
             @endif
             <span class="text-[11px] text-slate-500">
-                {{ ($match->local_date ?? $match->utc_date)?->timezone('America/Sao_Paulo')->format('d/m/Y · H:i') }}
+                {{ $matchDate?->format('d/m/Y · H:i') }}
             </span>
         </div>
 

@@ -24,6 +24,21 @@ class ForcePasswordChange extends Component
             return;
         }
 
+        if ($user->temporary_password_expires_at && $user->temporary_password_expires_at->isPast()) {
+            auth()->logout();
+            request()->session()->invalidate();
+            request()->session()->regenerateToken();
+
+            $this->dispatch('swal:alert', [
+                'icon' => 'error',
+                'title' => 'Prazo expirado',
+                'text' => 'Sua senha temporária expirou após 13 horas. Solicite uma nova senha temporária ao administrador.',
+            ]);
+
+            $this->redirectRoute('login', navigate: true);
+            return;
+        }
+
         $validator = Validator::make(
             [
                 'password'              => $password,
@@ -54,6 +69,7 @@ class ForcePasswordChange extends Component
             'password'             => Hash::make($password),
             'must_change_password' => false,
             'password_changed_at'  => now(),
+            'temporary_password_expires_at' => null,
             'email_verified_at'    => $user->email_verified_at ?: now(),
         ]);
 

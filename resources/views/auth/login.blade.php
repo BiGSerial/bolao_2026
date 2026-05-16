@@ -15,10 +15,20 @@
 
         <div>
             <label for="password" class="label">Senha</label>
-            <input id="password" type="password" name="password"
-                   required autocomplete="current-password"
-                   class="input-field"
-                   placeholder="••••••••">
+            <div class="relative">
+                <input id="password" type="password" name="password"
+                       required autocomplete="current-password"
+                       class="input-field pr-20"
+                       placeholder="••••••••">
+                <button type="button"
+                        id="toggle-password-visibility"
+                        class="absolute inset-y-0 right-0 px-3 text-sm text-slate-400 hover:text-slate-200 transition-colors"
+                        aria-controls="password"
+                        aria-label="Mostrar senha"
+                        aria-pressed="false">
+                    Mostrar
+                </button>
+            </div>
             @error('password') <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p> @enderror
         </div>
 
@@ -57,25 +67,46 @@
         </p>
     </form>
 
-    @if (session('register_success') || session('status'))
+    @if (session('status') || session('auth_error'))
         @push('scripts')
             <script>
-                @if (session('register_success'))
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Cadastro realizado com sucesso!',
-                        text: 'Enviamos sua senha temporária por e-mail. Sua conta está aguardando aprovação do administrador.',
-                        confirmButtonText: 'Entendi'
-                    });
-                @elseif (session('status'))
+                @if (session('status'))
                     Swal.fire({
                         icon: 'success',
                         title: 'Sucesso',
                         text: @json(session('status')),
                         confirmButtonText: 'Entendi'
                     });
+                @elseif (session('auth_error'))
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Atenção',
+                        text: @json(session('auth_error')),
+                        confirmButtonText: 'Entendi'
+                    });
                 @endif
             </script>
         @endpush
     @endif
+
+    @push('scripts')
+        <script>
+            (() => {
+                const passwordInput = document.getElementById('password');
+                const toggleButton = document.getElementById('toggle-password-visibility');
+
+                if (!passwordInput || !toggleButton) {
+                    return;
+                }
+
+                toggleButton.addEventListener('click', () => {
+                    const isHidden = passwordInput.type === 'password';
+                    passwordInput.type = isHidden ? 'text' : 'password';
+                    toggleButton.textContent = isHidden ? 'Ocultar' : 'Mostrar';
+                    toggleButton.setAttribute('aria-label', isHidden ? 'Ocultar senha' : 'Mostrar senha');
+                    toggleButton.setAttribute('aria-pressed', isHidden ? 'true' : 'false');
+                });
+            })();
+        </script>
+    @endpush
 </x-guest-layout>

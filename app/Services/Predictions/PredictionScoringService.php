@@ -46,6 +46,7 @@ class PredictionScoringService
         $exactScorePoints = max(0, (int) ($pool->points_exact_score ?? 5));
         $correctResultPoints = max(0, (int) ($pool->points_correct_result ?? 3));
         $correctGoalsPoints = max(0, (int) ($pool->points_correct_goals ?? 1));
+        $correctGoalsMode = (string) ($pool->correct_goals_mode ?? 'both_teams');
         $points = 0;
         if ($exact) {
             $points = $exactScorePoints;
@@ -55,11 +56,18 @@ class PredictionScoringService
             if ($realResult === $predResult) {
                 $points += $correctResultPoints;
             }
-            if ($prediction->home_score === $homeReal) {
-                $points += $correctGoalsPoints;
-            }
-            if ($prediction->away_score === $awayReal) {
-                $points += $correctGoalsPoints;
+            $hitHomeGoals = $prediction->home_score === $homeReal;
+            $hitAwayGoals = $prediction->away_score === $awayReal;
+            if ($correctGoalsMode === 'winner_only') {
+                if ($homeReal > $awayReal && $hitHomeGoals) {
+                    $points += $correctGoalsPoints;
+                } elseif ($awayReal > $homeReal && $hitAwayGoals) {
+                    $points += $correctGoalsPoints;
+                }
+            } else {
+                if ($hitHomeGoals || $hitAwayGoals) {
+                    $points += $correctGoalsPoints;
+                }
             }
         }
 

@@ -174,6 +174,7 @@ class UsersApproval extends Component
                 'password' => Hash::make($temporaryPassword),
                 'must_change_password' => true,
                 'password_changed_at' => null,
+                'temporary_password_expires_at' => now()->addHours(13),
             ])->save();
 
             $user->notify(new WelcomeWithTemporaryPasswordNotification($temporaryPassword));

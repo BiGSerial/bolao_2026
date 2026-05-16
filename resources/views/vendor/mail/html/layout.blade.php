@@ -7,27 +7,28 @@
     <meta name="supported-color-schemes" content="light only">
     <title>{{ config('app.name') }}</title>
     <style>
-        body { margin: 0; padding: 0; background: #020f2b; }
+        body { margin: 0; padding: 0; background: #080a0d; }
         table { border-collapse: collapse; }
+        a { color: #f5a623; }
     </style>
 </head>
 <body>
-<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#020f2b; padding:24px 0;">
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#080a0d; padding:24px 0;">
     <tr>
         <td align="center">
-            <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:640px; margin:0 auto; background:#071b3f; border:1px solid #1e3a6a; border-radius:14px; overflow:hidden;">
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:640px; margin:0 auto; background:#111827; border:1px solid rgba(245,166,35,0.24); border-radius:14px; overflow:hidden;">
                 {{ $header ?? '' }}
 
                 <tr>
-                    <td style="padding:32px 32px 24px 32px; color:#dbeafe; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:1.7;">
+                    <td style="padding:32px 32px 24px 32px; color:#e5e7eb; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:1.7;">
                         {{ Illuminate\Mail\Markdown::parse($slot) }}
                     </td>
                 </tr>
 
                 @if(!empty(trim((string)($subcopy ?? ''))))
                 <tr>
-                    <td style="padding:0 32px 20px 32px; border-top:1px dashed #1e3a6a;">
-                        <div style="padding-top:14px; color:#7dd3fc; font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:1.6;">
+                    <td style="padding:0 32px 20px 32px; border-top:1px dashed rgba(245,166,35,0.24);">
+                        <div style="padding-top:14px; color:#fbbf24; font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:1.6;">
                             {{ $subcopy }}
                         </div>
                     </td>

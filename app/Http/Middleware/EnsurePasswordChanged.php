@@ -10,16 +10,6 @@ class EnsurePasswordChanged
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $user = $request->user();
-
-        if (! $user || ! $user->must_change_password) {
-            return $next($request);
-        }
-
-        if ($request->routeIs('password.force')) {
-            return $next($request);
-        }
-
-        return redirect()->route('password.force');
+        return $next($request);
     }
 }

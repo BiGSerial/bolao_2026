@@ -57,10 +57,7 @@
     <div class="relative w-full max-w-md">
         {{-- Logo --}}
         <div class="mb-8 flex flex-col items-center gap-3">
-            <div class="flex h-14 w-14 items-center justify-center rounded-2xl text-black font-bc font-extrabold text-3xl shadow-lg"
-                 style="background:linear-gradient(135deg,#f5a623,#e8390d);box-shadow:0 8px 32px rgba(245,166,35,0.3)">
-                B
-            </div>
+            <x-application-logo class="h-16 w-16 drop-shadow-[0_8px_22px_rgba(245,166,35,0.35)]" />
             <div class="text-center">
                 <h1 class="font-bc font-extrabold text-[28px] leading-none text-white">
                     Bolão<span class="text-bolao-accent">FC</span>
@@ -91,6 +88,7 @@
     </div>
 
     @livewireScripts
+    @include('layouts.partials.cookie-consent')
     @stack('scripts')
 
     {{-- Legal document modal — last in DOM to guarantee stacking above everything --}}

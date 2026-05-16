@@ -24,6 +24,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'status',
         'must_change_password',
         'password_changed_at',
+        'temporary_password_expires_at',
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -38,6 +39,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'competition_package_id' => 'integer',
             'must_change_password' => 'boolean',
             'password_changed_at' => 'datetime',
+            'temporary_password_expires_at' => 'datetime',
         ];
     }
 

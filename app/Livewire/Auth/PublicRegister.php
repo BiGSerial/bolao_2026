@@ -7,13 +7,12 @@ use App\Http\Controllers\Pools\PoolInviteController;
 use App\Models\LegalDocument;
 use App\Models\User;
 use App\Models\UserLegalAcceptance;
-use App\Notifications\WelcomeWithTemporaryPasswordNotification;
-use App\Services\Email\EmailDispatchGuard;
 use App\Services\Legal\LegalAcceptanceEvidenceService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -24,6 +23,8 @@ class PublicRegister extends Component
     public string $name = '';
     public string $display_name = '';
     public string $email = '';
+    public string $password = '';
+    public string $password_confirmation = '';
     public bool $acceptEula = false;
     public bool $acceptPrivacy = false;
 
@@ -42,6 +43,7 @@ class PublicRegister extends Component
                 'name'          => ['required', 'string', 'max:120'],
                 'display_name'  => ['required', 'string', 'max:80'],
                 'email'         => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+                'password'      => ['required', 'confirmed', Password::defaults()],
                 'acceptEula'    => ['accepted'],
                 'acceptPrivacy' => ['accepted'],
             ], [
@@ -52,6 +54,8 @@ class PublicRegister extends Component
                 'email.required'            => 'Informe seu e-mail.',
                 'email.email'               => 'Informe um e-mail válido.',
                 'email.unique'              => 'Este e-mail já está em uso.',
+                'password.required'         => 'Informe sua senha.',
+                'password.confirmed'        => 'A confirmação da senha não confere.',
                 'acceptEula.accepted'       => 'Você deve aceitar os Termos de Uso.',
                 'acceptPrivacy.accepted'    => 'Você deve aceitar a Política de Privacidade.',
             ]);
@@ -64,35 +68,26 @@ class PublicRegister extends Component
             throw $exception;
         }
 
-        $temporaryPassword = Str::password(12, symbols: false);
-
         $user = User::create([
             'name'                => $this->name,
             'display_name'        => $this->display_name,
             'email'               => $this->email,
-            'password'            => Hash::make($temporaryPassword),
+            'password'            => Hash::make($this->password),
             'status'              => 'active',
-            'must_change_password' => true,
+            'must_change_password' => false,
+            'temporary_password_expires_at' => null,
+            'password_changed_at' => now(),
         ]);
 
         $this->recordLegalAcceptance($user->id);
 
-        $emailGuard = app(EmailDispatchGuard::class);
-        $tempLimit = (int) config('email-limits.limits.temporary_password_user_day', 2);
-        if (! $emailGuard->attempt('temporary_password', (string) $user->id, $tempLimit, 86400)) {
-            $this->dispatch('swal:alert', [
-                'icon' => 'warning',
-                'title' => 'Limite de envio',
-                'messages' => ['A conta foi criada, mas o envio de e-mail está temporariamente limitado. Contate o suporte.'],
-            ]);
-        } else {
-            $user->notify(new WelcomeWithTemporaryPasswordNotification($temporaryPassword));
-        }
         event(new Registered($user));
         PoolInviteController::consumePendingInviteForUser($user->id, $user->email);
 
-        session()->flash('register_success', true);
-        $this->redirectRoute('login', navigate: true);
+        Auth::login($user);
+        request()->session()->regenerate();
+
+        $this->redirectRoute('dashboard', navigate: true);
     }
 
     private function recordLegalAcceptance(int $userId): void
