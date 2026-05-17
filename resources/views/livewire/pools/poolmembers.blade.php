@@ -1,4 +1,16 @@
-<div class="animate-fade-in">
+<div class="animate-fade-in"
+     x-data="{
+        mobileMemberMenuOpen: false,
+        selectedMember: null,
+        openMobileMemberMenu(member) {
+            this.selectedMember = member;
+            this.mobileMemberMenuOpen = true;
+        },
+        closeMobileMemberMenu() {
+            this.mobileMemberMenuOpen = false;
+            this.selectedMember = null;
+        }
+     }">
     @php
         $currentMember = $pool->members()->where('user_id', auth()->id())->first();
         $memberStatus = (string) ($currentMember->status ?? 'active');
@@ -89,7 +101,68 @@
     </div>
     @else
     <div class="card overflow-hidden">
-        <div class="overflow-x-auto">
+        <div class="md:hidden divide-y divide-slate-800/60">
+            @foreach($members as $member)
+            @php
+            $statusBadge = match($member->status) {
+                'active' => 'badge-green',
+                'pending' => 'badge-amber',
+                'inactive' => 'badge-slate',
+                'blocked' => 'badge-red',
+                default => 'badge-slate',
+            };
+            $statusLabel = match($member->status) {
+                'active' => 'Ativo',
+                'pending' => 'Aguardando',
+                'inactive' => 'Suspenso',
+                'removed' => 'Removido',
+                'blocked' => 'Bloqueado',
+                default => ucfirst($member->status),
+            };
+            $roleLabel = match($member->role) {
+                'owner' => 'Dono',
+                'manager' => 'Gestor',
+                default => 'Membro',
+            };
+            @endphp
+            <div class="p-3.5">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full
+                                {{ $member->role === 'owner' ? 'bg-amber-700' : ($member->role === 'manager' ? 'bg-blue-700' : 'bg-slate-700') }}
+                                text-sm font-bold text-white uppercase">
+                        {{ mb_substr($member->user?->name ?? '?', 0, 2) }}
+                    </div>
+
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-base font-semibold text-slate-100">{{ $member->user?->name ?? '—' }}</p>
+                        <p class="truncate text-sm text-slate-500">{{ $member->user?->email ?? '—' }}</p>
+                    </div>
+
+                    <button type="button"
+                            @click="openMobileMemberMenu({
+                                id: {{ $member->id }},
+                                name: @js($member->user?->name ?? '—'),
+                                email: @js($member->user?->email ?? '—'),
+                                role: @js($member->role),
+                                status: @js($member->status)
+                            })"
+                            class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/[0.08] bg-bolao-bg3/40 text-slate-400 hover:text-slate-200 hover:bg-bolao-bg3">
+                        <i class="ti ti-dots-vertical text-lg"></i>
+                    </button>
+                </div>
+
+                <div class="mt-2 flex items-center gap-2">
+                    <span class="{{ $statusBadge }}">{{ $statusLabel }}</span>
+                    <span class="inline-flex items-center rounded-md bg-slate-800/70 px-2 py-0.5 text-xs text-slate-300">{{ $roleLabel }}</span>
+                    @if($member->sector)
+                    <span class="inline-flex items-center rounded-md bg-slate-800/70 px-2 py-0.5 text-xs text-slate-400">{{ $member->sector }}</span>
+                    @endif
+                </div>
+            </div>
+            @endforeach
+        </div>
+
+        <div class="hidden md:block overflow-x-auto">
             <table class="min-w-full">
                 <thead>
                     <tr class="border-b border-slate-800">
@@ -170,51 +243,152 @@
                             <span class="{{ $statusBadge }}">{{ $statusLabel }}</span>
                         </td>
                         <td class="px-4 py-3.5">
-                            <div class="flex flex-wrap gap-1.5">
-                                @if($member->status !== 'active')
-                                <button wire:click="activateMember({{ $member->id }})"
-                                        wire:loading.attr="disabled"
-                                        class="inline-flex items-center rounded-md bg-emerald-700/30 px-2 py-1 text-xs font-medium text-emerald-400 ring-1 ring-emerald-500/30 hover:bg-emerald-700/50 transition-colors">
-                                    Liberar
+                            <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+                                <button type="button"
+                                        @click="open = !open"
+                                        class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-400 hover:text-slate-200 hover:bg-slate-700/60">
+                                    <i class="ti ti-dots-vertical text-base"></i>
                                 </button>
-                                @endif
-                                @if($member->status === 'active')
-                                <button wire:click="deactivateMember({{ $member->id }})"
-                                        class="inline-flex items-center rounded-md bg-amber-700/30 px-2 py-1 text-xs font-medium text-amber-400 ring-1 ring-amber-500/30 hover:bg-amber-700/50 transition-colors">
-                                    Suspender
-                                </button>
-                                @endif
-                                @if($member->role !== 'owner')
-                                @if($member->role === 'member')
-                                <button wire:click="promoteManager({{ $member->id }})"
-                                        class="inline-flex items-center rounded-md bg-blue-700/30 px-2 py-1 text-xs font-medium text-blue-400 ring-1 ring-blue-500/30 hover:bg-blue-700/50 transition-colors">
-                                    → Gestor
-                                </button>
-                                @else
-                                <button wire:click="demoteMember({{ $member->id }})"
-                                        class="inline-flex items-center rounded-md bg-slate-700/50 px-2 py-1 text-xs font-medium text-slate-400 ring-1 ring-slate-600/30 hover:bg-slate-600/50 transition-colors">
-                                    → Membro
-                                </button>
-                                @endif
-                                <button wire:click="removeMember({{ $member->id }})"
-                                        onclick="confirm('Confirma remoção?') || event.stopImmediatePropagation()"
-                                        class="inline-flex items-center rounded-md bg-slate-700/30 px-2 py-1 text-xs font-medium text-slate-400 ring-1 ring-slate-600/30 hover:bg-slate-600/50 transition-colors">
-                                    Remover
-                                </button>
-                                @if($member->status !== 'blocked')
-                                <button wire:click="blockMember({{ $member->id }})"
-                                        onclick="confirm('Confirma bloqueio?') || event.stopImmediatePropagation()"
-                                        class="inline-flex items-center rounded-md bg-red-700/30 px-2 py-1 text-xs font-medium text-red-400 ring-1 ring-red-500/30 hover:bg-red-700/50 transition-colors">
-                                    Bloquear
-                                </button>
-                                @endif
-                                @endif
+
+                                <div x-show="open" x-cloak
+                                     x-transition:enter="transition ease-out duration-120"
+                                     x-transition:enter-start="opacity-0 scale-95"
+                                     x-transition:enter-end="opacity-100 scale-100"
+                                     x-transition:leave="transition ease-in duration-100"
+                                     x-transition:leave-start="opacity-100 scale-100"
+                                     x-transition:leave-end="opacity-0 scale-95"
+                                     class="absolute right-0 z-20 mt-2 w-48 origin-top-right rounded-xl border border-slate-700 bg-slate-900 p-1.5 shadow-2xl">
+
+                                    @if($member->status !== 'active')
+                                    <button wire:click="activateMember({{ $member->id }})"
+                                            @click="open = false"
+                                            class="flex w-full items-center rounded-lg px-3 py-2 text-left text-xs font-medium text-emerald-300 hover:bg-emerald-500/10">
+                                        Liberar
+                                    </button>
+                                    @endif
+
+                                    @if($member->status === 'active')
+                                    <button wire:click="deactivateMember({{ $member->id }})"
+                                            @click="open = false"
+                                            class="flex w-full items-center rounded-lg px-3 py-2 text-left text-xs font-medium text-amber-300 hover:bg-amber-500/10">
+                                        Suspender
+                                    </button>
+                                    @endif
+
+                                    @if($member->role !== 'owner')
+                                        @if($member->role === 'member')
+                                        <button wire:click="promoteManager({{ $member->id }})"
+                                                @click="open = false"
+                                                class="flex w-full items-center rounded-lg px-3 py-2 text-left text-xs font-medium text-blue-300 hover:bg-blue-500/10">
+                                            Tornar gestor
+                                        </button>
+                                        @else
+                                        <button wire:click="demoteMember({{ $member->id }})"
+                                                @click="open = false"
+                                                class="flex w-full items-center rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-300 hover:bg-slate-700/60">
+                                            Tornar membro
+                                        </button>
+                                        @endif
+
+                                        <button wire:click="removeMember({{ $member->id }})"
+                                                onclick="confirm('Confirma remoção?') || event.stopImmediatePropagation()"
+                                                @click="open = false"
+                                                class="flex w-full items-center rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-300 hover:bg-slate-700/60">
+                                            Remover
+                                        </button>
+
+                                        @if($member->status !== 'blocked')
+                                        <button wire:click="blockMember({{ $member->id }})"
+                                                onclick="confirm('Confirma bloqueio?') || event.stopImmediatePropagation()"
+                                                @click="open = false"
+                                                class="flex w-full items-center rounded-lg px-3 py-2 text-left text-xs font-medium text-red-300 hover:bg-red-500/10">
+                                            Bloquear
+                                        </button>
+                                        @endif
+                                    @endif
+                                </div>
                             </div>
                         </td>
                     </tr>
                     @endforeach
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    <div x-cloak class="fixed inset-0 z-[80] pointer-events-none md:hidden">
+        <div x-show="mobileMemberMenuOpen"
+             x-transition:enter="transition ease-out duration-180" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+             class="absolute inset-0 bg-black/70 pointer-events-auto"
+             @click="closeMobileMemberMenu()"></div>
+
+        <div x-show="mobileMemberMenuOpen"
+             x-transition:enter="transition ease-out duration-250"
+             x-transition:enter-start="opacity-0 translate-y-10"
+             x-transition:enter-end="opacity-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100 translate-y-0"
+             x-transition:leave-end="opacity-0 translate-y-10"
+             class="absolute inset-x-3 bottom-[calc(68px+env(safe-area-inset-bottom,0px)+10px)] rounded-2xl border border-white/10 bg-bolao-bg2 shadow-2xl pointer-events-auto overflow-hidden">
+
+            <div class="border-b border-white/[0.07] px-4 py-3">
+                <p class="text-lg font-semibold text-slate-100">Gerenciar membro</p>
+                <p class="text-sm text-slate-500">Escolha uma ação para este participante</p>
+
+                <div class="mt-3 flex items-center gap-3 rounded-xl bg-bolao-bg px-3 py-2.5">
+                    <div class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-700 text-sm font-bold uppercase text-slate-300"
+                         x-text="(selectedMember?.name || '?').split(' ').map(w => w[0]).join('').slice(0,2)"></div>
+                    <div class="min-w-0">
+                        <p class="truncate text-xl font-semibold leading-tight text-slate-100" x-text="selectedMember?.name || 'Participante'"></p>
+                        <p class="truncate text-sm text-slate-500" x-text="selectedMember?.email || ''"></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-2.5 space-y-1.5">
+                <button x-show="selectedMember && selectedMember.status !== 'active'"
+                        @click="$wire.activateMember(selectedMember.id); closeMobileMemberMenu()"
+                        class="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-base text-emerald-300 hover:bg-emerald-500/10">
+                    <span>Liberar membro</span>
+                    <i class="ti ti-chevron-right text-sm text-slate-500"></i>
+                </button>
+
+                <button x-show="selectedMember && selectedMember.status === 'active'"
+                        @click="$wire.deactivateMember(selectedMember.id); closeMobileMemberMenu()"
+                        class="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-base text-amber-300 hover:bg-amber-500/10">
+                    <span>Suspender membro</span>
+                    <i class="ti ti-chevron-right text-sm text-slate-500"></i>
+                </button>
+
+                <button x-show="selectedMember && selectedMember.role === 'member'"
+                        @click="$wire.promoteManager(selectedMember.id); closeMobileMemberMenu()"
+                        class="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-base text-blue-300 hover:bg-blue-500/10">
+                    <span>Tornar gestor</span>
+                    <i class="ti ti-chevron-right text-sm text-slate-500"></i>
+                </button>
+
+                <button x-show="selectedMember && selectedMember.role === 'manager'"
+                        @click="$wire.demoteMember(selectedMember.id); closeMobileMemberMenu()"
+                        class="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-base text-slate-300 hover:bg-slate-700/60">
+                    <span>Tornar membro</span>
+                    <i class="ti ti-chevron-right text-sm text-slate-500"></i>
+                </button>
+
+                <button x-show="selectedMember && selectedMember.role !== 'owner'"
+                        @click="if (confirm('Confirma remoção?')) { $wire.removeMember(selectedMember.id); closeMobileMemberMenu(); }"
+                        class="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-base text-slate-300 hover:bg-slate-700/60">
+                    <span>Remover do bolão</span>
+                    <i class="ti ti-chevron-right text-sm text-slate-500"></i>
+                </button>
+
+                <button x-show="selectedMember && selectedMember.role !== 'owner' && selectedMember.status !== 'blocked'"
+                        @click="if (confirm('Confirma bloqueio?')) { $wire.blockMember(selectedMember.id); closeMobileMemberMenu(); }"
+                        class="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-base text-red-400 hover:bg-red-500/10">
+                    <span>Bloquear membro</span>
+                    <i class="ti ti-chevron-right text-sm text-slate-500"></i>
+                </button>
+            </div>
         </div>
     </div>
     @endif

@@ -15,6 +15,8 @@ class User extends Authenticatable implements MustVerifyEmail
 {
     use HasFactory, Notifiable;
 
+    public const MAX_MANAGED_POOLS = 5;
+
     protected $fillable = [
         'name',
         'display_name',
@@ -127,5 +129,18 @@ class User extends Authenticatable implements MustVerifyEmail
     public function sendEmailVerificationNotification(): void
     {
         $this->notify(new CustomVerifyEmailNotification());
+    }
+
+    public function managedPoolsCount(): int
+    {
+        return (int) $this->poolMemberships()
+            ->where('status', 'active')
+            ->whereIn('role', ['owner', 'manager'])
+            ->count();
+    }
+
+    public function reachedManagedPoolsLimit(): bool
+    {
+        return $this->managedPoolsCount() >= self::MAX_MANAGED_POOLS;
     }
 }

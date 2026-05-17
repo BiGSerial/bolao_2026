@@ -121,7 +121,7 @@
     $isHeroLive    = false;
     $stageLabel    = \App\Livewire\Dashboard\Home::stageLabel($heroMatch->stage ?? '');
     $stageBadge    = \App\Livewire\Dashboard\Home::stageBadgeClass($heroMatch->stage ?? '');
-    $kickoff       = $heroMatch->utc_date?->timezone('America/Sao_Paulo');
+    $kickoff       = $heroMatch->kickoffAtBrazil();
     $isToday       = $kickoff?->isToday();
     $isTomorrow    = $kickoff?->isTomorrow();
     $timeLabel     = $kickoff
@@ -413,7 +413,7 @@
             @foreach($upcoming->skip(1)->take(8) as $match)
             @php
                 $href    = $matchLinks[$match->id] ?? null;
-                $kickoff = $match->utc_date?->timezone('America/Sao_Paulo');
+                $kickoff = $match->kickoffAtBrazil();
                 $label   = $kickoff ? ($kickoff->isToday() ? 'Hoje · '.$kickoff->format('H:i') : $kickoff->format('d/m · H:i')) : '';
                 $hasPred = $upcomingPredictions->has($match->id);
             @endphp
@@ -505,7 +505,7 @@
         @else<div class="bg-bolao-bg2 border border-white/[0.07] rounded-lg px-3 py-2.5 flex items-center gap-2 {{ $borderClass }}">
         @endif
             @php
-                $kickoff = $match->utc_date?->timezone('America/Sao_Paulo');
+                $kickoff = $match->kickoffAtBrazil();
                 $metaDate = $kickoff ? $kickoff->format('d/m · H:i') : 'Data indefinida';
                 $stageClass = \App\Livewire\Dashboard\Home::stageBadgeClass($match->stage ?? '');
                 $stageLabel = \App\Livewire\Dashboard\Home::stageLabel($match->stage ?? '');
@@ -565,7 +565,7 @@
                     @elseif(isset($stats['poss_home'], $stats['poss_away']) && $stats['poss_home'] !== null)
                         Posse {{ $stats['poss_home'] }}%-{{ $stats['poss_away'] }}%
                     @else
-                        Atualizando…
+                        {{ $minute ? 'Parcial sem estatísticas da API' : 'Ao vivo sem estatísticas da API' }}
                     @endif
                 </span>
             </div>
@@ -618,7 +618,7 @@
     <div class="rp-widget-body divide-y divide-white/[0.04]">
         @foreach($upcoming->take(2) as $match)
         @php
-            $kickoff = $match->utc_date?->timezone('America/Sao_Paulo');
+            $kickoff = $match->kickoffAtBrazil();
             $isToday = $kickoff?->isToday();
             $label   = $kickoff
                 ? ($isToday ? 'Hoje · '.$kickoff->format('H:i') : $kickoff->format('d/m · H:i'))

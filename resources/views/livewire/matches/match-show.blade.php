@@ -25,7 +25,7 @@ $awayScore = $match->away_score_full_time ?? 0;
 
 $liveMinute  = $this->resolveLiveMinute();
 $extraMinute = $isLive ? data_get($match->raw_payload, 'injury_time', data_get($match->raw_payload, 'extra')) : null;
-$matchDate   = ($match->utc_date ?? $match->local_date)?->timezone('America/Sao_Paulo');
+$matchDate   = $match->kickoffAtBrazil();
 if (in_array($match->status, ['TIMED', 'SCHEDULED'], true) && $matchDate) {
     if ($matchDate->isToday()) {
         $statusLabel = 'Hoje';
@@ -944,7 +944,7 @@ $cardInfo = function (string $card): array {
                             @elseif(isset($stats['poss_home'], $stats['poss_away']) && $stats['poss_home'] !== null)
                                 Posse {{ $stats['poss_home'] }}%-{{ $stats['poss_away'] }}%
                             @else
-                                Atualizando…
+                                {{ $minute ? 'Parcial sem estatísticas da API' : 'Ao vivo sem estatísticas da API' }}
                             @endif
                         </span>
                     </div>

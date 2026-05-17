@@ -5,7 +5,7 @@ namespace App\Livewire\Matches;
 use App\Models\FootballMatch;
 use App\Models\Pool;
 use App\Models\PoolMember;
-use App\Models\PoolRanking;
+use App\Services\Pools\LivePoolRankingService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -201,36 +201,7 @@ class MatchShow extends Component
 
     public function resolveLiveMinute(): ?int
     {
-        $match = $this->match;
-
-        if (! in_array($match->status, ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'], true)) {
-            return null;
-        }
-
-        $minute = data_get($match->raw_payload, 'minute');
-        if (is_numeric($minute)) {
-            return max(1, min(130, (int) $minute));
-        }
-
-        $trackedSeconds = (int) ($match->live_clock_accumulated_seconds ?? 0);
-        if ($match->status === 'IN_PLAY' && $match->live_clock_anchor_at) {
-            $trackedSeconds += max(0, $match->live_clock_anchor_at->diffInSeconds(now()->utc()));
-        }
-
-        if ($trackedSeconds > 0) {
-            return max(1, min(130, (int) floor($trackedSeconds / 60) + 1));
-        }
-
-        if (! $match->utc_date) {
-            return null;
-        }
-
-        $elapsed = $match->utc_date->diffInMinutes(now()->utc(), false);
-        if ($elapsed <= 0) {
-            return 1;
-        }
-
-        return max(1, min(130, $elapsed + 1));
+        return $this->resolveLiveMinuteForMatch($this->match);
     }
 
     public function render()
@@ -241,7 +212,7 @@ class MatchShow extends Component
     /**
      * @return array{
      *   pool:?Pool,
-     *   ranking:?PoolRanking,
+        *   ranking:?object,
      *   top_rankings:\Illuminate\Support\Collection,
      *   member_count:int
      * }
@@ -278,32 +249,13 @@ class MatchShow extends Component
             ];
         }
 
-        $ranking = PoolRanking::query()
-            ->where('pool_id', (int) $pool->id)
-            ->where('user_id', $userId)
-            ->first();
-
-        $topRankings = PoolRanking::query()
-            ->where('pool_id', (int) $pool->id)
-            ->with('user:id,name,display_name')
-            ->orderByRaw('COALESCE(position, 9999) ASC')
-            ->orderByDesc('points_total')
-            ->limit(5)
-            ->get();
+        $liveRankingRows = app(LivePoolRankingService::class)->build($pool);
+        $ranking = $liveRankingRows->firstWhere('user_id', $userId);
+        $topRankings = $liveRankingRows->take(5)->values();
 
         if ($ranking && (int) ($ranking->position ?? 0) > 5) {
-            $topFour = PoolRanking::query()
-                ->where('pool_id', (int) $pool->id)
-                ->with('user:id,name,display_name')
-                ->orderByRaw('COALESCE(position, 9999) ASC')
-                ->orderByDesc('points_total')
-                ->limit(4)
-                ->get();
-            $myRow = PoolRanking::query()
-                ->where('pool_id', (int) $pool->id)
-                ->where('user_id', $userId)
-                ->with('user:id,name,display_name')
-                ->first();
+            $topFour = $liveRankingRows->take(4)->values();
+            $myRow = $liveRankingRows->firstWhere('user_id', $userId);
             if ($myRow) {
                 $topRankings = $topFour->concat(collect([$myRow]))->values();
             }
@@ -566,12 +518,12 @@ class MatchShow extends Component
             return max(1, min(130, (int) floor($trackedSeconds / 60) + 1));
         }
 
-        if (! $match->utc_date) {
+        $kickoff = $match->kickoffAtBrazil();
+        if (! $kickoff) {
             return null;
         }
 
-        $elapsed = $match->utc_date->copy()->timezone('America/Sao_Paulo')
-            ->diffInMinutes(now('America/Sao_Paulo'), false);
+        $elapsed = $kickoff->diffInMinutes(now('America/Sao_Paulo'), false);
 
         return max(1, min(130, $elapsed <= 0 ? 1 : $elapsed + 1));
     }

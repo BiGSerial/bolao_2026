@@ -18,6 +18,12 @@ class MyPoolsManager extends Component
 
     public function mount(): void
     {
+        $requestedPoolId = request()->integer('pool');
+        if ($requestedPoolId > 0 && $this->myPools()->whereKey($requestedPoolId)->exists()) {
+            $this->selectedPoolId = $requestedPoolId;
+            return;
+        }
+
         $first = $this->myPools()->first();
         if ($first) {
             $this->selectedPoolId = $first->id;
@@ -70,6 +76,11 @@ class MyPoolsManager extends Component
     public function demoteMember(int $memberId, PoolMembershipService $service): void
     {
         $this->memberAction($memberId, fn ($pool, $member) => $service->demoteToMember($pool, $member, Auth::user()));
+    }
+
+    public function transferOwnership(int $memberId, PoolMembershipService $service): void
+    {
+        $this->memberAction($memberId, fn ($pool, $member) => $service->transferOwnership($pool, $member, Auth::user()));
     }
 
     public function updateSector(int $memberId, string $sector): void
@@ -161,8 +172,8 @@ class MyPoolsManager extends Component
         if ($selectedPool) {
             $query = $selectedPool->members()
                 ->with('user:id,name,display_name,area,email')
+                ->orderByRaw("case status when 'pending' then 0 when 'active' then 1 when 'inactive' then 2 when 'blocked' then 3 else 4 end")
                 ->orderByRaw("case role when 'owner' then 0 when 'manager' then 1 else 2 end")
-                ->orderBy('status')
                 ->orderBy('id');
 
             if ($this->filterStatus) {
