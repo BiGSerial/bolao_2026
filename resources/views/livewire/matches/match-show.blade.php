@@ -332,11 +332,11 @@ $cardInfo = function (string $card): array {
                 <div class="relative">
                     @if($match->homeTeam?->crest)
                         <img src="{{ $match->homeTeam->crest }}"
-                             alt="{{ $match->homeTeam->name }}"
+                             alt="{{ $match->homeTeam?->localized_name ?? $match->homeTeam->name }}"
                              class="h-16 w-16 sm:h-20 sm:w-20 object-contain drop-shadow-xl transition-transform duration-300 hover:scale-105">
                     @else
                         <div class="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl bg-blue-900/30 border border-blue-700/30 flex items-center justify-center text-xl font-black text-blue-300">
-                            {{ $match->homeTeam?->tla ?? '?' }}
+                            {{ $match->homeTeam?->abbr3 ?? '?' }}
                         </div>
                     @endif
                     @if($isLive && $homeScore > $awayScore)
@@ -450,11 +450,11 @@ $cardInfo = function (string $card): array {
                 <div class="relative">
                     @if($match->awayTeam?->crest)
                         <img src="{{ $match->awayTeam->crest }}"
-                             alt="{{ $match->awayTeam->name }}"
+                             alt="{{ $match->awayTeam?->localized_name ?? $match->awayTeam->name }}"
                              class="h-16 w-16 sm:h-20 sm:w-20 object-contain drop-shadow-xl transition-transform duration-300 hover:scale-105">
                     @else
                         <div class="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl bg-rose-900/30 border border-rose-700/30 flex items-center justify-center text-xl font-black text-rose-300">
-                            {{ $match->awayTeam?->tla ?? '?' }}
+                            {{ $match->awayTeam?->abbr3 ?? '?' }}
                         </div>
                     @endif
                     @if($isLive && $awayScore > $homeScore)
@@ -573,7 +573,7 @@ $cardInfo = function (string $card): array {
             <button @click="current = 0"
                     class="flex-1 py-2 text-[11px] font-bold uppercase tracking-wider rounded-t-lg border-b-2 transition-all"
                     :class="current === 0 ? 'border-blue-400 text-blue-400' : 'border-slate-800 text-slate-600'">
-                {{ $match->homeTeam?->tla ?? 'Casa' }}
+                {{ $match->homeTeam?->abbr3 ?? 'Casa' }}
             </button>
             <button @click="current = 1"
                     class="flex-1 py-2 text-[11px] font-bold uppercase tracking-wider rounded-t-lg border-b-2 transition-all"
@@ -583,7 +583,7 @@ $cardInfo = function (string $card): array {
             <button @click="current = 2"
                     class="flex-1 py-2 text-[11px] font-bold uppercase tracking-wider rounded-t-lg border-b-2 transition-all"
                     :class="current === 2 ? 'border-blue-400 text-blue-400' : 'border-slate-800 text-slate-600'">
-                {{ $match->awayTeam?->tla ?? 'Visit.' }}
+                {{ $match->awayTeam?->abbr3 ?? 'Visit.' }}
             </button>
         </div>
 
@@ -932,9 +932,9 @@ $cardInfo = function (string $card): array {
                 @endphp
                 <a href="{{ route('matches.show', ['match' => $liveMatch->id]) }}" class="block py-2 hover:bg-white/[0.02] -mx-2 px-2 rounded-md transition-colors">
                     <div class="flex items-center justify-between gap-2">
-                        <span class="text-xs text-slate-300 truncate">{{ $liveMatch->homeTeam?->short_name ?? $liveMatch->homeTeam?->tla ?? '?' }}</span>
+                        <span class="text-xs text-slate-300 truncate">{{ $liveMatch->homeTeam?->localized_name ?? $liveMatch->homeTeam?->short_name ?? $liveMatch->homeTeam?->abbr3 ?? '?' }}</span>
                         <span class="font-bc font-extrabold text-xl text-white">{{ $liveMatch->home_score_full_time ?? 0 }}–{{ $liveMatch->away_score_full_time ?? 0 }}</span>
-                        <span class="text-xs text-slate-300 truncate text-right">{{ $liveMatch->awayTeam?->short_name ?? $liveMatch->awayTeam?->tla ?? '?' }}</span>
+                        <span class="text-xs text-slate-300 truncate text-right">{{ $liveMatch->awayTeam?->localized_name ?? $liveMatch->awayTeam?->short_name ?? $liveMatch->awayTeam?->abbr3 ?? '?' }}</span>
                     </div>
                     <div class="mt-1 flex items-center justify-between text-[10px] text-bolao-muted">
                         <span class="text-bolao-red">{{ $minute ? $minute . "'" : 'AO VIVO' }}</span>

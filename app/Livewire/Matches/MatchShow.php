@@ -283,7 +283,7 @@ class MatchShow extends Component
             ->where('competition_id', (int) $this->match->competition_id)
             ->where('competition_season_id', (int) $this->match->competition_season_id)
             ->whereIn('status', ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'])
-            ->with(['homeTeam:id,name,short_name,tla,crest', 'awayTeam:id,name,short_name,tla,crest'])
+            ->with(['homeTeam:id,name,canonical_name_br,short_name,tla,crest', 'awayTeam:id,name,canonical_name_br,short_name,tla,crest'])
             ->orderBy('utc_date')
             ->limit(3)
             ->get();

@@ -31,7 +31,7 @@ class SyncWorldCupMatchDetailsService
         $this->apiFootballSyncType = 'not_used';
 
         $matches = $this->matchesToSync($limit, $competitionCode, $seasonYear, $stage)
-            ->loadMissing(['homeTeam:id,name,short_name,tla', 'awayTeam:id,name,short_name,tla']);
+            ->loadMissing(['homeTeam:id,name,canonical_name_br,short_name,tla', 'awayTeam:id,name,canonical_name_br,short_name,tla']);
 
         $updated = 0;
         $errors = 0;

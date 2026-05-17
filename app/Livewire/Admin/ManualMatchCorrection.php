@@ -82,7 +82,7 @@ class ManualMatchCorrection extends Component
         $this->assertAdmin();
 
         $matches = FootballMatch::query()
-            ->with(['homeTeam:id,name,short_name,tla,crest', 'awayTeam:id,name,short_name,tla,crest'])
+            ->with(['homeTeam:id,name,canonical_name_br,short_name,tla,crest', 'awayTeam:id,name,canonical_name_br,short_name,tla,crest'])
             ->when($this->search, fn ($q) => $q->where(fn ($q) =>
                 $q->whereHas('homeTeam', fn ($q) => $q->where('name', 'like', '%'.$this->search.'%'))
                   ->orWhereHas('awayTeam', fn ($q) => $q->where('name', 'like', '%'.$this->search.'%'))

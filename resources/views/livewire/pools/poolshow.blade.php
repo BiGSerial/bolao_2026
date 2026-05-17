@@ -636,11 +636,11 @@
                             {{-- Home team --}}
                             <div class="flex flex-1 items-center gap-2 min-w-0">
                                 @if($match->homeTeam?->crest)
-                                <img src="{{ $match->homeTeam->crest }}" alt="{{ $match->homeTeam->tla }}"
+                                <img src="{{ $match->homeTeam->crest }}" alt="{{ $match->homeTeam->abbr3 }}"
                                      class="h-8 w-8 object-contain shrink-0 drop-shadow" loading="lazy">
                                 @else
                                 <div class="h-8 w-8 shrink-0 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-300">
-                                    {{ $match->homeTeam?->tla ?? '?' }}
+                                    {{ $match->homeTeam?->abbr3 ?? '?' }}
                                 </div>
                                 @endif
                                 <div class="min-w-0">
@@ -678,11 +678,11 @@
                             {{-- Away team --}}
                             <div class="flex flex-1 items-center gap-2 min-w-0 flex-row-reverse">
                                 @if($match->awayTeam?->crest)
-                                <img src="{{ $match->awayTeam->crest }}" alt="{{ $match->awayTeam->tla }}"
+                                <img src="{{ $match->awayTeam->crest }}" alt="{{ $match->awayTeam->abbr3 }}"
                                      class="h-8 w-8 object-contain shrink-0 drop-shadow" loading="lazy">
                                 @else
                                 <div class="h-8 w-8 shrink-0 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-300">
-                                    {{ $match->awayTeam?->tla ?? '?' }}
+                                    {{ $match->awayTeam?->abbr3 ?? '?' }}
                                 </div>
                                 @endif
                                 <div class="min-w-0 text-right">
@@ -1057,10 +1057,10 @@
                     <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-3 pl-2">
                         <div class="flex min-w-0 items-center gap-2">
                             @if($match->homeTeam?->crest)
-                            <img src="{{ $match->homeTeam->crest }}" alt="{{ $match->homeTeam?->tla ?? 'Mandante' }}" class="h-7 w-7 shrink-0 object-contain drop-shadow">
+                            <img src="{{ $match->homeTeam->crest }}" alt="{{ $match->homeTeam?->abbr3 ?? 'Mandante' }}" class="h-7 w-7 shrink-0 object-contain drop-shadow">
                             @else
                             <div class="h-7 w-7 shrink-0 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-300">
-                                {{ $match->homeTeam?->tla ?? '?' }}
+                                {{ $match->homeTeam?->abbr3 ?? '?' }}
                             </div>
                             @endif
                             <p class="truncate text-base font-semibold text-slate-100">{{ $this->teamDisplayName($match->homeTeam) }}</p>
@@ -1084,10 +1084,10 @@
                         <div class="flex min-w-0 items-center justify-end gap-2">
                             <p class="truncate text-right text-base font-semibold text-slate-100">{{ $this->teamDisplayName($match->awayTeam) }}</p>
                             @if($match->awayTeam?->crest)
-                            <img src="{{ $match->awayTeam->crest }}" alt="{{ $match->awayTeam?->tla ?? 'Visitante' }}" class="h-7 w-7 shrink-0 object-contain drop-shadow">
+                            <img src="{{ $match->awayTeam->crest }}" alt="{{ $match->awayTeam?->abbr3 ?? 'Visitante' }}" class="h-7 w-7 shrink-0 object-contain drop-shadow">
                             @else
                             <div class="h-7 w-7 shrink-0 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-300">
-                                {{ $match->awayTeam?->tla ?? '?' }}
+                                {{ $match->awayTeam?->abbr3 ?? '?' }}
                             </div>
                             @endif
                         </div>
