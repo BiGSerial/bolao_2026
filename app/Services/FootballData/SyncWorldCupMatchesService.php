@@ -84,6 +84,7 @@ class SyncWorldCupMatchesService
                 $utcDate = Carbon::parse($matchPayload['utcDate'])->utc();
                 $incomingStatus = (string) ($matchPayload['status'] ?? '');
                 $resolvedStatus = $this->resolveIncomingStatus($existing, $incomingStatus);
+                $keepPaidFinalScore = $this->shouldKeepPaidApiFinalScore($existing);
                 $attributes = [
                     'competition_id' => $competition->id,
                     'competition_season_id' => $season->id,
