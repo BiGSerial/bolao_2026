@@ -190,6 +190,11 @@
                 <i class="ti ti-tournament text-xl shrink-0"></i>
                 <span class="sb-label text-sm">Grupos</span>
             </a>
+            <a href="{{ route('admin.teams.canonical') }}"
+               class="{{ $sbAdmin(request()->routeIs('admin.teams.*')) }}">
+                <i class="ti ti-shield text-xl shrink-0"></i>
+                <span class="sb-label text-sm">Times</span>
+            </a>
             <a href="{{ route('admin.api.sync') }}"
                class="{{ $sbAdmin(request()->routeIs('admin.api.*')) }}">
                 <i class="ti ti-refresh text-xl shrink-0"></i>
@@ -532,6 +537,10 @@
         <a href="{{ route('admin.pools.control') }}" @click="sidebar = false"
            class="{{ $sbAdmin(request()->routeIs('admin.pools.*')) }}">
             <i class="ti ti-tournament text-xl shrink-0"></i><span class="text-sm">Grupos</span>
+        </a>
+        <a href="{{ route('admin.teams.canonical') }}" @click="sidebar = false"
+           class="{{ $sbAdmin(request()->routeIs('admin.teams.*')) }}">
+            <i class="ti ti-shield text-xl shrink-0"></i><span class="text-sm">Times</span>
         </a>
         <a href="{{ route('admin.api.sync') }}" @click="sidebar = false"
            class="{{ $sbAdmin(request()->routeIs('admin.api.*')) }}">

@@ -40,6 +40,144 @@ $aLineup  = $this->awayLineup();
 $hBench   = $this->homeBench();
 $aBench   = $this->awayBench();
 $bookings = $this->bookings();
+$goalEvents = $this->goalEvents();
+$apiEvents = (array) data_get($match->detail?->payload, '_api_football.events', []);
+$sidebarPoolContext = $this->sidebarPoolContext();
+$sidebarLiveContext = $this->sidebarLiveContext();
+$sidebarPool = $sidebarPoolContext['pool'] ?? null;
+$sidebarTopRankings = $sidebarPoolContext['top_rankings'] ?? collect();
+$sidebarLiveMatches = $sidebarLiveContext['live'] ?? collect();
+$sidebarLiveMinutes = $sidebarLiveContext['liveMinutes'] ?? [];
+$sidebarLiveMatchStats = $sidebarLiveContext['liveMatchStats'] ?? [];
+
+$normalizePlayer = static fn (?string $name): string => mb_strtolower(trim((string) $name));
+$toTokens = static function (?string $name): array {
+    $clean = mb_strtolower(trim((string) $name));
+    $clean = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $clean);
+    $parts = array_values(array_filter(preg_split('/\s+/u', (string) $clean)));
+    return $parts ?: [];
+};
+$buildGoalScorerList = static function (array $events, callable $normalizePlayer, callable $toTokens, string $side): array {
+    $rows = [];
+    foreach ($events as $g) {
+        if (!empty($g['is_disallowed'])) continue;
+        $isSide = $side === 'home' ? !empty($g['is_home']) : !empty($g['is_away']);
+        if (!$isSide) continue;
+        $playerRaw = (string) ($g['player_name'] ?? '');
+        $normalized = $normalizePlayer($playerRaw);
+        if ($normalized === '') continue;
+        $tokens = $toTokens($playerRaw);
+        $rows[] = [
+            'normalized' => $normalized,
+            'first_initial' => $tokens !== [] ? mb_substr($tokens[0], 0, 1) : '',
+            'last_name' => $tokens !== [] ? end($tokens) : '',
+        ];
+    }
+    return $rows;
+};
+$countGoalsForLineupPlayer = static function (?string $lineupName, array $scorers, callable $normalizePlayer, callable $toTokens): int {
+    $name = $normalizePlayer($lineupName);
+    if ($name === '') return 0;
+    $tokens = $toTokens((string) $lineupName);
+    $firstInitial = $tokens !== [] ? mb_substr($tokens[0], 0, 1) : '';
+    $lastName = $tokens !== [] ? end($tokens) : '';
+    $count = 0;
+    foreach ($scorers as $scorer) {
+        if (($scorer['normalized'] ?? '') === $name) {
+            $count++;
+            continue;
+        }
+        $scorerLast = (string) ($scorer['last_name'] ?? '');
+        $scorerInitial = (string) ($scorer['first_initial'] ?? '');
+        if ($lastName !== '' && $scorerLast !== '' && $lastName === $scorerLast) {
+            if ($firstInitial === '' || $scorerInitial === '' || $firstInitial === $scorerInitial) $count++;
+        }
+    }
+    return $count;
+};
+$homeGoalScorers = $buildGoalScorerList($goalEvents, $normalizePlayer, $toTokens, 'home');
+$awayGoalScorers = $buildGoalScorerList($goalEvents, $normalizePlayer, $toTokens, 'away');
+$buildCardList = static function (array $bookings, array $apiEvents, callable $normalizePlayer, callable $toTokens, string $side) use ($match): array {
+    $rows = [];
+
+    foreach ($bookings as $b) {
+        $teamName = (string) data_get($b, 'team.name', data_get($b, 'teamName', ''));
+        $isSide = $side === 'home'
+            ? $teamName === (string) ($match->homeTeam?->name ?? '')
+            : $teamName === (string) ($match->awayTeam?->name ?? '');
+        if (! $isSide) continue;
+
+        $playerRaw = (string) data_get($b, 'player.name', data_get($b, 'playerName', data_get($b, 'player', '')));
+        $cardRaw = mb_strtolower((string) data_get($b, 'card', data_get($b, 'type', data_get($b, 'detail', ''))));
+        if ($playerRaw === '' || $cardRaw === '') continue;
+
+        $normalized = $normalizePlayer($playerRaw);
+        $tokens = $toTokens($playerRaw);
+        $rows[] = [
+            'normalized' => $normalized,
+            'first_initial' => $tokens !== [] ? mb_substr($tokens[0], 0, 1) : '',
+            'last_name' => $tokens !== [] ? end($tokens) : '',
+            'is_red' => str_contains($cardRaw, 'red'),
+            'is_yellow' => str_contains($cardRaw, 'yellow'),
+        ];
+    }
+
+    foreach ($apiEvents as $event) {
+        $type = mb_strtolower((string) data_get($event, 'type', ''));
+        $detail = mb_strtolower((string) data_get($event, 'detail', ''));
+        if (! str_contains($type, 'card') && ! str_contains($detail, 'card') && !str_contains($detail, 'yellow') && !str_contains($detail, 'red')) {
+            continue;
+        }
+        $teamName = (string) data_get($event, 'team.name', '');
+        $isSide = $side === 'home'
+            ? $teamName === (string) ($match->homeTeam?->name ?? '')
+            : $teamName === (string) ($match->awayTeam?->name ?? '');
+        if (! $isSide) continue;
+
+        $playerRaw = (string) data_get($event, 'player.name', '');
+        if ($playerRaw === '') continue;
+        $normalized = $normalizePlayer($playerRaw);
+        $tokens = $toTokens($playerRaw);
+        $rows[] = [
+            'normalized' => $normalized,
+            'first_initial' => $tokens !== [] ? mb_substr($tokens[0], 0, 1) : '',
+            'last_name' => $tokens !== [] ? end($tokens) : '',
+            'is_red' => str_contains($detail, 'red'),
+            'is_yellow' => str_contains($detail, 'yellow'),
+        ];
+    }
+
+    return $rows;
+};
+$countCardsForLineupPlayer = static function (?string $lineupName, array $cards, callable $normalizePlayer, callable $toTokens): array {
+    $name = $normalizePlayer($lineupName);
+    if ($name === '') return ['yellow' => 0, 'red' => 0];
+    $tokens = $toTokens((string) $lineupName);
+    $firstInitial = $tokens !== [] ? mb_substr($tokens[0], 0, 1) : '';
+    $lastName = $tokens !== [] ? end($tokens) : '';
+    $yellow = 0;
+    $red = 0;
+    foreach ($cards as $card) {
+        $isMatch = false;
+        if (($card['normalized'] ?? '') === $name) {
+            $isMatch = true;
+        } else {
+            $cardLast = (string) ($card['last_name'] ?? '');
+            $cardInitial = (string) ($card['first_initial'] ?? '');
+            if ($lastName !== '' && $cardLast !== '' && $lastName === $cardLast) {
+                if ($firstInitial === '' || $cardInitial === '' || $firstInitial === $cardInitial) {
+                    $isMatch = true;
+                }
+            }
+        }
+        if (! $isMatch) continue;
+        if (!empty($card['is_red'])) $red++;
+        elseif (!empty($card['is_yellow'])) $yellow++;
+    }
+    return ['yellow' => $yellow, 'red' => $red];
+};
+$homeCards = $buildCardList($bookings, $apiEvents, $normalizePlayer, $toTokens, 'home');
+$awayCards = $buildCardList($bookings, $apiEvents, $normalizePlayer, $toTokens, 'away');
 
 // Calculate percentage bar widths for each stat row
 $bar = function (string $h, string $a): array {
@@ -115,9 +253,23 @@ $cardInfo = function (string $card): array {
     }
     .mobile-swiper { display: block; }
     .desktop-grid  { display: none;  }
+    .lineup-sub-out {
+        background: rgba(15, 23, 42, 0.22) !important;
+        border-color: rgba(51, 65, 85, 0.45) !important;
+    }
+    .lineup-sub-out .lineup-dim {
+        opacity: .52;
+    }
+    .sub-arrow-icon {
+        width: 14px;
+        height: 14px;
+        display: inline-block;
+        filter: drop-shadow(0 0 4px rgba(0, 0, 0, .45));
+        flex-shrink: 0;
+    }
     @media (min-width: 768px) {
         .mobile-swiper { display: none; }
-        .desktop-grid  { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 1rem; padding: 1rem 1rem 0; }
+        .desktop-grid  { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; padding: 1rem 1rem 0; }
     }
 </style>
 @endonce
@@ -319,6 +471,56 @@ $cardInfo = function (string $card): array {
         </div>
     </div>
 
+    @if(!empty($goalEvents))
+    <div class="mx-4 mb-3 card match-panel-flat match-panel-accent rounded-xl overflow-hidden border border-slate-700/40">
+        <div class="px-4 py-2.5 border-b border-slate-800/60">
+            <p class="text-xs font-bold uppercase tracking-wider text-emerald-300">Gols da Partida</p>
+        </div>
+        <div class="divide-y divide-slate-800/50">
+            @foreach($goalEvents as $g)
+            @php
+                $goalLabel = (string) ($g['detail'] ?? 'Goal');
+                $goalLabelLower = strtolower($goalLabel);
+                $goalBadge = !empty($g['is_disallowed'])
+                    ? 'Anulado'
+                    : (str_contains($goalLabelLower, 'penalty')
+                    ? 'Pênalti'
+                    : (str_contains($goalLabelLower, 'own') ? 'Gol Contra' : 'Gol'));
+                $goalMinute = $g['minute'] ?? '?';
+                $goalExtra = $g['extra_minute'] ?? null;
+                $goalTeamClass = $g['is_home'] ? 'text-blue-400' : (($g['is_away'] ?? false) ? 'text-rose-400' : 'text-slate-400');
+            @endphp
+            <div class="flex items-center gap-3 px-4 py-3 {{ !empty($g['is_disallowed']) ? 'opacity-70' : '' }}">
+                <span class="w-12 shrink-0 text-sm font-black tabular-nums text-emerald-300 text-right">
+                    {{ $goalMinute }}'@if($goalExtra)+{{ $goalExtra }}@endif
+                </span>
+                <span class="h-6 w-6 shrink-0 flex items-center justify-center overflow-hidden">
+                    @if(!empty($g['is_home']) && $match->homeTeam?->crest)
+                        <img src="{{ $match->homeTeam->crest }}" alt="" class="h-6 w-6 object-contain">
+                    @elseif(!empty($g['is_away']) && $match->awayTeam?->crest)
+                        <img src="{{ $match->awayTeam->crest }}" alt="" class="h-6 w-6 object-contain">
+                    @else
+                        <span class="text-[10px] leading-none">🏳️</span>
+                    @endif
+                </span>
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <p class="text-sm font-semibold text-slate-100 truncate {{ !empty($g['is_disallowed']) ? 'line-through decoration-red-400/80' : '' }}">{{ $g['player_name'] }}</p>
+                    </div>
+                    <p class="text-[11px] {{ $goalTeamClass }} truncate">
+                        {{ $g['team_name'] ?: 'Time não identificado' }}
+                        @if(!empty($g['assist_name']))
+                            · Assist: {{ $g['assist_name'] }}
+                        @endif
+                    </p>
+                </div>
+                <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide {{ !empty($g['is_disallowed']) ? 'text-red-300' : 'text-emerald-300' }}">{{ $goalBadge }}</span>
+            </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
     {{-- ════════════════════════════════
          MOBILE SWIPER  (hidden on md+)
     ════════════════════════════════ --}}
@@ -402,10 +604,27 @@ $cardInfo = function (string $card): array {
                         <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 mb-2">Titulares</p>
                         <div class="space-y-1">
                             @forelse($hLineup as $p)
-                            <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-3 py-2.5">
-                                <div class="flex items-center gap-2">
-                                    <span class="text-[10px] font-black text-blue-300 tabular-nums shrink-0">{{ $p['number'] ?? '—' }}</span>
-                                    <span class="text-xs font-semibold text-slate-200 truncate">{{ $p['name'] }}</span>
+                            @php
+                                $hGoals = $countGoalsForLineupPlayer($p['name'] ?? '', $homeGoalScorers, $normalizePlayer, $toTokens);
+                                $hCardCount = $countCardsForLineupPlayer($p['name'] ?? '', $homeCards, $normalizePlayer, $toTokens);
+                            @endphp
+                            <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-3 py-2.5 {{ !empty($p['sub_out']) ? 'lineup-sub-out ml-3 mt-1' : '' }}">
+                                <div class="flex items-center justify-between gap-2">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <span class="lineup-dim text-[10px] font-black text-blue-300 tabular-nums shrink-0">{{ $p['number'] ?? '—' }}</span>
+                                        <span class="lineup-dim text-xs font-semibold text-slate-200 truncate">{{ $p['name'] }}</span>
+                                        <span class="inline-flex items-center gap-0.5 shrink-0">
+                                            @for($c=0;$c<($hCardCount['yellow'] ?? 0);$c++)<span class="card-rect bg-amber-400" style="--card-shadow: rgba(251,191,36,.4)"></span>@endfor
+                                            @for($c=0;$c<($hCardCount['red'] ?? 0);$c++)<span class="card-rect bg-red-500" style="--card-shadow: rgba(239,68,68,.4)"></span>@endfor
+                                            @if($hGoals > 0)
+                                                @for($g=0;$g<$hGoals;$g++)<span class="text-[11px] leading-none">⚽</span>@endfor
+                                            @endif
+                                        </span>
+                                    </div>
+                                    <span class="shrink-0">
+                                        @if(!empty($p['sub_in']))<svg viewBox="0 0 24 24" class="sub-arrow-icon" aria-hidden="true"><path fill="#22c55e" d="M12 3l8 8h-5v10H9V11H4z"/></svg>@endif
+                                        @if(!empty($p['sub_out']))<svg viewBox="0 0 24 24" class="sub-arrow-icon" aria-hidden="true"><path fill="#ef4444" d="M12 21l-8-8h5V3h6v10h5z"/></svg>@endif
+                                    </span>
                                 </div>
                             </div>
                             @empty
@@ -482,10 +701,28 @@ $cardInfo = function (string $card): array {
                         <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 mb-2 text-right">Titulares</p>
                         <div class="space-y-1">
                             @forelse($aLineup as $p)
-                            <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-3 py-2.5">
-                                <div class="flex items-center gap-2">
-                                    <span class="text-xs font-semibold text-slate-200 truncate text-right flex-1">{{ $p['name'] }}</span>
-                                    <span class="text-[10px] font-black text-blue-300 tabular-nums shrink-0">{{ $p['number'] ?? '—' }}</span>
+                            @php
+                                $aGoals = $countGoalsForLineupPlayer($p['name'] ?? '', $awayGoalScorers, $normalizePlayer, $toTokens);
+                                $aCardCount = $countCardsForLineupPlayer($p['name'] ?? '', $awayCards, $normalizePlayer, $toTokens);
+                            @endphp
+                            <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-3 py-2.5 {{ !empty($p['sub_out']) ? 'lineup-sub-out mt-1' : '' }}"
+                                 @if(!empty($p['sub_out'])) style="margin-right: 0.75rem; width: calc(100% - 0.75rem);" @endif>
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="w-4 shrink-0 inline-flex items-center justify-center">
+                                        @if(!empty($p['sub_in']))<svg viewBox="0 0 24 24" class="sub-arrow-icon" aria-hidden="true"><path fill="#22c55e" d="M12 3l8 8h-5v10H9V11H4z"/></svg>@endif
+                                        @if(!empty($p['sub_out']))<svg viewBox="0 0 24 24" class="sub-arrow-icon" aria-hidden="true"><path fill="#ef4444" d="M12 21l-8-8h5V3h6v10h5z"/></svg>@endif
+                                    </span>
+                                    <div class="flex items-center gap-2 min-w-0 justify-end flex-1">
+                                        <span class="inline-flex items-center gap-0.5 shrink-0">
+                                            @for($c=0;$c<($aCardCount['yellow'] ?? 0);$c++)<span class="card-rect bg-amber-400" style="--card-shadow: rgba(251,191,36,.4)"></span>@endfor
+                                            @for($c=0;$c<($aCardCount['red'] ?? 0);$c++)<span class="card-rect bg-red-500" style="--card-shadow: rgba(239,68,68,.4)"></span>@endfor
+                                            @if($aGoals > 0)
+                                                @for($g=0;$g<$aGoals;$g++)<span class="text-[11px] leading-none">⚽</span>@endfor
+                                            @endif
+                                        </span>
+                                        <span class="lineup-dim text-xs font-semibold text-slate-200 truncate text-right max-w-[11rem]">{{ $p['name'] }}</span>
+                                        <span class="lineup-dim text-[10px] font-black text-blue-300 tabular-nums shrink-0">{{ $p['number'] ?? '—' }}</span>
+                                    </div>
                                 </div>
                             </div>
                             @empty
@@ -539,10 +776,27 @@ $cardInfo = function (string $card): array {
                 <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 mb-2">Titulares</p>
                 <div class="space-y-1">
                     @forelse($hLineup as $p)
-                    <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-3 py-2.5">
-                        <div class="flex items-center gap-2">
-                            <span class="text-[10px] font-black text-blue-300 tabular-nums shrink-0">{{ $p['number'] ?? '—' }}</span>
-                            <span class="text-xs font-semibold text-slate-200 truncate">{{ $p['name'] }}</span>
+                    @php
+                        $hGoals = $countGoalsForLineupPlayer($p['name'] ?? '', $homeGoalScorers, $normalizePlayer, $toTokens);
+                        $hCardCount = $countCardsForLineupPlayer($p['name'] ?? '', $homeCards, $normalizePlayer, $toTokens);
+                    @endphp
+                    <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-3 py-2.5 {{ !empty($p['sub_out']) ? 'lineup-sub-out ml-3 mt-1' : '' }}">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span class="lineup-dim text-[10px] font-black text-blue-300 tabular-nums shrink-0">{{ $p['number'] ?? '—' }}</span>
+                                <span class="lineup-dim text-xs font-semibold text-slate-200 truncate">{{ $p['name'] }}</span>
+                                <span class="inline-flex items-center gap-0.5 shrink-0">
+                                    @for($c=0;$c<($hCardCount['yellow'] ?? 0);$c++)<span class="card-rect bg-amber-400" style="--card-shadow: rgba(251,191,36,.4)"></span>@endfor
+                                    @for($c=0;$c<($hCardCount['red'] ?? 0);$c++)<span class="card-rect bg-red-500" style="--card-shadow: rgba(239,68,68,.4)"></span>@endfor
+                                    @if($hGoals > 0)
+                                        @for($g=0;$g<$hGoals;$g++)<span class="text-[11px] leading-none">⚽</span>@endfor
+                                    @endif
+                                </span>
+                            </div>
+                            <span class="shrink-0">
+                                @if(!empty($p['sub_in']))<svg viewBox="0 0 24 24" class="sub-arrow-icon" aria-hidden="true"><path fill="#22c55e" d="M12 3l8 8h-5v10H9V11H4z"/></svg>@endif
+                                @if(!empty($p['sub_out']))<svg viewBox="0 0 24 24" class="sub-arrow-icon" aria-hidden="true"><path fill="#ef4444" d="M12 21l-8-8h5V3h6v10h5z"/></svg>@endif
+                            </span>
                         </div>
                     </div>
                     @empty
@@ -617,10 +871,28 @@ $cardInfo = function (string $card): array {
                 <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 mb-2 text-right">Titulares</p>
                 <div class="space-y-1">
                     @forelse($aLineup as $p)
-                    <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-3 py-2.5">
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs font-semibold text-slate-200 truncate text-right flex-1">{{ $p['name'] }}</span>
-                            <span class="text-[10px] font-black text-blue-300 tabular-nums shrink-0">{{ $p['number'] ?? '—' }}</span>
+                    @php
+                        $aGoals = $countGoalsForLineupPlayer($p['name'] ?? '', $awayGoalScorers, $normalizePlayer, $toTokens);
+                        $aCardCount = $countCardsForLineupPlayer($p['name'] ?? '', $awayCards, $normalizePlayer, $toTokens);
+                    @endphp
+                    <div class="rounded-lg border border-blue-800/30 bg-blue-950/20 px-3 py-2.5 {{ !empty($p['sub_out']) ? 'lineup-sub-out mt-1' : '' }}"
+                         @if(!empty($p['sub_out'])) style="margin-right: 0.75rem; width: calc(100% - 0.75rem);" @endif>
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="w-4 shrink-0 inline-flex items-center justify-center">
+                                @if(!empty($p['sub_in']))<svg viewBox="0 0 24 24" class="sub-arrow-icon" aria-hidden="true"><path fill="#22c55e" d="M12 3l8 8h-5v10H9V11H4z"/></svg>@endif
+                                @if(!empty($p['sub_out']))<svg viewBox="0 0 24 24" class="sub-arrow-icon" aria-hidden="true"><path fill="#ef4444" d="M12 21l-8-8h5V3h6v10h5z"/></svg>@endif
+                            </span>
+                            <div class="flex items-center gap-2 min-w-0 justify-end flex-1">
+                                <span class="inline-flex items-center gap-0.5 shrink-0">
+                                    @for($c=0;$c<($aCardCount['yellow'] ?? 0);$c++)<span class="card-rect bg-amber-400" style="--card-shadow: rgba(251,191,36,.4)"></span>@endfor
+                                    @for($c=0;$c<($aCardCount['red'] ?? 0);$c++)<span class="card-rect bg-red-500" style="--card-shadow: rgba(239,68,68,.4)"></span>@endfor
+                                    @if($aGoals > 0)
+                                        @for($g=0;$g<$aGoals;$g++)<span class="text-[11px] leading-none">⚽</span>@endfor
+                                    @endif
+                                </span>
+                                <span class="lineup-dim text-xs font-semibold text-slate-200 truncate text-right max-w-[11rem]">{{ $p['name'] }}</span>
+                                <span class="lineup-dim text-[10px] font-black text-blue-300 tabular-nums shrink-0">{{ $p['number'] ?? '—' }}</span>
+                            </div>
                         </div>
                     </div>
                     @empty
@@ -644,5 +916,75 @@ $cardInfo = function (string $card): array {
         </section>
 
     </div>{{-- /desktop-grid --}}
+
+    {{-- ── Right panel data — re-renderizado pelo Livewire, lido por JS ── --}}
+    <div id="rp-live-data" class="hidden" aria-hidden="true">
+        @if($sidebarLiveMatches->isNotEmpty())
+        <div class="rp-widget">
+            <div class="rp-widget-header">
+                <span>Jogos Ao Vivo</span>
+            </div>
+            <div class="rp-widget-body divide-y divide-white/[0.04]">
+                @foreach($sidebarLiveMatches as $liveMatch)
+                @php
+                    $minute = $sidebarLiveMinutes[$liveMatch->id] ?? null;
+                    $stats = $sidebarLiveMatchStats[$liveMatch->id] ?? [];
+                @endphp
+                <a href="{{ route('matches.show', ['match' => $liveMatch->id]) }}" class="block py-2 hover:bg-white/[0.02] -mx-2 px-2 rounded-md transition-colors">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-xs text-slate-300 truncate">{{ $liveMatch->homeTeam?->short_name ?? $liveMatch->homeTeam?->tla ?? '?' }}</span>
+                        <span class="font-bc font-extrabold text-xl text-white">{{ $liveMatch->home_score_full_time ?? 0 }}–{{ $liveMatch->away_score_full_time ?? 0 }}</span>
+                        <span class="text-xs text-slate-300 truncate text-right">{{ $liveMatch->awayTeam?->short_name ?? $liveMatch->awayTeam?->tla ?? '?' }}</span>
+                    </div>
+                    <div class="mt-1 flex items-center justify-between text-[10px] text-bolao-muted">
+                        <span class="text-bolao-red">{{ $minute ? $minute . "'" : 'AO VIVO' }}</span>
+                        <span>
+                            @if(isset($stats['shots_home'], $stats['shots_away']) && $stats['shots_home'] !== null)
+                                Finalizações {{ $stats['shots_home'] }}-{{ $stats['shots_away'] }}
+                            @elseif(isset($stats['poss_home'], $stats['poss_away']) && $stats['poss_home'] !== null)
+                                Posse {{ $stats['poss_home'] }}%-{{ $stats['poss_away'] }}%
+                            @else
+                                Atualizando…
+                            @endif
+                        </span>
+                    </div>
+                </a>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
+        @if($sidebarPool && $sidebarTopRankings->isNotEmpty())
+        <div class="rp-widget">
+            <div class="rp-widget-header">
+                <span>Ranking ao Vivo</span>
+                <a href="{{ route('pools.show', $sidebarPool->slug) }}"
+                   class="text-bolao-accent hover:text-bolao-accent2 transition-colors normal-case tracking-normal text-[11px] font-semibold">
+                    ver →
+                </a>
+            </div>
+            <div class="rp-widget-body divide-y divide-white/[0.04]">
+                @foreach($sidebarTopRankings as $row)
+                @php
+                    $isMe = (int) ($row->user_id ?? 0) === (int) auth()->id();
+                    $publicName = $row->user?->display_name ?: $row->user?->name ?: 'Participante';
+                    $rankPos = (int) ($row->position ?? ($loop->index + 1));
+                @endphp
+                <div class="rp-rank-row py-2 flex items-center justify-between gap-2 {{ $isMe ? 'bg-amber-400/10 -mx-2 px-2 rounded-md' : '' }}"
+                     data-rank-key="pool-{{ $sidebarPool->id }}-user-{{ $row->user_id }}"
+                     data-rank-pos="{{ $rankPos }}">
+                    <div class="min-w-0 flex items-center gap-2">
+                        <span class="w-5 text-center font-bc font-extrabold text-xs {{ $isMe ? 'text-amber-300' : 'text-bolao-muted2' }}">{{ $rankPos }}º</span>
+                        <span class="text-xs truncate {{ $isMe ? 'text-white font-semibold' : 'text-slate-300' }}">{{ $publicName }}@if($isMe) ★@endif</span>
+                    </div>
+                    <span class="shrink-0 inline-flex items-center justify-center min-w-[38px] rounded-md border border-amber-400/35 bg-amber-400/15 px-1.5 py-0.5 font-bc font-extrabold text-[11px] text-amber-300">
+                        {{ (int) ($row->points_total ?? 0) }}
+                    </span>
+                </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
+    </div>
 
 </div>

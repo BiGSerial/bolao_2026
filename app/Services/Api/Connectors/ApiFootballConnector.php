@@ -6,6 +6,7 @@ use App\Models\FootballMatch;
 use App\Services\ApiFootball\ApiFootballClient;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class ApiFootballConnector
 {
@@ -130,7 +131,8 @@ class ApiFootballConnector
 
     private function normalize(string $value): string
     {
-        $normalized = mb_strtoupper($value);
+        $normalized = Str::ascii($value);
+        $normalized = mb_strtoupper($normalized);
         $normalized = preg_replace('/[^A-Z0-9 ]/u', '', $normalized) ?? '';
 
         return trim($normalized);
@@ -174,6 +176,12 @@ class ApiFootballConnector
 
     private function teamNamesMatch(string $baseRaw, string $baseCanonical, string $fixtureRaw, string $fixtureCanonical): bool
     {
+        $baseKey = $this->teamAliasKey($baseRaw, $baseCanonical);
+        $fixtureKey = $this->teamAliasKey($fixtureRaw, $fixtureCanonical);
+        if ($baseKey !== null && $fixtureKey !== null && $baseKey === $fixtureKey) {
+            return true;
+        }
+
         if ($baseRaw === $fixtureRaw || $baseCanonical === $fixtureCanonical) {
             return true;
         }
@@ -184,6 +192,83 @@ class ApiFootballConnector
             }
         }
 
+        // Normaliza variações comuns no futebol brasileiro (ex.: "CA MINEIRO" vs "ATLETICO MG").
+        $normalizeSynonyms = static function (string $name): string {
+            $n = preg_replace('/\s+/', ' ', trim($name)) ?: $name;
+            $replace = [
+                'ATLETICO MINEIRO' => 'ATLETICO MG',
+                'MINEIRO' => 'ATLETICO MG',
+                'VASCO DA GAMA' => 'VASCO',
+                'MIRASSOL FC' => 'MIRASSOL',
+            ];
+            foreach ($replace as $from => $to) {
+                if ($n === $from || str_contains($n, $from)) {
+                    $n = str_replace($from, $to, $n);
+                }
+            }
+            return trim($n);
+        };
+
+        $baseSyn = $normalizeSynonyms($baseCanonical !== '' ? $baseCanonical : $baseRaw);
+        $fixtureSyn = $normalizeSynonyms($fixtureCanonical !== '' ? $fixtureCanonical : $fixtureRaw);
+        if ($baseSyn !== '' && $fixtureSyn !== '') {
+            $compact = static fn (string $v): string => preg_replace('/\s+/', '', $v) ?? $v;
+            $baseCmp = $compact($baseSyn);
+            $fixtureCmp = $compact($fixtureSyn);
+            if ($baseSyn === $fixtureSyn
+                || $baseCmp === $fixtureCmp
+                || str_contains($baseSyn, $fixtureSyn)
+                || str_contains($fixtureSyn, $baseSyn)
+                || str_contains($baseCmp, $fixtureCmp)
+                || str_contains($fixtureCmp, $baseCmp)) {
+                return true;
+            }
+        }
+
         return false;
+    }
+
+    private function teamAliasKey(string $raw, string $canonical): ?string
+    {
+        $value = trim($canonical !== '' ? $canonical : $raw);
+        if ($value === '') {
+            return null;
+        }
+
+        $value = preg_replace('/\s+/', ' ', $value) ?? $value;
+        $compact = preg_replace('/[^A-Z0-9]/', '', $value) ?? $value;
+
+        $aliases = [
+            'ATLETICO_MG' => ['ATLETICOMG', 'ATLETICOMINEIRO', 'CAMINEIRO', 'MINEIRO'],
+            'ATLETICO_PR' => ['ATLETICOPARANAENSE', 'CAPARANAENSE', 'CAP', 'ATHLETICOPR', 'ATHLETICOPARANAENSE'],
+            'BAHIA' => ['BAHIA', 'ECBAHIA'],
+            'BOTAFOGO' => ['BOTAFOGO', 'BOTAFOGOFR'],
+            'CHAPECOENSE' => ['CHAPECOENSE', 'CHAPECOENSESC', 'CHAPECOENSEAF'],
+            'CORINTHIANS' => ['CORINTHIANS', 'SCCORINTHIANSPAULISTA', 'CORINTHIANSPAULISTA'],
+            'CORITIBA' => ['CORITIBA', 'CORITIBAFBC'],
+            'CRUZEIRO' => ['CRUZEIRO', 'CRUZEIROEC'],
+            'FLAMENGO' => ['FLAMENGO', 'CRFLAMENGO'],
+            'FLUMINENSE' => ['FLUMINENSE', 'FLUMINENSEFC'],
+            'GREMIO' => ['GREMIO', 'GREMIOFBPA'],
+            'INTERNACIONAL' => ['INTERNACIONAL', 'SCINTERNACIONAL'],
+            'MIRASSOL' => ['MIRASSOL', 'MIRASSOLFC'],
+            'PALMEIRAS' => ['PALMEIRAS', 'SEPALMEIRAS'],
+            'RB_BRAGANTINO' => ['RBBRAGANTINO', 'REDBULLBRAGANTINO', 'BRAGANTINO'],
+            'REMO' => ['REMO', 'CLUBEDOREMO'],
+            'SANTOS' => ['SANTOS', 'SANTOSFC'],
+            'SAO_PAULO' => ['SAOPAULO', 'SAOPAULOFC'],
+            'VASCO' => ['VASCODAGAMA', 'CRVASCODAGAMA', 'VASCO'],
+            'VITORIA' => ['VITORIA', 'ECVITORIA'],
+        ];
+
+        foreach ($aliases as $key => $group) {
+            foreach ($group as $alias) {
+                if ($compact === $alias || str_contains($compact, $alias) || str_contains($alias, $compact)) {
+                    return $key;
+                }
+            }
+        }
+
+        return null;
     }
 }

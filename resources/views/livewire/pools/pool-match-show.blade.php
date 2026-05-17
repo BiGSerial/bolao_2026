@@ -1,5 +1,6 @@
 @php
-$isLive     = in_array($match->status, ['IN_PLAY', 'PAUSED']);
+$isLive     = in_array($match->status, ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT']);
+$isPreMatch = $match->status === 'PRE_MATCH';
 $isFinished = $match->status === 'FINISHED';
 $hasScore   = $isLive || $isFinished;
 
@@ -30,6 +31,67 @@ $aLineup  = $this->awayLineup();
 $hBench   = $this->homeBench();
 $aBench   = $this->awayBench();
 $bookings = $this->bookings();
+$goalEvents = $this->goalEvents();
+
+$normalizePlayer = static fn (?string $name): string => mb_strtolower(trim((string) $name));
+$toTokens = static function (?string $name): array {
+    $clean = mb_strtolower(trim((string) $name));
+    $clean = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $clean);
+    $parts = array_values(array_filter(preg_split('/\s+/u', (string) $clean)));
+    return $parts ?: [];
+};
+$buildGoalScorerList = static function (array $events, callable $normalizePlayer, callable $toTokens, string $side): array {
+    $rows = [];
+    foreach ($events as $g) {
+        if (!empty($g['is_disallowed'])) {
+            continue;
+        }
+        $isSide = $side === 'home' ? !empty($g['is_home']) : !empty($g['is_away']);
+        if (!$isSide) {
+            continue;
+        }
+        $playerRaw = (string) ($g['player_name'] ?? '');
+        $normalized = $normalizePlayer($playerRaw);
+        if ($normalized === '') {
+            continue;
+        }
+        $tokens = $toTokens($playerRaw);
+        $rows[] = [
+            'normalized' => $normalized,
+            'tokens' => $tokens,
+            'first_initial' => $tokens !== [] ? mb_substr($tokens[0], 0, 1) : '',
+            'last_name' => $tokens !== [] ? end($tokens) : '',
+        ];
+    }
+    return $rows;
+};
+$countGoalsForLineupPlayer = static function (?string $lineupName, array $scorers, callable $normalizePlayer, callable $toTokens): int {
+    $name = $normalizePlayer($lineupName);
+    if ($name === '') {
+        return 0;
+    }
+    $tokens = $toTokens((string) $lineupName);
+    $firstInitial = $tokens !== [] ? mb_substr($tokens[0], 0, 1) : '';
+    $lastName = $tokens !== [] ? end($tokens) : '';
+    $count = 0;
+    foreach ($scorers as $scorer) {
+        if (($scorer['normalized'] ?? '') === $name) {
+            $count++;
+            continue;
+        }
+        $scorerLast = (string) ($scorer['last_name'] ?? '');
+        $scorerInitial = (string) ($scorer['first_initial'] ?? '');
+        if ($lastName !== '' && $scorerLast !== '' && $lastName === $scorerLast) {
+            if ($firstInitial === '' || $scorerInitial === '' || $firstInitial === $scorerInitial) {
+                $count++;
+            }
+        }
+    }
+    return $count;
+};
+
+$homeGoalScorers = $buildGoalScorerList($goalEvents, $normalizePlayer, $toTokens, 'home');
+$awayGoalScorers = $buildGoalScorerList($goalEvents, $normalizePlayer, $toTokens, 'away');
 
 // Calculate percentage bar widths for each stat row
 $bar = function (string $h, string $a): array {
@@ -90,10 +152,20 @@ $cardInfo = function (string $card): array {
         height: 18px;
         box-shadow: 0 2px 8px var(--card-shadow, rgba(0,0,0,.5));
     }
+    .lineup-sub-flash {
+        animation: lineupSubFlash 1.15s ease;
+        border-color: rgba(251, 191, 36, 0.45) !important;
+        background: rgba(251, 191, 36, 0.08) !important;
+    }
+    @keyframes lineupSubFlash {
+        0% { background: rgba(251, 191, 36, 0.28); }
+        100% { background: rgba(251, 191, 36, 0.08); }
+    }
 </style>
 @endonce
 
 <div class="animate-fade-in pb-8"
+     @if($isLive || $isPreMatch) wire:poll.10s="refreshLiveData" @endif
      x-data="{
          tab: 'stats',
          barsReady: false,
@@ -403,33 +475,67 @@ $cardInfo = function (string $card): array {
                     <div class="grid grid-cols-2 {{ !($i + 1 === $maxL) ? 'border-b border-slate-800/50' : '' }}">
 
                         {{-- Home player --}}
-                        <div class="flex items-center gap-2 px-3 py-3 border-r border-slate-800/50 min-w-0">
+                        <div class="flex items-center gap-2 px-3 py-3 border-r border-slate-800/50 min-w-0 {{ !empty($hp['sub_in']) ? 'lineup-sub-flash' : '' }}">
                             @if($hp)
+                            @php
+                                $hGoals = $countGoalsForLineupPlayer($hp['name'] ?? '', $homeGoalScorers, $normalizePlayer, $toTokens);
+                            @endphp
                             <div class="shrink-0 h-6 w-6 rounded-md bg-blue-950/60 border border-blue-800/40
                                         flex items-center justify-center text-[10px] font-black text-blue-300 tabular-nums">
                                 {{ $hp['number'] ?? '?' }}
                             </div>
                             <div class="min-w-0 flex-1">
-                                <p class="text-[12px] font-semibold text-slate-200 truncate leading-tight">{{ $hp['name'] }}</p>
-                                <span class="inline-block text-[9px] font-bold uppercase tracking-wider text-blue-500 leading-tight">
-                                    {{ $posAbbr($hp['position']) }}
-                                </span>
+                                <div class="flex items-center gap-1.5">
+                                    <p class="text-[12px] font-semibold text-slate-200 truncate leading-tight">{{ $hp['name'] }}</p>
+                                    @if($hGoals > 0)
+                                        <span class="inline-flex items-center gap-0.5 shrink-0" aria-label="Gols do jogador">
+                                            @for($g = 0; $g < $hGoals; $g++)
+                                                <span class="text-[11px] leading-none">⚽</span>
+                                            @endfor
+                                        </span>
+                                    @endif
+                                </div>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="inline-block text-[9px] font-bold uppercase tracking-wider text-blue-500 leading-tight">
+                                        {{ $posAbbr($hp['position']) }}
+                                    </span>
+                                    @if(!empty($hp['sub_in']))
+                                        <span class="text-[9px] font-bold uppercase tracking-wide text-amber-300">ENTROU</span>
+                                    @endif
+                                </div>
                             </div>
                             @endif
                         </div>
 
                         {{-- Away player --}}
-                        <div class="flex items-center gap-2 px-3 py-3 min-w-0 flex-row-reverse">
+                        <div class="flex items-center gap-2 px-3 py-3 min-w-0 flex-row-reverse {{ !empty($ap['sub_in']) ? 'lineup-sub-flash' : '' }}">
                             @if($ap)
+                            @php
+                                $aGoals = $countGoalsForLineupPlayer($ap['name'] ?? '', $awayGoalScorers, $normalizePlayer, $toTokens);
+                            @endphp
                             <div class="shrink-0 h-6 w-6 rounded-md bg-rose-950/60 border border-rose-800/40
                                         flex items-center justify-center text-[10px] font-black text-rose-300 tabular-nums">
                                 {{ $ap['number'] ?? '?' }}
                             </div>
                             <div class="min-w-0 flex-1 text-right">
-                                <p class="text-[12px] font-semibold text-slate-200 truncate leading-tight">{{ $ap['name'] }}</p>
-                                <span class="inline-block text-[9px] font-bold uppercase tracking-wider text-rose-500 leading-tight">
-                                    {{ $posAbbr($ap['position']) }}
-                                </span>
+                                <div class="flex items-center justify-end gap-1.5">
+                                    @if($aGoals > 0)
+                                        <span class="inline-flex items-center gap-0.5 shrink-0" aria-label="Gols do jogador">
+                                            @for($g = 0; $g < $aGoals; $g++)
+                                                <span class="text-[11px] leading-none">⚽</span>
+                                            @endfor
+                                        </span>
+                                    @endif
+                                    <p class="text-[12px] font-semibold text-slate-200 truncate leading-tight">{{ $ap['name'] }}</p>
+                                </div>
+                                <div class="flex items-center justify-end gap-1.5">
+                                    @if(!empty($ap['sub_in']))
+                                        <span class="text-[9px] font-bold uppercase tracking-wide text-amber-300">ENTROU</span>
+                                    @endif
+                                    <span class="inline-block text-[9px] font-bold uppercase tracking-wider text-rose-500 leading-tight">
+                                        {{ $posAbbr($ap['position']) }}
+                                    </span>
+                                </div>
                             </div>
                             @endif
                         </div>
@@ -484,7 +590,7 @@ $cardInfo = function (string $card): array {
              x-transition:enter-end="opacity-100 translate-y-0"
              class="space-y-3">
 
-            @if(empty($bookings))
+            @if(empty($bookings) && empty($goalEvents))
                 <div class="card p-12 text-center">
                     <div class="text-5xl mb-4">🟨</div>
                     <p class="text-slate-300 font-semibold">Sem ocorrências</p>
@@ -492,6 +598,46 @@ $cardInfo = function (string $card): array {
                 </div>
             @else
             <div class="card overflow-hidden divide-y divide-slate-800/50">
+                @foreach($goalEvents as $g)
+                @php
+                    $goalLabel = (string) ($g['detail'] ?? 'Goal');
+                    $goalLabelLower = strtolower($goalLabel);
+                    $goalBadge = !empty($g['is_disallowed'])
+                        ? 'Anulado'
+                        : (str_contains($goalLabelLower, 'penalty')
+                            ? 'Pênalti'
+                            : (str_contains($goalLabelLower, 'own') ? 'Gol Contra' : 'Gol'));
+                    $goalMinute = $g['minute'] ?? '?';
+                    $goalExtra = $g['extra_minute'] ?? null;
+                    $goalTeamClass = $g['is_home'] ? 'text-blue-400' : (($g['is_away'] ?? false) ? 'text-rose-400' : 'text-slate-400');
+                @endphp
+                <div class="flex items-center gap-3 px-4 py-3.5 {{ !empty($g['is_disallowed']) ? 'bg-red-500/[0.08] opacity-75' : 'bg-emerald-500/[0.06]' }}">
+                    <div class="w-9 shrink-0 text-right">
+                        <span class="text-sm font-black tabular-nums text-emerald-300 leading-none">
+                            {{ $goalMinute }}'@if($goalExtra)+{{ $goalExtra }}@endif
+                        </span>
+                    </div>
+                    <div class="shrink-0 w-px h-8 bg-slate-800/80"></div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-1.5 min-w-0">
+                            @if(!empty($g['is_home']) && $match->homeTeam?->crest)
+                                <img src="{{ $match->homeTeam->crest }}" alt="" class="h-3.5 w-3.5 object-contain shrink-0">
+                            @elseif(!empty($g['is_away']) && $match->awayTeam?->crest)
+                                <img src="{{ $match->awayTeam->crest }}" alt="" class="h-3.5 w-3.5 object-contain shrink-0">
+                            @endif
+                            <p class="text-sm font-semibold text-slate-100 truncate leading-tight {{ !empty($g['is_disallowed']) ? 'line-through decoration-red-400/80' : '' }}">{{ $g['player_name'] }}</p>
+                        </div>
+                        <p class="text-[11px] {{ $goalTeamClass }} truncate">
+                            {{ $g['team_name'] ?: 'Time não identificado' }}
+                            @if(!empty($g['assist_name']))
+                                · Assist: {{ $g['assist_name'] }}
+                            @endif
+                        </p>
+                    </div>
+                    <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide {{ !empty($g['is_disallowed']) ? 'text-red-300' : 'text-emerald-300' }}">{{ $goalBadge }}</span>
+                </div>
+                @endforeach
+
                 @foreach($bookings as $b)
                 @php
                     $cardType = data_get($b, 'card', 'YELLOW_CARD');

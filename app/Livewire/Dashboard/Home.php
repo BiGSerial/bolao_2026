@@ -311,6 +311,7 @@ class Home extends Component
         $selectedPoolRanking     = null;
         $selectedPoolMemberCount = 0;
         $selectedPoolTopRankings = collect();
+        $selectedPoolRealtimeStats = null;
 
         if ($this->selectedPoolId) {
             $selectedPool = $myMembershipsForComp->firstWhere('pool_id', $this->selectedPoolId)?->pool;
@@ -356,6 +357,11 @@ class Home extends Component
                         $selectedPoolTopRankings = $topFour->concat(collect([$myRanking]))->values();
                     }
                 }
+
+                $selectedPoolRealtimeStats = $this->buildRealtimeStatsForPool(
+                    pool: $selectedPool,
+                    userId: $userId,
+                );
             }
         }
 
@@ -476,6 +482,7 @@ class Home extends Component
             'selectedPoolRanking',
             'selectedPoolMemberCount',
             'selectedPoolTopRankings',
+            'selectedPoolRealtimeStats',
             'heroMatch',
             'heroPrediction',
             'heroCanPredict',
@@ -574,19 +581,20 @@ class Home extends Component
         $points = 0;
         if ($this->resultOf($homeReal, $awayReal) === $this->resultOf($predictionHome, $predictionAway)) {
             $points += $correctResultPoints;
-            $hitHomeGoals = $predictionHome === $homeReal;
-            $hitAwayGoals = $predictionAway === $awayReal;
-            $correctGoalsMode = (string) ($pool->correct_goals_mode ?? 'both_teams');
-            if ($correctGoalsMode === 'winner_only') {
-                if ($homeReal > $awayReal && $hitHomeGoals) {
-                    $points += $correctGoalsPoints;
-                } elseif ($awayReal > $homeReal && $hitAwayGoals) {
-                    $points += $correctGoalsPoints;
-                }
-            } else {
-                if ($hitHomeGoals || $hitAwayGoals) {
-                    $points += $correctGoalsPoints;
-                }
+        }
+
+        $hitHomeGoals = $predictionHome === $homeReal;
+        $hitAwayGoals = $predictionAway === $awayReal;
+        $correctGoalsMode = (string) ($pool->correct_goals_mode ?? 'both_teams');
+        if ($correctGoalsMode === 'winner_only') {
+            if ($homeReal > $awayReal && $hitHomeGoals) {
+                $points += $correctGoalsPoints;
+            } elseif ($awayReal > $homeReal && $hitAwayGoals) {
+                $points += $correctGoalsPoints;
+            }
+        } else {
+            if ($hitHomeGoals || $hitAwayGoals) {
+                $points += $correctGoalsPoints;
             }
         }
 
@@ -596,5 +604,81 @@ class Home extends Component
     private function resultOf(int $home, int $away): string
     {
         return $home > $away ? 'H' : ($home < $away ? 'A' : 'D');
+    }
+
+    private function buildRealtimeStatsForPool(Pool $pool, int $userId): array
+    {
+        $stats = [
+            'points_total' => 0,
+            'exact_scores' => 0,
+            'correct_results' => 0,
+            'correct_home_goals' => 0,
+            'correct_away_goals' => 0,
+            'predictions_counted' => 0,
+        ];
+
+        $predictions = Prediction::query()
+            ->where('pool_id', $pool->id)
+            ->where('user_id', $userId)
+            ->with('footballMatch:id,home_score_full_time,away_score_full_time')
+            ->get();
+
+        $correctGoalsMode = (string) ($pool->correct_goals_mode ?? 'both_teams');
+
+        foreach ($predictions as $prediction) {
+            $match = $prediction->footballMatch;
+            if (! $match) {
+                continue;
+            }
+
+            $homeReal = is_numeric($match->home_score_full_time) ? (int) $match->home_score_full_time : null;
+            $awayReal = is_numeric($match->away_score_full_time) ? (int) $match->away_score_full_time : null;
+            if ($homeReal === null || $awayReal === null) {
+                continue;
+            }
+
+            $predictionHome = (int) $prediction->home_score;
+            $predictionAway = (int) $prediction->away_score;
+            $stats['predictions_counted']++;
+
+            $isExact = $predictionHome === $homeReal && $predictionAway === $awayReal;
+            if ($isExact) {
+                $stats['exact_scores']++;
+            }
+
+            $hasCorrectResult = $this->resultOf($homeReal, $awayReal) === $this->resultOf($predictionHome, $predictionAway);
+            if ($hasCorrectResult) {
+                $stats['correct_results']++;
+            }
+
+            if (! $isExact) {
+                $hitHomeGoals = $predictionHome === $homeReal;
+                $hitAwayGoals = $predictionAway === $awayReal;
+
+                if ($correctGoalsMode === 'winner_only') {
+                    if ($homeReal > $awayReal && $hitHomeGoals) {
+                        $stats['correct_home_goals']++;
+                    } elseif ($awayReal > $homeReal && $hitAwayGoals) {
+                        $stats['correct_away_goals']++;
+                    }
+                } else {
+                    if ($hitHomeGoals) {
+                        $stats['correct_home_goals']++;
+                    } elseif ($hitAwayGoals) {
+                        $stats['correct_away_goals']++;
+                    }
+                }
+            }
+
+            $stats['points_total'] += (int) ($this->calculatePerMatchPoints(
+                pool: $pool,
+                predictionHome: $predictionHome,
+                predictionAway: $predictionAway,
+                homeReal: $homeReal,
+                awayReal: $awayReal,
+            ) ?? 0);
+        }
+
+        return $stats;
     }
 }

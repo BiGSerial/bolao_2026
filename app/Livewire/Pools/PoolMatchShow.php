@@ -65,6 +65,60 @@ class PoolMatchShow extends Component
     }
 
     /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function goalEvents(): array
+    {
+        $events = (array) data_get($this->match->detail?->payload, '_api_football.events', []);
+        $homeName = (string) ($this->match->homeTeam?->name ?? '');
+        $awayName = (string) ($this->match->awayTeam?->name ?? '');
+
+        return collect($events)
+            ->filter(function ($event): bool {
+                $type = strtolower((string) data_get($event, 'type', ''));
+                $detail = strtolower((string) data_get($event, 'detail', ''));
+
+                return $type === 'goal'
+                    || str_contains($detail, 'goal')
+                    || str_contains($detail, 'penalty')
+                    || str_contains($detail, 'own goal');
+            })
+            ->map(function ($event) use ($homeName, $awayName): array {
+                $teamName = (string) data_get($event, 'team.name', '');
+                $playerName = (string) data_get($event, 'player.name', '');
+                $assistName = (string) data_get($event, 'assist.name', '');
+                $detail = (string) data_get($event, 'detail', '');
+                $minute = data_get($event, 'time.elapsed');
+                $extra = data_get($event, 'time.extra');
+                $isHome = $teamName !== '' && $teamName === $homeName;
+                $isAway = $teamName !== '' && $teamName === $awayName;
+                $detailLower = mb_strtolower($detail);
+                $isDisallowed = str_contains($detailLower, 'disallow')
+                    || str_contains($detailLower, 'cancel')
+                    || str_contains($detailLower, 'annul')
+                    || str_contains($detailLower, 'var');
+
+                return [
+                    'team_name' => $teamName,
+                    'player_name' => $playerName !== '' ? $playerName : 'Jogador não identificado',
+                    'assist_name' => $assistName,
+                    'detail' => $detail,
+                    'minute' => is_numeric($minute) ? (int) $minute : null,
+                    'extra_minute' => is_numeric($extra) ? (int) $extra : null,
+                    'is_home' => $isHome,
+                    'is_away' => $isAway,
+                    'is_disallowed' => $isDisallowed,
+                ];
+            })
+            ->sortBy([
+                fn (array $e) => (int) ($e['minute'] ?? 999),
+                fn (array $e) => (int) ($e['extra_minute'] ?? 0),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
      * @return array<int, array<string, string>>
      */
     public function statsRows(): array
@@ -154,13 +208,21 @@ class PoolMatchShow extends Component
      */
     private function normalizedLineup(string $side): array
     {
-        $items = data_get($this->match->detail?->payload, "{$side}Team.lineup", []);
+        $payload = $this->match->detail?->payload ?? [];
+        $items = data_get($payload, "{$side}Team.lineup", []);
+        if (empty($items)) {
+            $apiLineups = (array) data_get($payload, '_api_football.lineups', []);
+            $index = $side === 'home' ? 0 : 1;
+            $items = (array) data_get($apiLineups, "{$index}.startXI", []);
+        }
 
-        return collect($items)->map(fn ($p) => [
-            'name' => (string) data_get($p, 'name', 'Jogador'),
-            'number' => data_get($p, 'shirtNumber'),
-            'position' => (string) data_get($p, 'position', '?'),
+        $lineup = collect($items)->map(fn ($p) => [
+            'name' => (string) data_get($p, 'name', data_get($p, 'player.name', 'Jogador')),
+            'number' => data_get($p, 'shirtNumber', data_get($p, 'player.number')),
+            'position' => (string) data_get($p, 'position', data_get($p, 'player.pos', '?')),
         ])->values()->all();
+
+        return $this->applyLiveSubstitutionsToLineup($lineup, $side);
     }
 
     /**
@@ -168,13 +230,65 @@ class PoolMatchShow extends Component
      */
     private function normalizedBench(string $side): array
     {
-        $items = data_get($this->match->detail?->payload, "{$side}Team.bench", []);
+        $payload = $this->match->detail?->payload ?? [];
+        $items = data_get($payload, "{$side}Team.bench", []);
+        if (empty($items)) {
+            $apiLineups = (array) data_get($payload, '_api_football.lineups', []);
+            $index = $side === 'home' ? 0 : 1;
+            $items = (array) data_get($apiLineups, "{$index}.substitutes", []);
+        }
 
         return collect($items)->map(fn ($p) => [
-            'name' => (string) data_get($p, 'name', 'Reserva'),
-            'number' => data_get($p, 'shirtNumber'),
-            'position' => (string) data_get($p, 'position', '?'),
+            'name' => (string) data_get($p, 'name', data_get($p, 'player.name', 'Reserva')),
+            'number' => data_get($p, 'shirtNumber', data_get($p, 'player.number')),
+            'position' => (string) data_get($p, 'position', data_get($p, 'player.pos', '?')),
         ])->values()->all();
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $lineup
+     * @return array<int, array<string, mixed>>
+     */
+    private function applyLiveSubstitutionsToLineup(array $lineup, string $side): array
+    {
+        $events = (array) data_get($this->match->detail?->payload, '_api_football.events', []);
+        if ($events === []) {
+            return $lineup;
+        }
+
+        $teamName = $side === 'home'
+            ? (string) ($this->match->homeTeam?->name ?? '')
+            : (string) ($this->match->awayTeam?->name ?? '');
+
+        $normalize = static fn (?string $name): string => mb_strtolower(trim((string) $name));
+
+        foreach ($events as $event) {
+            $type = mb_strtolower((string) data_get($event, 'type', ''));
+            $detail = mb_strtolower((string) data_get($event, 'detail', ''));
+            $eventTeam = (string) data_get($event, 'team.name', '');
+
+            $isSub = str_contains($type, 'subst') || str_contains($detail, 'substitution');
+            if (! $isSub || $eventTeam === '' || $eventTeam !== $teamName) {
+                continue;
+            }
+
+            $outName = (string) data_get($event, 'player.name', '');
+            $inName = (string) data_get($event, 'assist.name', '');
+            if ($outName === '' || $inName === '') {
+                continue;
+            }
+
+            $outNorm = $normalize($outName);
+            foreach ($lineup as $idx => $player) {
+                if ($normalize((string) ($player['name'] ?? '')) === $outNorm) {
+                    $lineup[$idx]['name'] = $inName;
+                    $lineup[$idx]['sub_in'] = true;
+                    break;
+                }
+            }
+        }
+
+        return $lineup;
     }
 
     private function formatStatValue(mixed $value, string $key): string
@@ -196,10 +310,10 @@ class PoolMatchShow extends Component
      */
     private function fallbackStatsRowsFromScorePayload(array $payload): array
     {
-        $fullHome = (int) data_get($payload, 'score.fullTime.home', $this->match->home_score_full_time ?? 0);
-        $fullAway = (int) data_get($payload, 'score.fullTime.away', $this->match->away_score_full_time ?? 0);
-        $halfHome = (int) data_get($payload, 'score.halfTime.home', $this->match->home_score_half_time ?? 0);
-        $halfAway = (int) data_get($payload, 'score.halfTime.away', $this->match->away_score_half_time ?? 0);
+        $fullHome = (int) ($this->match->home_score_full_time ?? data_get($payload, 'score.fullTime.home', 0));
+        $fullAway = (int) ($this->match->away_score_full_time ?? data_get($payload, 'score.fullTime.away', 0));
+        $halfHome = (int) ($this->match->home_score_half_time ?? data_get($payload, 'score.halfTime.home', 0));
+        $halfAway = (int) ($this->match->away_score_half_time ?? data_get($payload, 'score.halfTime.away', 0));
 
         $bookings = (array) data_get($payload, 'bookings', []);
         $homeName = (string) ($this->match->homeTeam?->name ?? '');

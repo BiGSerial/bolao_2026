@@ -360,6 +360,31 @@
         </div>
     </a>
 </section>
+@elseif($selectedPool)
+<section class="px-4 md:px-6 pt-5">
+    <div class="flex items-center justify-between mb-3">
+        <h2 class="font-bc font-bold text-[18px] uppercase tracking-[0.5px] text-white">Minha Posição</h2>
+        <a href="{{ route('pools.show', $selectedPool->slug) }}"
+           class="text-[13px] font-medium text-bolao-accent hover:text-bolao-accent2 transition-colors">
+            Ranking →
+        </a>
+    </div>
+    <a href="{{ route('pools.show', $selectedPool->slug) }}"
+       class="flex items-center gap-[14px] bg-bolao-bg3 border border-white/[0.12] rounded-xl px-4 py-[14px] hover:border-bolao-accent2 transition-colors">
+        <div>
+            <div class="text-[12px] text-bolao-muted mb-0.5">Classificação</div>
+            <div class="font-bc font-extrabold text-[28px] leading-none text-bolao-muted2">—</div>
+        </div>
+        <div class="flex-1 min-w-0">
+            <div class="font-semibold text-[15px] text-white leading-tight truncate">{{ auth()->user()->public_name }}</div>
+            <div class="text-[13px] text-bolao-muted mt-0.5">Aguardando cálculo do ranking</div>
+        </div>
+        <div class="text-right">
+            <div class="font-bc font-extrabold text-[24px] leading-none text-bolao-muted2">—</div>
+            <div class="text-[11px] text-bolao-muted mt-0.5">pts</div>
+        </div>
+    </a>
+</section>
 @elseif($myMembershipsForComp->isEmpty())
 <section class="px-4 md:px-6 pt-5">
     <div class="bg-bolao-bg2 border border-white/[0.07] rounded-xl px-4 py-5 text-center">
@@ -549,6 +574,38 @@
     </div>
 </div>
 @endif
+@if($selectedPool && $selectedPoolTopRankings->isNotEmpty())
+<div class="rp-widget">
+    <div class="rp-widget-header">
+        <span>Ranking ao Vivo</span>
+        <a href="{{ route('pools.show', $selectedPool->slug) }}"
+           class="text-bolao-accent hover:text-bolao-accent2 transition-colors normal-case tracking-normal text-[11px] font-semibold">
+            ver →
+        </a>
+    </div>
+    <div class="rp-widget-body divide-y divide-white/[0.04]">
+        @foreach($selectedPoolTopRankings as $row)
+        @php
+            $isMe = (int) ($row->user_id ?? 0) === (int) auth()->id();
+            $publicName = $row->user?->display_name ?: $row->user?->name ?: 'Participante';
+            $rankPos = (int) ($row->position ?? ($loop->index + 1));
+        @endphp
+        <div class="rp-rank-row py-2 flex items-center justify-between gap-2 {{ $isMe ? 'bg-amber-400/10 -mx-2 px-2 rounded-md' : '' }}"
+             data-rank-key="pool-{{ $selectedPool->id }}-user-{{ $row->user_id }}"
+             data-rank-pos="{{ $rankPos }}">
+            <div class="min-w-0 flex items-center gap-2">
+                <span class="w-5 text-center font-bc font-extrabold text-xs {{ $isMe ? 'text-amber-300' : 'text-bolao-muted2' }}">{{ $rankPos }}º</span>
+                <span class="text-xs truncate {{ $isMe ? 'text-white font-semibold' : 'text-slate-300' }}">{{ $publicName }}@if($isMe) ★@endif</span>
+            </div>
+            <span class="shrink-0 inline-flex items-center justify-center min-w-[38px] rounded-md border border-amber-400/35 bg-amber-400/15 px-1.5 py-0.5 font-bc font-extrabold text-[11px] text-amber-300">
+                {{ (int) ($row->points_total ?? 0) }}
+            </span>
+        </div>
+        @endforeach
+    </div>
+</div>
+@endif
+
 @if($upcoming->isNotEmpty())
 <div class="rp-widget">
     <div class="rp-widget-header">
@@ -595,11 +652,21 @@
 
 @if($selectedPool)
 @php
-    $statsPoints = (int) ($selectedPoolRanking?->points_total ?? 0);
-    $statsExact = (int) ($selectedPoolRanking?->exact_scores ?? 0);
-    $statsCorrect = (int) ($selectedPoolRanking?->correct_results ?? 0);
-    $statsGoals = (int) ($selectedPoolRanking?->correct_home_goals ?? 0) + (int) ($selectedPoolRanking?->correct_away_goals ?? 0);
-    $statsCounted = (int) ($selectedPoolRanking?->predictions_counted ?? 0);
+    $statsBase = is_array($selectedPoolRealtimeStats ?? null)
+        ? $selectedPoolRealtimeStats
+        : [
+            'points_total' => (int) ($selectedPoolRanking?->points_total ?? 0),
+            'exact_scores' => (int) ($selectedPoolRanking?->exact_scores ?? 0),
+            'correct_results' => (int) ($selectedPoolRanking?->correct_results ?? 0),
+            'correct_home_goals' => (int) ($selectedPoolRanking?->correct_home_goals ?? 0),
+            'correct_away_goals' => (int) ($selectedPoolRanking?->correct_away_goals ?? 0),
+            'predictions_counted' => (int) ($selectedPoolRanking?->predictions_counted ?? 0),
+        ];
+    $statsPoints = (int) ($statsBase['points_total'] ?? 0);
+    $statsExact = (int) ($statsBase['exact_scores'] ?? 0);
+    $statsCorrect = (int) ($statsBase['correct_results'] ?? 0);
+    $statsGoals = (int) ($statsBase['correct_home_goals'] ?? 0) + (int) ($statsBase['correct_away_goals'] ?? 0);
+    $statsCounted = (int) ($statsBase['predictions_counted'] ?? 0);
     $statsMisses = max(0, $statsCounted - $statsCorrect);
     $statsAccuracy = $statsCounted > 0 ? (int) round(($statsCorrect / $statsCounted) * 100) : 0;
 

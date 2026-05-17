@@ -7,11 +7,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Team extends Model
 {
-    protected $fillable = ['provider', 'external_id', 'name', 'short_name', 'tla', 'crest'];
+    protected $fillable = ['provider', 'external_id', 'name', 'canonical_name_br', 'short_name', 'tla', 'crest'];
 
     public function getLocalizedNameAttribute(): string
     {
-        $raw = $this->short_name ?: $this->name ?: 'Equipe';
+        $raw = $this->canonical_name_br ?: $this->short_name ?: $this->name ?: 'Equipe';
 
         $map = [
             'Mexico' => 'México',

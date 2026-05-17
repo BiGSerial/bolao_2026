@@ -61,6 +61,8 @@ return [
     'match_details' => [
         'sync_limit_per_minute' => 8,
         'stale_minutes' => 15,
+        // Jogos ao vivo recebem refresh mais agressivo para lineup/eventos.
+        'live_stale_minutes' => (int) env('FOOTBALL_DATA_DETAILS_LIVE_STALE_MINUTES', 10),
         'backfill_finished_days' => (int) env('FOOTBALL_DATA_DETAILS_BACKFILL_DAYS', 120),
     ],
 ];

@@ -10,6 +10,7 @@ use App\Models\Team;
 use App\Models\TeamProviderRef;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 class SyncWorldCupMatchesService
@@ -80,7 +81,7 @@ class SyncWorldCupMatchesService
 
                 $score = $matchPayload['score'] ?? [];
                 $utcDate = Carbon::parse($matchPayload['utcDate'])->utc();
-                $status = (string) ($matchPayload['status'] ?? '');
+                $incomingStatus = (string) ($matchPayload['status'] ?? '');
                 $attributes = [
                     'competition_id' => $competition->id,
                     'competition_season_id' => $season->id,
@@ -88,25 +89,28 @@ class SyncWorldCupMatchesService
                     'away_team_id' => $away->id,
                     'utc_date' => $utcDate,
                     'local_date' => $utcDate->copy()->timezone('America/Sao_Paulo'),
-                    'status' => $status,
+                    // Status/tempo/intervalo em partidas existentes ficam sob responsabilidade da API paga.
+                    'status' => $existing?->status ?: $incomingStatus,
                     'matchday' => $matchPayload['matchday'] ?? null,
                     'stage' => $matchPayload['stage'] ?? null,
                     'group_name' => $matchPayload['group'] ?? null,
                     'score_winner' => $score['winner'] ?? null,
                     'score_duration' => $score['duration'] ?? null,
-                    'home_score_full_time' => data_get($score, 'fullTime.home'),
-                    'away_score_full_time' => data_get($score, 'fullTime.away'),
-                    'home_score_half_time' => data_get($score, 'halfTime.home'),
-                    'away_score_half_time' => data_get($score, 'halfTime.away'),
-                    'home_score_extra_time' => data_get($score, 'extraTime.home'),
-                    'away_score_extra_time' => data_get($score, 'extraTime.away'),
-                    'home_score_penalties' => data_get($score, 'penalties.home'),
-                    'away_score_penalties' => data_get($score, 'penalties.away'),
+                    'home_score_full_time' => $this->coalescePayloadValue($existing, $score, 'fullTime.home', 'home_score_full_time'),
+                    'away_score_full_time' => $this->coalescePayloadValue($existing, $score, 'fullTime.away', 'away_score_full_time'),
+                    'home_score_half_time' => $this->coalescePayloadValue($existing, $score, 'halfTime.home', 'home_score_half_time'),
+                    'away_score_half_time' => $this->coalescePayloadValue($existing, $score, 'halfTime.away', 'away_score_half_time'),
+                    'home_score_extra_time' => $this->coalescePayloadValue($existing, $score, 'extraTime.home', 'home_score_extra_time'),
+                    'away_score_extra_time' => $this->coalescePayloadValue($existing, $score, 'extraTime.away', 'away_score_extra_time'),
+                    'home_score_penalties' => $this->coalescePayloadValue($existing, $score, 'penalties.home', 'home_score_penalties'),
+                    'away_score_penalties' => $this->coalescePayloadValue($existing, $score, 'penalties.away', 'away_score_penalties'),
                     'last_updated_by_provider_at' => isset($matchPayload['lastUpdated']) ? Carbon::parse($matchPayload['lastUpdated']) : null,
                     'raw_payload' => $matchPayload,
                 ];
 
-                $attributes = $this->applyLiveStatusTracking($existing, $status, $attributes);
+                if (! $existing) {
+                    $attributes = $this->applyLiveStatusTracking($existing, $incomingStatus, $attributes);
+                }
 
                 $match = FootballMatch::updateOrCreate(
                     ['provider' => 'football_data', 'external_id' => $matchPayload['id']],
@@ -122,6 +126,23 @@ class SyncWorldCupMatchesService
 
             return $changed;
         });
+    }
+
+    /**
+     * Mantém valor atual se o payload não trouxe o campo (ou veio nulo).
+     */
+    private function coalescePayloadValue(?FootballMatch $existing, array $payload, string $path, string $field): mixed
+    {
+        if (! Arr::has($payload, $path)) {
+            return $existing?->{$field};
+        }
+
+        $incoming = data_get($payload, $path);
+        if ($incoming === null) {
+            return $existing?->{$field};
+        }
+
+        return $incoming;
     }
 
     /**

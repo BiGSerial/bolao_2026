@@ -48,7 +48,7 @@ class ApiSyncDashboard extends Component
             $rpmCap = max(1, (int) config('football-data.rate_limit.free_requests_per_minute', 10));
             $configuredDetailsLimit = max(1, (int) config('football-data.match_details.sync_limit_per_minute', 8));
             // Orçamento por competição: 2 chamadas fixas (matches + standings) + N detalhes.
-            $safeDetailsLimit = max(1, min(
+            $baseDetailsLimit = max(1, min(
                 $configuredDetailsLimit,
                 (int) floor($rpmCap / $competitionCount) - 2
             ));
@@ -64,8 +64,14 @@ class ApiSyncDashboard extends Component
                 $changed = $syncService->sync($payload, $ctx['season']);
                 $standingsPayload = $client->competitionStandings($ctx['code'], $ctx['season']);
                 $standingsCount = $standingsSyncService->sync($standingsPayload, $ctx['season'], $ctx['stage']);
+
+                $liveCount = $this->liveMatchCountForCompetition($ctx['code'], $ctx['season']);
+                $detailsLimit = $liveCount > 0
+                    ? max($baseDetailsLimit, min(60, $liveCount + 6))
+                    : $baseDetailsLimit;
+
                 $detailsResult = $detailsSyncService->syncBatch(
-                    $safeDetailsLimit,
+                    $detailsLimit,
                     $ctx['code'],
                     $ctx['season'],
                     $ctx['stage']
@@ -98,25 +104,28 @@ class ApiSyncDashboard extends Component
                         'season' => $ctx['season'],
                         'stage' => $ctx['stage'],
                         'apis_synced' => $this->resolveApisSynced($detailsResult),
-                        'sync_type' => 'manual_admin',
+                        'sync_type' => $liveCount > 0 ? 'manual_admin_live_priority' : 'manual_admin',
                         'sync_mode' => (string) ($detailsResult['sync_mode'] ?? 'batch'),
                         'api_football_sync_type' => (string) ($detailsResult['api_football_sync_type'] ?? 'not_used'),
                         'data_source' => 'database_only',
                         'standings_synced' => $standingsCount,
                         'details_updated' => (int) ($detailsResult['updated'] ?? 0),
                         'details_enriched' => (int) ($detailsResult['enriched'] ?? 0),
+                        'live_matches_detected' => $liveCount,
+                        'details_limit_used' => $detailsLimit,
                     ],
                     'synced_at' => now(),
                 ]);
 
                 $summaryParts[] = sprintf(
-                    '%s/%d: %d alterados, %d grupos, %d detalhes (limite=%d)',
+                    '%s/%d: %d alterados, %d grupos, %d detalhes (limite=%d, ao vivo=%d)',
                     $ctx['code'],
                     $ctx['season'],
                     $recordsChanged,
                     $standingsCount,
                     (int) ($detailsResult['updated'] ?? 0),
-                    $safeDetailsLimit
+                    $detailsLimit,
+                    $liveCount
                 );
             }
 
@@ -238,6 +247,15 @@ class ApiSyncDashboard extends Component
         }
 
         return $apis;
+    }
+
+    private function liveMatchCountForCompetition(string $competitionCode, int $seasonYear): int
+    {
+        return FootballMatch::query()
+            ->whereHas('competition', fn ($q) => $q->where('code', strtoupper($competitionCode)))
+            ->whereHas('season', fn ($q) => $q->where('year', $seasonYear))
+            ->whereIn('status', ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'])
+            ->count();
     }
 
     /**

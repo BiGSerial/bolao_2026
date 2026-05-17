@@ -11,6 +11,7 @@ use App\Livewire\Admin\ApiSyncDashboard;
 use App\Livewire\Admin\LegalDocumentsManager;
 use App\Livewire\Admin\ManualMatchCorrection;
 use App\Livewire\Admin\PoolsControl;
+use App\Livewire\Admin\TeamsCanonicalManager;
 use App\Livewire\Admin\UsersApproval;
 use App\Livewire\Dashboard\Home;
 use App\Livewire\Auth\ForcePasswordChange;
@@ -183,6 +184,7 @@ Route::middleware(['auth', 'user.active', 'password.changed'])->group(function (
 Route::middleware(['auth', 'user.active', 'password.changed', 'legal.accepted', 'admin'])->prefix('admin')->name('admin.')->group(function (): void {
     Route::get('/usuarios', UsersApproval::class)->name('users.approval');
     Route::get('/grupos', PoolsControl::class)->name('pools.control');
+    Route::get('/times', TeamsCanonicalManager::class)->name('teams.canonical');
     Route::post('/usuarios/{user}/aprovar', [UserModerationController::class, 'approve'])->name('users.approve');
     Route::post('/usuarios/{user}/rejeitar', [UserModerationController::class, 'reject'])->name('users.reject');
     Route::post('/usuarios/{user}/suspender', [UserModerationController::class, 'suspend'])->name('users.suspend');
