@@ -673,16 +673,43 @@
     var tsx = 0, tsy = 0, lastX = 0, lastT = 0, vx = 0;
     var panel = null;
     var rankPositions = new Map();
+    var liveObserver = null;
+    var observedLiveEl = null;
 
     document.addEventListener('DOMContentLoaded', function () {
         panel = document.getElementById('rp-drawer');
-        var live = document.getElementById('rp-live-data');
-        if (live) {
-            syncAll(); // popula os dois painéis no carregamento
-            new MutationObserver(syncAll)
-                .observe(live, { childList: true, subtree: true, characterData: true });
-        }
+        attachLiveObserver();
+        syncAll(); // popula os dois painéis no carregamento
     });
+
+    document.addEventListener('livewire:navigated', function () {
+        attachLiveObserver();
+        syncAll();
+    });
+
+    document.addEventListener('livewire:initialized', function () {
+        attachLiveObserver();
+        syncAll();
+    });
+
+    function attachLiveObserver() {
+        var live = document.getElementById('rp-live-data');
+        if (!live) {
+            return;
+        }
+
+        if (observedLiveEl === live && liveObserver) {
+            return;
+        }
+
+        if (liveObserver) {
+            liveObserver.disconnect();
+        }
+
+        observedLiveEl = live;
+        liveObserver = new MutationObserver(syncAll);
+        liveObserver.observe(live, { childList: true, subtree: true, characterData: true });
+    }
 
     function syncAll() {
         var live = document.getElementById('rp-live-data');

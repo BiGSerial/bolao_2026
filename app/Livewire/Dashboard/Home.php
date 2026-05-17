@@ -51,6 +51,13 @@ class Home extends Component
             'competition',
             session('competition', config('football-data.default_competition_code', 'WC'))
         ));
+        $queryPool = request()->query('pool');
+        if (is_numeric($queryPool)) {
+            $this->selectedPoolId = (int) $queryPool;
+            session(['home_pool_'.$code => $this->selectedPoolId]);
+            return;
+        }
+
         $stored = session('home_pool_'.$code);
         $this->selectedPoolId = is_numeric($stored) ? (int) $stored : null;
     }
@@ -63,6 +70,13 @@ class Home extends Component
         ));
         $this->selectedPoolId = $poolId;
         session(['home_pool_'.$code => $poolId]);
+
+        $params = ['competition' => $code];
+        if ($poolId) {
+            $params['pool'] = $poolId;
+        }
+
+        $this->redirectRoute('dashboard', $params, navigate: true);
     }
 
     public function saveHeroPrediction($matchId, $homeScore, $awayScore): array
