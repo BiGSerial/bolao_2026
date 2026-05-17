@@ -1,0 +1,173 @@
+<?php
+
+namespace App\Console\Commands;
+
+use App\Events\PoolRankingUpdated;
+use App\Models\ApiSyncLog;
+use App\Models\FootballMatch;
+use App\Models\Pool;
+use App\Models\Prediction;
+use App\Services\Pools\PoolRankingService;
+use App\Services\Predictions\PredictionScoringService;
+use Carbon\Carbon;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Artisan;
+
+class ConsolidateDailySportsResults extends Command
+{
+    protected $signature = 'sports:consolidate-daily-results
+        {--date= : Data de referência no fuso local (YYYY-MM-DD)}
+        {--timezone=America/Sao_Paulo : Fuso da consolidação}
+        {--sync-limit=120 : Limite por competição para sync de detalhes finais}';
+
+    protected $description = 'Consolida no fim do dia os resultados esportivos, pontuação e rankings dos bolões.';
+
+    public function handle(PredictionScoringService $scoringService, PoolRankingService $rankingService): int
+    {
+        $startedAt = now();
+        $timezone = (string) $this->option('timezone');
+        $syncLimit = max(20, (int) $this->option('sync-limit'));
+        $targetDate = $this->resolveTargetDate($timezone);
+
+        $this->info("Consolidação diária iniciada para {$targetDate->toDateString()} ({$timezone}).");
+
+        $competitions = collect((array) config('football-data.competitions', []))
+            ->map(function (array $competition, string $key): ?array {
+                $code = strtoupper((string) ($competition['code'] ?? $key));
+                $enabled = (bool) ($competition['enabled'] ?? false);
+                if (! $enabled && $code !== 'WC') {
+                    return null;
+                }
+
+                $season = (int) ($competition['season'] ?? 0);
+                if ($season <= 0 || $code === '') {
+                    return null;
+                }
+
+                $stage = (string) ($competition['default_stage'] ?? '');
+                return compact('code', 'season', 'stage');
+            })
+            ->filter()
+            ->values();
+
+        $syncRuns = 0;
+        foreach ($competitions as $ctx) {
+            Artisan::call('worldcup:sync-match-details', [
+                '--code' => (string) $ctx['code'],
+                '--season' => (int) $ctx['season'],
+                '--stage' => (string) $ctx['stage'],
+                '--limit' => $syncLimit,
+                '--sync-type' => 'end_of_day_consolidation',
+            ]);
+            $syncRuns++;
+        }
+
+        $dayStartLocal = $targetDate->copy()->startOfDay();
+        $dayEndLocal = $targetDate->copy()->endOfDay();
+        $dayStartUtc = $dayStartLocal->copy()->utc();
+        $dayEndUtc = $dayEndLocal->copy()->utc();
+
+        $finishedMatchIds = FootballMatch::query()
+            ->where('status', 'FINISHED')
+            ->whereBetween('utc_date', [$dayStartUtc, $dayEndUtc])
+            ->pluck('id')
+            ->all();
+
+        if ($finishedMatchIds === []) {
+            $this->info('Nenhuma partida finalizada no período para consolidar.');
+            $this->logConsolidation($startedAt, $timezone, $targetDate->toDateString(), $syncRuns, 0, 0, 0, true);
+            return self::SUCCESS;
+        }
+
+        $scoredPredictions = 0;
+        Prediction::query()
+            ->whereIn('football_match_id', $finishedMatchIds)
+            ->where('eligible', true)
+            ->chunkById(300, function ($predictions) use ($scoringService, &$scoredPredictions): void {
+                foreach ($predictions as $prediction) {
+                    $scoringService->calculate($prediction);
+                    $scoredPredictions++;
+                }
+            });
+
+        $poolIds = Prediction::query()
+            ->whereIn('football_match_id', $finishedMatchIds)
+            ->distinct()
+            ->pluck('pool_id')
+            ->all();
+
+        $recalculatedPools = 0;
+        Pool::query()
+            ->whereIn('id', $poolIds)
+            ->chunkById(100, function ($pools) use ($rankingService, &$recalculatedPools): void {
+                foreach ($pools as $pool) {
+                    $rankingService->recalculate($pool);
+                    PoolRankingUpdated::dispatch($pool);
+                    $recalculatedPools++;
+                }
+            });
+
+        $this->info(sprintf(
+            'Consolidação concluída. Partidas: %d | Palpites recalculados: %d | Bolões reclassificados: %d | Syncs: %d',
+            count($finishedMatchIds),
+            $scoredPredictions,
+            $recalculatedPools,
+            $syncRuns
+        ));
+
+        $this->logConsolidation(
+            $startedAt,
+            $timezone,
+            $targetDate->toDateString(),
+            $syncRuns,
+            count($finishedMatchIds),
+            $scoredPredictions,
+            $recalculatedPools,
+            true
+        );
+
+        return self::SUCCESS;
+    }
+
+    private function resolveTargetDate(string $timezone): Carbon
+    {
+        $rawDate = trim((string) $this->option('date'));
+        if ($rawDate !== '') {
+            return Carbon::createFromFormat('Y-m-d', $rawDate, $timezone);
+        }
+
+        return now($timezone);
+    }
+
+    private function logConsolidation(
+        Carbon $startedAt,
+        string $timezone,
+        string $date,
+        int $syncRuns,
+        int $matchesCount,
+        int $predictionsCount,
+        int $poolsCount,
+        bool $success
+    ): void {
+        ApiSyncLog::query()->create([
+            'provider' => 'system',
+            'endpoint' => '/sports/daily-consolidation',
+            'http_status' => 200,
+            'success' => $success,
+            'records_total' => $matchesCount,
+            'records_changed' => $predictionsCount,
+            'message' => 'Consolidação diária de resultados esportivos executada.',
+            'meta' => [
+                'date' => $date,
+                'timezone' => $timezone,
+                'sync_runs' => $syncRuns,
+                'matches_finished' => $matchesCount,
+                'predictions_recalculated' => $predictionsCount,
+                'pools_recalculated' => $poolsCount,
+                'duration_seconds' => now()->diffInSeconds($startedAt),
+            ],
+            'synced_at' => now(),
+        ]);
+    }
+}
+

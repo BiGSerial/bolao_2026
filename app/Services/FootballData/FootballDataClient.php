@@ -125,6 +125,7 @@ class FootballDataClient
 
         $config = (array) config('football-data');
         $config['auth']['token_header'] = 'X-Auth-Token';
+        $config['provider'] = 'football_data';
 
         $this->client = new GenericApiClient($config);
 

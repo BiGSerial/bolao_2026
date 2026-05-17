@@ -6,6 +6,7 @@ use App\Events\MatchUpdated;
 use App\Models\Competition;
 use App\Models\CompetitionSeason;
 use App\Models\FootballMatch;
+use App\Models\MatchProviderRef;
 use App\Models\Team;
 use App\Models\TeamProviderRef;
 use Carbon\Carbon;
@@ -82,6 +83,7 @@ class SyncWorldCupMatchesService
                 $score = $matchPayload['score'] ?? [];
                 $utcDate = Carbon::parse($matchPayload['utcDate'])->utc();
                 $incomingStatus = (string) ($matchPayload['status'] ?? '');
+                $keepPaidFinalScore = $this->shouldKeepPaidApiFinalScore($existing);
                 $attributes = [
                     'competition_id' => $competition->id,
                     'competition_season_id' => $season->id,
@@ -96,8 +98,12 @@ class SyncWorldCupMatchesService
                     'group_name' => $matchPayload['group'] ?? null,
                     'score_winner' => $score['winner'] ?? null,
                     'score_duration' => $score['duration'] ?? null,
-                    'home_score_full_time' => $this->coalescePayloadValue($existing, $score, 'fullTime.home', 'home_score_full_time'),
-                    'away_score_full_time' => $this->coalescePayloadValue($existing, $score, 'fullTime.away', 'away_score_full_time'),
+                    'home_score_full_time' => $keepPaidFinalScore
+                        ? $existing?->home_score_full_time
+                        : $this->coalescePayloadValue($existing, $score, 'fullTime.home', 'home_score_full_time'),
+                    'away_score_full_time' => $keepPaidFinalScore
+                        ? $existing?->away_score_full_time
+                        : $this->coalescePayloadValue($existing, $score, 'fullTime.away', 'away_score_full_time'),
                     'home_score_half_time' => $this->coalescePayloadValue($existing, $score, 'halfTime.home', 'home_score_half_time'),
                     'away_score_half_time' => $this->coalescePayloadValue($existing, $score, 'halfTime.away', 'away_score_half_time'),
                     'home_score_extra_time' => $this->coalescePayloadValue($existing, $score, 'extraTime.home', 'home_score_extra_time'),
@@ -105,7 +111,7 @@ class SyncWorldCupMatchesService
                     'home_score_penalties' => $this->coalescePayloadValue($existing, $score, 'penalties.home', 'home_score_penalties'),
                     'away_score_penalties' => $this->coalescePayloadValue($existing, $score, 'penalties.away', 'away_score_penalties'),
                     'last_updated_by_provider_at' => isset($matchPayload['lastUpdated']) ? Carbon::parse($matchPayload['lastUpdated']) : null,
-                    'raw_payload' => $matchPayload,
+                    'raw_payload' => $this->mergeBaseRawPayload($existing, $matchPayload),
                 ];
 
                 if (! $existing) {
@@ -143,6 +149,52 @@ class SyncWorldCupMatchesService
         }
 
         return $incoming;
+    }
+
+    /**
+     * Quando já temos placar final consolidado pela API paga, o provider base não pode sobrescrever.
+     */
+    private function shouldKeepPaidApiFinalScore(?FootballMatch $existing): bool
+    {
+        if (! $existing || ! $existing->id) {
+            return false;
+        }
+
+        if ((string) $existing->status !== 'FINISHED') {
+            return false;
+        }
+
+        if ($existing->home_score_full_time === null || $existing->away_score_full_time === null) {
+            return false;
+        }
+
+        return MatchProviderRef::query()
+            ->where('football_match_id', (int) $existing->id)
+            ->where('provider', 'api_football')
+            ->exists();
+    }
+
+    /**
+     * Preserva metadados da API paga no raw_payload durante sync base.
+     *
+     * @param array<string,mixed> $basePayload
+     * @return array<string,mixed>
+     */
+    private function mergeBaseRawPayload(?FootballMatch $existing, array $basePayload): array
+    {
+        if (! $existing) {
+            return $basePayload;
+        }
+
+        $raw = (array) ($existing->raw_payload ?? []);
+        if (isset($raw['api_football_status'])) {
+            $basePayload['api_football_status'] = $raw['api_football_status'];
+        }
+        if (isset($raw['minute'])) {
+            $basePayload['minute'] = $raw['minute'];
+        }
+
+        return $basePayload;
     }
 
     /**

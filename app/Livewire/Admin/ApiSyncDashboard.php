@@ -165,37 +165,53 @@ class ApiSyncDashboard extends Component
     {
         $this->assertAdmin();
 
-        $logsQuery = ApiSyncLog::query()
+        $syncLogsQuery = ApiSyncLog::query()
+            ->where('is_request_log', false)
             ->where(function ($q): void {
                 $q->whereNull('meta->status')
                     ->orWhere('meta->status', '!=', 'skipped');
             });
 
-        $logs = (clone $logsQuery)
+        $requestLogsQuery = ApiSyncLog::query()
+            ->where('is_request_log', true)
+            ->whereIn('provider', ['football_data', 'api_football']);
+
+        $logs = (clone $syncLogsQuery)
             ->orderByDesc('synced_at')
             ->paginate(15);
 
         $lastSuccess = ApiSyncLog::query()
             ->where('success', true)
+            ->where('is_request_log', false)
             ->orderByDesc('synced_at')
             ->first();
 
-        $apiRequestChart = $this->buildApiRequestChart(
-            (clone $logsQuery)->latest('synced_at')->limit(200)->get()
+        $apiRequestChart = $this->buildApiRequestChartFromRequests(
+            (clone $requestLogsQuery)->where('synced_at', '>=', now()->subDay())->get()
         );
         $apiHourlyVolume = $this->buildApiHourlyVolume(
-            (clone $logsQuery)->where('synced_at', '>=', now()->subDay())->get()
+            (clone $requestLogsQuery)->where('synced_at', '>=', now()->subDay())->get()
         );
+        $apiUsageSummary = $this->buildApiUsageSummary($requestLogsQuery);
 
         $totalMatches = FootballMatch::count();
         $liveMatches  = FootballMatch::whereIn('status', ['IN_PLAY', 'PAUSED'])->count();
-        $totalSyncs   = ApiSyncLog::count();
+        $totalSyncs   = ApiSyncLog::where('is_request_log', false)->count();
         $failedSyncs  = ApiSyncLog::where('success', false)
+            ->where('is_request_log', false)
             ->where('synced_at', '>=', now()->subDay())
             ->count();
 
         return view('livewire.admin.apisyncdashboard', compact(
-            'logs', 'lastSuccess', 'totalMatches', 'liveMatches', 'totalSyncs', 'failedSyncs', 'apiRequestChart', 'apiHourlyVolume'
+            'logs',
+            'lastSuccess',
+            'totalMatches',
+            'liveMatches',
+            'totalSyncs',
+            'failedSyncs',
+            'apiRequestChart',
+            'apiHourlyVolume',
+            'apiUsageSummary'
         ));
     }
 
@@ -262,35 +278,26 @@ class ApiSyncDashboard extends Component
      * @param \Illuminate\Support\Collection<int, \App\Models\ApiSyncLog> $logs
      * @return array<int, array{api:string,total:int,success:int,failed:int}>
      */
-    private function buildApiRequestChart(\Illuminate\Support\Collection $logs): array
+    private function buildApiRequestChartFromRequests(\Illuminate\Support\Collection $logs): array
     {
         $stats = [];
 
         foreach ($logs as $log) {
-            $requestCounts = $this->extractApiRequestCounts($log);
+            $name = (string) ($log->provider ?: 'unknown');
+            if (! isset($stats[$name])) {
+                $stats[$name] = [
+                    'api' => $name,
+                    'total' => 0,
+                    'success' => 0,
+                    'failed' => 0,
+                ];
+            }
 
-            foreach ($requestCounts as $api => $count) {
-                $name = (string) $api;
-                if ($name === '') {
-                    $name = 'unknown';
-                }
-
-                if (! isset($stats[$name])) {
-                    $stats[$name] = [
-                        'api' => $name,
-                        'total' => 0,
-                        'success' => 0,
-                        'failed' => 0,
-                    ];
-                }
-
-                $safeCount = max(0, (int) $count);
-                $stats[$name]['total'] += $safeCount;
-                if ($log->success) {
-                    $stats[$name]['success'] += $safeCount;
-                } else {
-                    $stats[$name]['failed'] += $safeCount;
-                }
+            $stats[$name]['total'] += 1;
+            if ($log->success) {
+                $stats[$name]['success'] += 1;
+            } else {
+                $stats[$name]['failed'] += 1;
             }
         }
 
@@ -329,22 +336,18 @@ class ApiSyncDashboard extends Component
                 continue;
             }
 
-            $requestCounts = $this->extractApiRequestCounts($log);
+            $name = (string) ($log->provider ?: 'unknown');
+            if ($name === '') {
+                $name = 'unknown';
+            }
 
-            foreach ($requestCounts as $api => $count) {
-                $name = (string) $api;
-                if ($name === '') {
-                    $name = 'unknown';
-                }
+            if (! isset($seriesMap[$name])) {
+                $seriesMap[$name] = array_fill(0, count($hourKeys), 0);
+            }
 
-                if (! isset($seriesMap[$name])) {
-                    $seriesMap[$name] = array_fill(0, count($hourKeys), 0);
-                }
-
-                $index = array_search($hourKey, $hourKeys, true);
-                if ($index !== false) {
-                    $seriesMap[$name][$index] += max(0, (int) $count);
-                }
+            $index = array_search($hourKey, $hourKeys, true);
+            if ($index !== false) {
+                $seriesMap[$name][$index] += 1;
             }
         }
 
@@ -359,37 +362,37 @@ class ApiSyncDashboard extends Component
     }
 
     /**
-     * @return array<string, int>
+     * @param \Illuminate\Database\Eloquent\Builder<\App\Models\ApiSyncLog> $requestLogsQuery
+     * @return array<int, array{api:string,req_24h:int,req_month:int,peak_rpm:int,peak_minute:string,avg_latency_ms:float}>
      */
-    private function extractApiRequestCounts(\App\Models\ApiSyncLog $log): array
+    private function buildApiUsageSummary(\Illuminate\Database\Eloquent\Builder $requestLogsQuery): array
     {
-        $counts = (array) data_get($log->meta, 'api_request_counts', []);
-        if ($counts !== []) {
-            $normalized = [];
-            foreach ($counts as $api => $count) {
-                $name = (string) $api;
-                if ($name === '') {
-                    continue;
-                }
-                $normalized[$name] = max(0, (int) $count);
-            }
+        $providers = ['football_data', 'api_football'];
+        $summary = [];
 
-            if ($normalized !== []) {
-                return $normalized;
-            }
+        foreach ($providers as $provider) {
+            $base = (clone $requestLogsQuery)->where('provider', $provider);
+            $req24h = (clone $base)->where('synced_at', '>=', now()->subDay())->count();
+            $reqMonth = (clone $base)->where('synced_at', '>=', now()->startOfMonth())->count();
+            $avgLatency = (float) ((clone $base)->whereNotNull('duration_ms')->avg('duration_ms') ?? 0.0);
+
+            $peak = (clone $base)
+                ->selectRaw("DATE_FORMAT(synced_at, '%Y-%m-%d %H:%i:00') as minute_slot, COUNT(*) as c")
+                ->groupBy('minute_slot')
+                ->orderByDesc('c')
+                ->orderByDesc('minute_slot')
+                ->first();
+
+            $summary[] = [
+                'api' => $provider,
+                'req_24h' => $req24h,
+                'req_month' => $reqMonth,
+                'peak_rpm' => (int) ($peak->c ?? 0),
+                'peak_minute' => (string) ($peak->minute_slot ?? '—'),
+                'avg_latency_ms' => round($avgLatency, 1),
+            ];
         }
 
-        $apis = (array) data_get($log->meta, 'apis_synced', [$log->provider ?: 'unknown']);
-        $apis = $apis !== [] ? $apis : [$log->provider ?: 'unknown'];
-        $fallback = [];
-        foreach ($apis as $api) {
-            $name = (string) $api;
-            if ($name === '') {
-                $name = 'unknown';
-            }
-            $fallback[$name] = 1;
-        }
-
-        return $fallback;
+        return $summary;
     }
 }

@@ -18,6 +18,8 @@ class PoolIndex extends Component
     public string $invite_sector = '';
     /** @var string[] */
     public array $invite_sectors = [];
+    /** @var array<string,mixed>|null */
+    public ?array $invite_pool_preview = null;
 
     public function mount(): void
     {
@@ -37,19 +39,36 @@ class PoolIndex extends Component
     public function updatedInviteCode(string $value): void
     {
         $code = strtoupper(trim($value));
+        $this->invite_code = $code;
 
         if (strlen($code) !== 8) {
             $this->invite_sectors = [];
             $this->invite_sector = '';
+            $this->invite_pool_preview = null;
             return;
         }
 
         $pool = Pool::query()
             ->where('invite_code', $code)
-            ->where('status', 'active')
-            ->whereHas('competition', fn ($q) => $q->where('code', $this->competition_code))
-            ->first(['id', 'sectors']);
+            ->with('competition:id,code,name')
+            ->first(['id', 'competition_id', 'name', 'slug', 'status', 'visibility', 'sectors']);
         $this->invite_sectors = $pool && is_array($pool->sectors) ? array_values($pool->sectors) : [];
+        $this->invite_pool_preview = null;
+
+        if ($pool) {
+            $competitionCode = strtoupper((string) ($pool->competition?->code ?? ''));
+            $competitionName = (string) ($pool->competition?->name
+                ?? config('football-data.competitions.'.$competitionCode.'.name', $competitionCode));
+            $this->invite_pool_preview = [
+                'name' => (string) $pool->name,
+                'slug' => (string) $pool->slug,
+                'status' => (string) $pool->status,
+                'visibility' => (string) $pool->visibility,
+                'competition_code' => $competitionCode,
+                'competition_name' => $competitionName !== '' ? $competitionName : '—',
+                'requires_sector' => ! empty($this->invite_sectors),
+            ];
+        }
 
         if (! in_array($this->invite_sector, $this->invite_sectors, true)) {
             $this->invite_sector = '';
@@ -70,15 +89,26 @@ class PoolIndex extends Component
             $this->addError('invite_code', 'Codigo de convite invalido.');
             $this->invite_sectors = [];
             $this->invite_sector = '';
-            return;
-        }
-
-        if (($pool->competition?->code ?? null) !== $this->competition_code) {
-            $this->addError('invite_code', 'Este código pertence a outra competição.');
+            $this->invite_pool_preview = null;
             return;
         }
 
         $this->invite_sectors = is_array($pool->sectors) ? array_values($pool->sectors) : [];
+        $this->invite_pool_preview = [
+            'name' => (string) $pool->name,
+            'slug' => (string) $pool->slug,
+            'status' => (string) $pool->status,
+            'visibility' => (string) $pool->visibility,
+            'competition_code' => strtoupper((string) ($pool->competition?->code ?? '')),
+            'competition_name' => (string) ($pool->competition?->name
+                ?? config('football-data.competitions.'.strtoupper((string) ($pool->competition?->code ?? '')).'.name', '—')),
+            'requires_sector' => ! empty($this->invite_sectors),
+        ];
+
+        if ($pool->status !== 'active') {
+            $this->addError('invite_code', 'Este bolão não está ativo no momento.');
+            return;
+        }
 
         if (! empty($this->invite_sectors) && ! in_array($data['invite_sector'] ?? '', $this->invite_sectors, true)) {
             $this->addError('invite_sector', 'Selecione um setor valido para entrar neste bolao.');
@@ -104,11 +134,33 @@ class PoolIndex extends Component
             'status' => PoolMemberStatus::Pending->value,
         ]);
         PoolMembersUpdated::dispatch($pool);
+        $poolCompetitionCode = strtoupper((string) ($pool->competition?->code ?? ''));
+        if ($poolCompetitionCode !== '') {
+            session(['competition' => $poolCompetitionCode]);
+        }
 
         session()->flash('status', 'Solicitacao enviada. Aguarde liberacao do gestor do bolao.');
         $this->invite_code = '';
         $this->invite_sector = '';
         $this->invite_sectors = [];
+        $this->invite_pool_preview = null;
+    }
+
+    public function canSubmitInviteRequest(): bool
+    {
+        if (! is_array($this->invite_pool_preview) || empty($this->invite_pool_preview)) {
+            return false;
+        }
+
+        if (($this->invite_pool_preview['status'] ?? null) !== 'active') {
+            return false;
+        }
+
+        if (! empty($this->invite_sectors) && ! in_array($this->invite_sector, $this->invite_sectors, true)) {
+            return false;
+        }
+
+        return true;
     }
 
     public function requestPublicEntry(int $poolId): void

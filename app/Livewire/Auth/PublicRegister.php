@@ -87,6 +87,16 @@ class PublicRegister extends Component
         Auth::login($user);
         request()->session()->regenerate();
 
+        $inviteRedirect = session()->pull('pool_invite_redirect');
+        if (is_array($inviteRedirect) && ! empty($inviteRedirect['pool'])) {
+            if (! empty($inviteRedirect['competition']) && is_string($inviteRedirect['competition'])) {
+                session(['competition' => strtoupper(trim($inviteRedirect['competition']))]);
+            }
+
+            $this->redirectRoute('pools.show', ['pool' => (string) $inviteRedirect['pool']], navigate: true);
+            return;
+        }
+
         $this->redirectRoute('dashboard', navigate: true);
     }
 

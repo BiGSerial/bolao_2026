@@ -105,7 +105,9 @@ class ApiFootballClient
             throw new RuntimeException('API_FOOTBALL_TOKEN nao configurado.');
         }
 
-        $this->client = new GenericApiClient((array) config('api-football'));
+        $config = (array) config('api-football');
+        $config['provider'] = 'api_football';
+        $this->client = new GenericApiClient($config);
 
         return $this->client;
     }

@@ -26,10 +26,12 @@ class PoolInviteController extends Controller
 
         if (! Auth::check()) {
             session()->put('pool_invite_token', $invite->token);
+            $this->storeInviteRedirectContext($invite);
             return redirect()->route('register', ['email' => $invite->email]);
         }
 
         $this->attachUserToPool(Auth::user()->id, $invite);
+        $this->storeInviteRedirectContext($invite);
 
         return redirect()->route('pools.show', ['pool' => $invite->pool->slug])
             ->with('status', 'Você entrou no bolão com sucesso!');
@@ -56,7 +58,9 @@ class PoolInviteController extends Controller
             return;
         }
 
-        (new self())->attachUserToPool($userId, $invite);
+        $controller = new self();
+        $controller->attachUserToPool($userId, $invite);
+        $controller->storeInviteRedirectContext($invite);
     }
 
     private function attachUserToPool(int $userId, PoolInvite $invite): void
@@ -85,5 +89,25 @@ class PoolInviteController extends Controller
         ]);
 
         PoolMembersUpdated::dispatch($invite->pool);
+    }
+
+    private function storeInviteRedirectContext(PoolInvite $invite): void
+    {
+        $pool = $invite->pool()->with('competition:id,code')->first();
+        if (! $pool) {
+            return;
+        }
+
+        $competitionCode = strtoupper((string) ($pool->competition?->code ?? ''));
+        if ($competitionCode !== '') {
+            session(['competition' => $competitionCode]);
+        }
+
+        session([
+            'pool_invite_redirect' => [
+                'pool' => $pool->slug,
+                'competition' => $competitionCode,
+            ],
+        ]);
     }
 }

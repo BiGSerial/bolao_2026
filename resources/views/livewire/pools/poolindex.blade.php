@@ -155,6 +155,20 @@
                         @enderror
                     </div>
 
+                    @if($invite_pool_preview)
+                    <div class="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 space-y-1.5">
+                        <p class="text-xs uppercase tracking-wider text-emerald-300">Bolão encontrado</p>
+                        <p class="text-sm font-semibold text-white">{{ $invite_pool_preview['name'] }}</p>
+                        <p class="text-xs text-slate-300">
+                            Competição: {{ $invite_pool_preview['competition_name'] }} ({{ $invite_pool_preview['competition_code'] ?: '—' }})
+                        </p>
+                        <p class="text-xs text-slate-400">
+                            Visibilidade: {{ $invite_pool_preview['visibility'] === 'public' ? 'Público' : ($invite_pool_preview['visibility'] === 'invite_only' ? 'Convite' : 'Privado') }}
+                            · Status: {{ $invite_pool_preview['status'] === 'active' ? 'Ativo' : 'Inativo' }}
+                        </p>
+                    </div>
+                    @endif
+
                     @if(!empty($invite_sectors))
                     <div>
                         <label class="label">Seu setor / departamento</label>
@@ -170,7 +184,9 @@
                     </div>
                     @endif
 
-                    <button type="submit" class="btn-primary w-full justify-center">
+                    <button type="submit"
+                            @disabled(! $this->canSubmitInviteRequest())
+                            class="btn-primary w-full justify-center disabled:opacity-60 disabled:cursor-not-allowed">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
                         </svg>

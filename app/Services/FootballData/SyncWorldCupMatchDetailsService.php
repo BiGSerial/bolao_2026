@@ -225,6 +225,8 @@ class SyncWorldCupMatchDetailsService
             'status' => (string) $match->status,
             'utc_date' => optional($match->utc_date)?->format('Y-m-d H:i:s'),
             'minute' => data_get($match->raw_payload, 'minute'),
+            'home_score_full_time' => $match->home_score_full_time,
+            'away_score_full_time' => $match->away_score_full_time,
         ];
 
         $attributes = [
@@ -232,6 +234,35 @@ class SyncWorldCupMatchDetailsService
             'raw_payload' => $this->mergeRawPayloadFromApiFootball($match, $apiFootballPayload),
             'last_updated_by_provider_at' => now()->utc(),
         ];
+
+        $apiGoalsHome = data_get($apiFootballPayload, 'goals.home');
+        $apiGoalsAway = data_get($apiFootballPayload, 'goals.away');
+        if (is_numeric($apiGoalsHome) && is_numeric($apiGoalsAway)) {
+            // A API paga é a fonte prioritária para placar de partida.
+            $attributes['home_score_full_time'] = (int) $apiGoalsHome;
+            $attributes['away_score_full_time'] = (int) $apiGoalsAway;
+        }
+
+        $apiHalfHome = data_get($apiFootballPayload, 'score.halftime.home');
+        $apiHalfAway = data_get($apiFootballPayload, 'score.halftime.away');
+        if (is_numeric($apiHalfHome) && is_numeric($apiHalfAway)) {
+            $attributes['home_score_half_time'] = (int) $apiHalfHome;
+            $attributes['away_score_half_time'] = (int) $apiHalfAway;
+        }
+
+        $apiExtraHome = data_get($apiFootballPayload, 'score.extratime.home');
+        $apiExtraAway = data_get($apiFootballPayload, 'score.extratime.away');
+        if (is_numeric($apiExtraHome) && is_numeric($apiExtraAway)) {
+            $attributes['home_score_extra_time'] = (int) $apiExtraHome;
+            $attributes['away_score_extra_time'] = (int) $apiExtraAway;
+        }
+
+        $apiPenHome = data_get($apiFootballPayload, 'score.penalty.home');
+        $apiPenAway = data_get($apiFootballPayload, 'score.penalty.away');
+        if (is_numeric($apiPenHome) && is_numeric($apiPenAway)) {
+            $attributes['home_score_penalties'] = (int) $apiPenHome;
+            $attributes['away_score_penalties'] = (int) $apiPenAway;
+        }
 
         $fixtureDate = data_get($apiFootballPayload, 'fixture.date');
         if (is_string($fixtureDate) && $fixtureDate !== '') {
@@ -272,7 +303,22 @@ class SyncWorldCupMatchDetailsService
         }
 
         $match->fill($attributes);
-        $isDirty = $match->isDirty(['status', 'utc_date', 'local_date', 'raw_payload', 'live_clock_anchor_at', 'live_clock_accumulated_seconds']);
+        $isDirty = $match->isDirty([
+            'status',
+            'utc_date',
+            'local_date',
+            'raw_payload',
+            'live_clock_anchor_at',
+            'live_clock_accumulated_seconds',
+            'home_score_full_time',
+            'away_score_full_time',
+            'home_score_half_time',
+            'away_score_half_time',
+            'home_score_extra_time',
+            'away_score_extra_time',
+            'home_score_penalties',
+            'away_score_penalties',
+        ]);
         if (! $isDirty) {
             return;
         }
@@ -283,6 +329,8 @@ class SyncWorldCupMatchDetailsService
             'status' => (string) $match->status,
             'utc_date' => optional($match->utc_date)?->format('Y-m-d H:i:s'),
             'minute' => data_get($match->raw_payload, 'minute'),
+            'home_score_full_time' => $match->home_score_full_time,
+            'away_score_full_time' => $match->away_score_full_time,
         ];
 
         if ($before !== $after) {

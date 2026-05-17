@@ -4,9 +4,13 @@ namespace App\Services\Api;
 
 use App\DTO\ApiRequestData;
 use App\DTO\ApiResponseData;
+use App\Models\ApiSyncLog;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Http\Client\RequestException;
 use RuntimeException;
+use Throwable;
 
 class GenericApiClient
 {
@@ -57,9 +61,14 @@ class GenericApiClient
 
     private function requestFromProvider(ApiRequestData $request): ApiResponseData
     {
+        $startedAt = microtime(true);
+        $startedCarbon = now();
+        $provider = (string) data_get($this->config, 'provider', 'external_api');
+        $baseUrl = (string) data_get($this->config, 'base_url', '');
+        $fullUrl = rtrim($baseUrl, '/').'/'.ltrim($request->endpoint, '/');
+
         $this->acquireRateLimitSlot();
 
-        $baseUrl = (string) data_get($this->config, 'base_url', '');
         if ($baseUrl === '') {
             throw new RuntimeException('Base URL da API nao configurada.');
         }
@@ -79,22 +88,133 @@ class GenericApiClient
         $retryTimes = max(0, (int) data_get($this->config, 'http.retry.times', 2));
         $retrySleepMs = max(0, (int) data_get($this->config, 'http.retry.sleep_ms', 1000));
 
-        $response = Http::baseUrl($baseUrl)
-            ->withHeaders(array_merge($defaultHeaders, $request->headers))
-            ->timeout($timeout)
-            ->retry($retryTimes, $retrySleepMs)
-            ->send($request->method, $request->endpoint, [
-                'query' => $request->query,
-                'json' => $request->body,
-            ]);
+        try {
+            $response = Http::baseUrl($baseUrl)
+                ->withHeaders(array_merge($defaultHeaders, $request->headers))
+                ->timeout($timeout)
+                ->retry($retryTimes, $retrySleepMs)
+                ->send($request->method, $request->endpoint, [
+                    'query' => $request->query,
+                    'json' => $request->body,
+                ]);
 
-        if ($response->status() === 429) {
-            throw new RuntimeException('Rate limit do provedor atingido.');
+            $status = (int) $response->status();
+            $payload = $response->json();
+
+            $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+            $finishedAt = now();
+            $this->logRequest(
+                provider: $provider,
+                endpoint: $request->endpoint,
+                method: $request->method,
+                url: $fullUrl,
+                query: $request->query,
+                status: $status,
+                success: $status >= 200 && $status < 300,
+                payload: $this->normalizePayloadForJson($payload, $response->body()),
+                startedAt: $startedCarbon,
+                finishedAt: $finishedAt,
+                durationMs: $durationMs,
+            );
+
+            if ($status === 429) {
+                throw new RuntimeException('Rate limit do provedor atingido.');
+            }
+
+            $response->throw();
+
+            return new ApiResponseData($status, $response->headers(), is_array($payload) ? $payload : [], false);
+        } catch (Throwable $e) {
+            $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+            $finishedAt = now();
+            $status = $e instanceof RequestException ? (int) ($e->response?->status() ?? 0) : 0;
+            $rawBody = $e instanceof RequestException ? (string) ($e->response?->body() ?? '') : '';
+            $jsonBody = $e instanceof RequestException ? $e->response?->json() : null;
+
+            $this->logRequest(
+                provider: $provider,
+                endpoint: $request->endpoint,
+                method: $request->method,
+                url: $fullUrl,
+                query: $request->query,
+                status: $status > 0 ? $status : null,
+                success: false,
+                payload: $this->normalizePayloadForJson($jsonBody, $rawBody),
+                startedAt: $startedCarbon,
+                finishedAt: $finishedAt,
+                durationMs: $durationMs,
+                error: $e->getMessage(),
+            );
+
+            throw $e;
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $query
+     * @param mixed $payload
+     */
+    private function logRequest(
+        string $provider,
+        string $endpoint,
+        string $method,
+        string $url,
+        array $query,
+        ?int $status,
+        bool $success,
+        mixed $payload,
+        Carbon $startedAt,
+        Carbon $finishedAt,
+        int $durationMs,
+        ?string $error = null
+    ): void {
+        try {
+            ApiSyncLog::query()->create([
+                'provider' => $provider,
+                'endpoint' => $endpoint,
+                'http_status' => $status,
+                'success' => $success,
+                'is_request_log' => true,
+                'request_method' => strtoupper($method),
+                'request_url' => $url,
+                'request_query' => $query,
+                'response_payload' => $payload,
+                'request_started_at' => $startedAt,
+                'request_finished_at' => $finishedAt,
+                'duration_ms' => max(0, $durationMs),
+                'message' => $error ?: 'Requisicao HTTP registrada.',
+                'meta' => [
+                    'status' => $success ? 'success' : 'failed',
+                    'request_level' => true,
+                    'started_at_iso8601' => $startedAt->toIso8601String(),
+                    'finished_at_iso8601' => $finishedAt->toIso8601String(),
+                    'duration_ms' => max(0, $durationMs),
+                    'duration_seconds' => round(max(0, $durationMs) / 1000, 3),
+                    'error' => $error,
+                ],
+                'synced_at' => $finishedAt,
+            ]);
+        } catch (Throwable) {
+            // Não interrompe fluxo principal por falha de auditoria.
+        }
+    }
+
+    private function normalizePayloadForJson(mixed $jsonPayload, string $rawBody): mixed
+    {
+        if (is_array($jsonPayload)) {
+            return $jsonPayload;
         }
 
-        $response->throw();
+        if (is_object($jsonPayload)) {
+            return (array) $jsonPayload;
+        }
 
-        return new ApiResponseData($response->status(), $response->headers(), $response->json(), false);
+        $trimmed = trim($rawBody);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        return ['raw' => mb_substr($trimmed, 0, 65000)];
     }
 
     private function responseCacheKey(string $endpoint, array $query): string

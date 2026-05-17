@@ -67,6 +67,45 @@
         </div>
     </div>
 
+    {{-- Métricas por API --}}
+    <div>
+        <h2 class="text-base font-semibold text-white mb-3">Uso por API (requisições reais)</h2>
+        <div class="card overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead>
+                        <tr class="border-b border-slate-800">
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">API</th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Req (24h)</th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Req (mês)</th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Pico (1 min)</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Momento do pico</th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Latência média (ms)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/60">
+                        @forelse($apiUsageSummary as $row)
+                        <tr class="hover:bg-slate-800/20 transition-colors">
+                            <td class="px-4 py-3 text-sm font-semibold text-slate-200">{{ strtoupper(str_replace('_', ' ', $row['api'])) }}</td>
+                            <td class="px-4 py-3 text-sm text-slate-300 text-right">{{ $row['req_24h'] }}</td>
+                            <td class="px-4 py-3 text-sm text-slate-300 text-right">{{ $row['req_month'] }}</td>
+                            <td class="px-4 py-3 text-sm text-emerald-300 text-right">{{ $row['peak_rpm'] }}</td>
+                            <td class="px-4 py-3 text-sm text-slate-300">{{ $row['peak_minute'] }}</td>
+                            <td class="px-4 py-3 text-sm text-slate-300 text-right">{{ number_format((float) $row['avg_latency_ms'], 1, ',', '.') }}</td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="6" class="px-4 py-8 text-center text-sm text-slate-500">
+                                Sem dados de requisições por API.
+                            </td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     {{-- Gráfico de linhas por horário --}}
     <div>
         <h2 class="text-base font-semibold text-white mb-3">Volumetria por Horário (24h) por API</h2>
