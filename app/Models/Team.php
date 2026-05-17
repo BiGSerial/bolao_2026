@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Team extends Model
 {
@@ -62,6 +63,18 @@ class Team extends Model
         ];
 
         return $map[$raw] ?? $raw;
+    }
+
+    public function getAbbr3Attribute(): string
+    {
+        $base = trim((string) ($this->localized_name ?: $this->short_name ?: $this->name ?: ''));
+        if ($base === '') {
+            return '---';
+        }
+
+        $ascii = Str::ascii($base);
+
+        return strtoupper(substr($ascii, 0, 3));
     }
 
     public function homeMatches(): HasMany

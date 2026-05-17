@@ -222,11 +222,11 @@ $cardInfo = function (string $card): array {
                 <div class="relative">
                     @if($match->homeTeam?->crest)
                         <img src="{{ $match->homeTeam->crest }}"
-                             alt="{{ $match->homeTeam->name }}"
+                             alt="{{ $match->homeTeam?->localized_name ?? $match->homeTeam->name }}"
                              class="h-16 w-16 sm:h-20 sm:w-20 object-contain drop-shadow-xl transition-transform duration-300 hover:scale-105">
                     @else
                         <div class="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl bg-blue-900/30 border border-blue-700/30 flex items-center justify-center text-xl font-black text-blue-300">
-                            {{ $match->homeTeam?->tla ?? '?' }}
+                            {{ $match->homeTeam?->abbr3 ?? '?' }}
                         </div>
                     @endif
                     @if($isLive && $homeScore > $awayScore)
@@ -288,11 +288,11 @@ $cardInfo = function (string $card): array {
                 <div class="relative">
                     @if($match->awayTeam?->crest)
                         <img src="{{ $match->awayTeam->crest }}"
-                             alt="{{ $match->awayTeam->name }}"
+                             alt="{{ $match->awayTeam?->localized_name ?? $match->awayTeam->name }}"
                              class="h-16 w-16 sm:h-20 sm:w-20 object-contain drop-shadow-xl transition-transform duration-300 hover:scale-105">
                     @else
                         <div class="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl bg-rose-900/30 border border-rose-700/30 flex items-center justify-center text-xl font-black text-rose-300">
-                            {{ $match->awayTeam?->tla ?? '?' }}
+                            {{ $match->awayTeam?->abbr3 ?? '?' }}
                         </div>
                     @endif
                     @if($isLive && $awayScore > $homeScore)
@@ -359,13 +359,13 @@ $cardInfo = function (string $card): array {
                         <img src="{{ $match->homeTeam->crest }}" alt="" class="h-5 w-5 object-contain">
                     @endif
                     <span class="text-xs font-bold text-blue-400 uppercase tracking-wide">
-                        {{ $match->homeTeam?->tla ?? 'Casa' }}
+                        {{ $match->homeTeam?->abbr3 ?? 'Casa' }}
                     </span>
                 </div>
                 <span class="text-[9px] uppercase tracking-[0.15em] font-medium text-slate-600">Comparativo</span>
                 <div class="flex items-center gap-2">
                     <span class="text-xs font-bold text-rose-400 uppercase tracking-wide">
-                        {{ $match->awayTeam?->tla ?? 'Visitante' }}
+                        {{ $match->awayTeam?->abbr3 ?? 'Visitante' }}
                     </span>
                     @if($match->awayTeam?->crest)
                         <img src="{{ $match->awayTeam->crest }}" alt="" class="h-5 w-5 object-contain">
@@ -446,12 +446,12 @@ $cardInfo = function (string $card): array {
                         <img src="{{ $match->homeTeam->crest }}" alt="" class="h-5 w-5 object-contain shrink-0">
                     @endif
                     <span class="text-xs font-bold text-blue-400 uppercase tracking-wide truncate">
-                        {{ $match->homeTeam?->tla ?? 'Casa' }}
+                        {{ $match->homeTeam?->abbr3 ?? 'Casa' }}
                     </span>
                 </div>
                 <div class="flex items-center gap-2 px-1 justify-end">
                     <span class="text-xs font-bold text-rose-400 uppercase tracking-wide truncate">
-                        {{ $match->awayTeam?->tla ?? 'Visitante' }}
+                        {{ $match->awayTeam?->abbr3 ?? 'Visitante' }}
                     </span>
                     @if($match->awayTeam?->crest)
                         <img src="{{ $match->awayTeam->crest }}" alt="" class="h-5 w-5 object-contain shrink-0">

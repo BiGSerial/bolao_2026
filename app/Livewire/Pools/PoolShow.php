@@ -50,12 +50,12 @@ class PoolShow extends Component
             return 'A definir';
         }
 
-        $tla = strtoupper((string) ($team->tla ?? ''));
+        $tla = strtoupper((string) ($team->abbr3 ?? ''));
         if ($tla !== '' && isset($this->countryNamesByTla[$tla])) {
             return $this->countryNamesByTla[$tla];
         }
 
-        return (string) ($team->short_name ?: $team->name ?: 'A definir');
+        return (string) ($team->localized_name ?: $team->short_name ?: $team->name ?: 'A definir');
     }
 
     public function savePrediction(int $matchId, PredictionService $service): void
@@ -458,7 +458,7 @@ class PoolShow extends Component
             ->where('competition_id', $this->pool->competition_id)
             ->where('competition_season_id', $this->pool->competition_season_id)
             ->where('stage', $this->pool->stage)
-            ->with(['homeTeam:id,name,short_name,tla,crest', 'awayTeam:id,name,short_name,tla,crest'])
+            ->with(['homeTeam:id,name,canonical_name_br,short_name,tla,crest', 'awayTeam:id,name,canonical_name_br,short_name,tla,crest'])
             ->orderBy('utc_date')
             ->get();
 

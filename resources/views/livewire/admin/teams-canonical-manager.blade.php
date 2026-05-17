@@ -37,7 +37,7 @@
                                 </div>
                             </div>
                         </td>
-                        <td class="px-4 py-3 text-sm text-slate-400 font-mono">{{ $team->tla ?: '—' }}</td>
+                        <td class="px-4 py-3 text-sm text-slate-400 font-mono">{{ $team->abbr3 ?: '—' }}</td>
                         <td class="px-4 py-3 min-w-[280px]">
                             <input type="text"
                                    wire:model.defer="canonicalNames.{{ $team->id }}"

@@ -13,6 +13,7 @@ use App\Services\Pools\LivePoolRankingService;
 use App\Services\Predictions\PredictionService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Collection;
 use Livewire\Component;
 
 class Home extends Component
@@ -215,7 +216,7 @@ class Home extends Component
             ->keyBy('pool_id');
 
         /* ── Matches ─────────────────────────────────────────────── */
-        $teamWith = ['homeTeam:id,name,short_name,tla,crest', 'awayTeam:id,name,short_name,tla,crest'];
+        $teamWith = ['homeTeam:id,name,canonical_name_br,short_name,tla,crest', 'awayTeam:id,name,canonical_name_br,short_name,tla,crest'];
 
         $live = FootballMatch::query()
             ->where($competitionScope)
@@ -261,7 +262,7 @@ class Home extends Component
             ->where('stage', $currentStage)
             ->where('type', 'TOTAL')
             ->with([
-                'rows' => fn ($q) => $q->with('team:id,name,short_name,tla,crest')
+                'rows' => fn ($q) => $q->with('team:id,name,canonical_name_br,short_name,tla,crest')
                     ->orderByRaw('case when position is null then 1 else 0 end')
                     ->orderBy('position')
                     ->orderByDesc('points')
@@ -321,6 +322,7 @@ class Home extends Component
         $selectedPoolMemberCount = 0;
         $selectedPoolTopRankings = collect();
         $selectedPoolRealtimeStats = null;
+        $selectedPoolRankingNeighborhood = collect();
 
         if ($this->selectedPoolId) {
             $selectedPool = $myMembershipsForComp->firstWhere('pool_id', $this->selectedPoolId)?->pool;
@@ -365,6 +367,11 @@ class Home extends Component
                     );
                 }
             }
+        }
+
+        if ($selectedPool) {
+            $liveRankingRows = app(LivePoolRankingService::class)->build($selectedPool)->values();
+            $selectedPoolRankingNeighborhood = $this->extractRankingNeighborhood($liveRankingRows, $userId)->values();
         }
 
         /* ── Hero match: first upcoming that matches the pool stage, else any upcoming ── */
@@ -421,47 +428,69 @@ class Home extends Component
 
         /* ── Live match predictions by pool (current user) ──────── */
         $livePoolPredictions = collect();
-        if ($live->isNotEmpty() && $myMembershipsForComp->isNotEmpty()) {
-            $poolById = $myMembershipsForComp
-                ->mapWithKeys(fn ($membership) => [$membership->pool_id => $membership->pool]);
-
-            $livePredictions = Prediction::query()
-                ->where('user_id', $userId)
-                ->whereIn('pool_id', $poolById->keys()->all())
+        $liveRankingPredictions = collect();
+        if ($live->isNotEmpty() && $selectedPool) {
+            $livePredictionsForSelectedPool = Prediction::query()
+                ->where('pool_id', $selectedPool->id)
                 ->whereIn('football_match_id', $live->pluck('id')->all())
-                ->orderBy('pool_id')
-                ->get();
+                ->whereIn('user_id', $selectedPoolRankingNeighborhood->pluck('user_id')->filter()->all())
+                ->with('user:id,name,display_name')
+                ->get()
+                ->groupBy('football_match_id');
+
+            $myPredictions = $livePredictionsForSelectedPool
+                ->map(fn (Collection $predictions) => $predictions->firstWhere('user_id', $userId));
 
             foreach ($live as $liveMatch) {
                 $homeReal = is_numeric($liveMatch->home_score_full_time) ? (int) $liveMatch->home_score_full_time : null;
                 $awayReal = is_numeric($liveMatch->away_score_full_time) ? (int) $liveMatch->away_score_full_time : null;
 
-                $rows = $livePredictions
-                    ->where('football_match_id', $liveMatch->id)
-                    ->map(function (Prediction $prediction) use ($poolById, $homeReal, $awayReal) {
-                        $pool = $poolById->get($prediction->pool_id);
-                        if (! $pool) {
-                            return null;
-                        }
-
-                        return [
-                            'pool_id' => (int) $pool->id,
-                            'pool_name' => (string) $pool->name,
-                            'prediction' => (string) $prediction->home_score.'x'.(string) $prediction->away_score,
-                            'points' => $this->calculatePerMatchPoints(
-                                pool: $pool,
-                                predictionHome: (int) $prediction->home_score,
-                                predictionAway: (int) $prediction->away_score,
+                $myPrediction = $myPredictions->get($liveMatch->id);
+                $livePoolPredictions[(int) $liveMatch->id] = collect([
+                    [
+                        'pool_id' => (int) $selectedPool->id,
+                        'pool_name' => (string) $selectedPool->name,
+                        'prediction' => $myPrediction ? ((string) $myPrediction->home_score.'x'.(string) $myPrediction->away_score) : 'sem palpite',
+                        'points' => $myPrediction
+                            ? $this->calculatePerMatchPoints(
+                                pool: $selectedPool,
+                                predictionHome: (int) $myPrediction->home_score,
+                                predictionAway: (int) $myPrediction->away_score,
                                 homeReal: $homeReal,
                                 awayReal: $awayReal,
-                            ),
+                            )
+                            : null,
+                    ],
+                ]);
+
+                $matchPredictions = $livePredictionsForSelectedPool->get($liveMatch->id, collect())->keyBy('user_id');
+                $liveRankingPredictions[(int) $liveMatch->id] = $selectedPoolRankingNeighborhood
+                    ->map(function ($rankRow) use ($matchPredictions, $selectedPool, $homeReal, $awayReal, $userId) {
+                        $rankUserId = (int) ($rankRow->user_id ?? 0);
+                        $prediction = $matchPredictions->get($rankUserId);
+                        $publicName = $rankRow->user?->display_name ?: $rankRow->user?->name ?: 'Participante';
+                        $rankPos = (int) ($rankRow->position ?? 0);
+
+                        return [
+                            'user_id' => $rankUserId,
+                            'is_me' => $rankUserId === $userId,
+                            'name' => $publicName,
+                            'position' => $rankPos,
+                            'prediction' => $prediction
+                                ? ((string) $prediction->home_score.'x'.(string) $prediction->away_score)
+                                : null,
+                            'points' => $prediction
+                                ? $this->calculatePerMatchPoints(
+                                    pool: $selectedPool,
+                                    predictionHome: (int) $prediction->home_score,
+                                    predictionAway: (int) $prediction->away_score,
+                                    homeReal: $homeReal,
+                                    awayReal: $awayReal,
+                                )
+                                : null,
                         ];
                     })
-                    ->filter()
-                    ->sortBy('pool_name', SORT_NATURAL | SORT_FLAG_CASE)
                     ->values();
-
-                $livePoolPredictions[(int) $liveMatch->id] = $rows;
             }
         }
 
@@ -494,6 +523,7 @@ class Home extends Component
             'recentPredictions',
             'upcomingPredictions',
             'livePoolPredictions',
+            'liveRankingPredictions',
         ));
     }
 
@@ -606,6 +636,33 @@ class Home extends Component
     private function resultOf(int $home, int $away): string
     {
         return $home > $away ? 'H' : ($home < $away ? 'A' : 'D');
+    }
+
+    private function extractRankingNeighborhood(Collection $rankingRows, int $userId): Collection
+    {
+        $totalRows = $rankingRows->count();
+        if ($totalRows === 0) {
+            return collect();
+        }
+
+        $myIndex = $rankingRows->search(fn ($row) => (int) ($row->user_id ?? 0) === $userId);
+        if ($myIndex === false) {
+            return $rankingRows->take(5);
+        }
+
+        $windowSize = min(5, $totalRows);
+        $start = max(0, $myIndex - 2);
+        $end = min($totalRows - 1, $myIndex + 2);
+
+        while (($end - $start + 1) < $windowSize && $start > 0) {
+            $start--;
+        }
+
+        while (($end - $start + 1) < $windowSize && $end < ($totalRows - 1)) {
+            $end++;
+        }
+
+        return $rankingRows->slice($start, $end - $start + 1)->values();
     }
 
     private function buildRealtimeStatsForPool(Pool $pool, int $userId): array

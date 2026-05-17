@@ -53,7 +53,7 @@
                 default            => 'Pré-Jogo',
             };
         @endphp
-        <a href="{{ $href }}" class="bg-bolao-bg2 border border-white/[0.07] rounded-xl px-4 py-4 min-h-[138px] relative overflow-hidden hover:border-white/[0.13] transition-colors">
+        <a href="{{ $href }}" x-data="{ liveCardTab: 'pools' }" class="bg-bolao-bg2 border border-white/[0.07] rounded-xl px-4 py-4 min-h-[138px] relative overflow-hidden hover:border-white/[0.13] transition-colors">
             <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-bolao-accent to-bolao-accent2"></div>
             <div class="flex items-center justify-between mb-3">
                 <span class="text-[10px] text-bolao-muted">Rodada {{ $match->matchday }}</span>
@@ -69,7 +69,7 @@
                 <div class="flex items-center gap-2 flex-1 min-w-0">
                     <x-match-team-logo :team="$match->homeTeam" size="sm" />
                     <span class="text-xs font-semibold text-slate-200 truncate">
-                        {{ $match->homeTeam?->short_name ?? $match->homeTeam?->name ?? 'A definir' }}
+                        {{ $match->homeTeam?->localized_name ?? $match->homeTeam?->short_name ?? $match->homeTeam?->name ?? 'A definir' }}
                     </span>
                 </div>
                 <div class="font-bc font-extrabold text-2xl text-white leading-none tracking-widest shrink-0 min-w-[72px] text-center px-1">
@@ -77,28 +77,75 @@
                 </div>
                 <div class="flex items-center gap-2 flex-1 min-w-0 justify-end">
                     <span class="text-xs font-semibold text-slate-200 truncate text-right">
-                        {{ $match->awayTeam?->short_name ?? $match->awayTeam?->name ?? 'A definir' }}
+                        {{ $match->awayTeam?->localized_name ?? $match->awayTeam?->short_name ?? $match->awayTeam?->name ?? 'A definir' }}
                     </span>
                     <x-match-team-logo :team="$match->awayTeam" size="sm" />
                 </div>
             </div>
-            <div class="mt-3 border-t border-white/[0.07] pt-2 space-y-1.5">
-                @forelse($poolRows as $row)
-                <div class="flex items-center justify-between gap-2 rounded-md border border-white/[0.08] bg-bolao-bg3/70 px-2 py-1">
-                    <div class="min-w-0 text-[10px] text-slate-300 truncate">
-                        <span class="font-semibold text-slate-200">{{ $row['pool_name'] }}</span>
-                        <span class="text-bolao-muted"> - </span>
-                        <span class="font-bc font-bold text-[11px] text-bolao-accent">{{ $row['prediction'] }}</span>
+            <div class="mt-3 border-t border-white/[0.07] pt-2">
+                <div class="mb-2 inline-flex w-full rounded-md border border-white/[0.07] bg-bolao-bg3/70 p-0.5">
+                    <button type="button"
+                            @click.prevent.stop="liveCardTab = 'pools'"
+                            :class="liveCardTab === 'pools' ? 'bg-bolao-accent text-black' : 'text-bolao-muted hover:text-slate-200'"
+                            class="flex-1 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors">
+                        Meus bolões
+                    </button>
+                    <button type="button"
+                            @click.prevent.stop="liveCardTab = 'ranking'"
+                            :class="liveCardTab === 'ranking' ? 'bg-bolao-accent text-black' : 'text-bolao-muted hover:text-slate-200'"
+                            class="flex-1 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors">
+                        Ranking ao vivo
+                    </button>
+                </div>
+
+                <div x-show="liveCardTab === 'pools'" class="space-y-1.5">
+                    @forelse($poolRows as $row)
+                    <div class="flex items-center justify-between gap-2 rounded-md border border-white/[0.08] bg-bolao-bg3/70 px-2 py-1">
+                        <div class="min-w-0 text-[10px] text-slate-300 truncate">
+                            <span class="font-semibold text-slate-200">{{ $row['pool_name'] }}</span>
+                            <span class="text-bolao-muted"> · </span>
+                            <span class="font-bc font-bold text-[11px] text-bolao-accent">{{ $row['prediction'] }}</span>
+                        </div>
+                        <span class="shrink-0 inline-flex items-center justify-center min-w-[42px] rounded-md border border-amber-400/35 bg-amber-400/15 px-1.5 py-0.5 font-bc font-extrabold text-[11px] text-amber-300">
+                            {{ is_numeric($row['points']) ? ((int) $row['points']).' pts' : '—' }}
+                        </span>
                     </div>
-                    <span class="shrink-0 inline-flex items-center justify-center min-w-[42px] rounded-md border border-amber-400/35 bg-amber-400/15 px-1.5 py-0.5 font-bc font-extrabold text-[11px] text-amber-300">
-                        {{ is_numeric($row['points']) ? ((int) $row['points']).' pts' : '—' }}
-                    </span>
+                    @empty
+                    <div class="text-[10px] text-bolao-muted">
+                        Sem palpites seus neste jogo.
+                    </div>
+                    @endforelse
                 </div>
-                @empty
-                <div class="text-[10px] text-bolao-muted">
-                    Sem palpites seus neste jogo.
+
+                <div x-show="liveCardTab === 'ranking'" class="space-y-2">
+                    @php $rankingRows = $liveRankingPredictions[$match->id] ?? collect(); @endphp
+                    @if($selectedPool && $rankingRows->isNotEmpty())
+                    <div class="rounded-md border border-white/[0.08] bg-bolao-bg3/70 px-2 py-1.5">
+                        <p class="text-[10px] font-semibold text-slate-200 truncate mb-1">{{ $selectedPool->name }}</p>
+                        <div class="space-y-1">
+                            @foreach($rankingRows as $row)
+                            <div class="flex items-center justify-between gap-2 text-[10px] {{ !empty($row['is_me']) ? 'text-amber-300 font-semibold' : 'text-slate-300' }}">
+                                <span class="min-w-0 truncate">
+                                    {{ (int) ($row['position'] ?? 0) }}º {{ $row['name'] ?? 'Participante' }}@if(!empty($row['is_me'])) ★@endif
+                                </span>
+                                <span class="shrink-0 text-right">
+                                    <span class="block font-bc font-bold text-bolao-accent leading-none">
+                                        {{ $row['prediction'] ?? 'sem palpite' }}
+                                    </span>
+                                    <span class="block text-[9px] text-amber-300 leading-none mt-0.5">
+                                        {{ is_numeric($row['points'] ?? null) ? ((int) $row['points']).' pts' : '— pts' }}
+                                    </span>
+                                </span>
+                            </div>
+                            @endforeach
+                        </div>
+                    </div>
+                    @else
+                    <div class="text-[10px] text-bolao-muted">
+                        Ranking ao vivo indisponível.
+                    </div>
+                    @endif
                 </div>
-                @endforelse
             </div>
         </a>
         @endforeach
@@ -148,8 +195,8 @@
                     <p class="font-bc font-bold text-base uppercase tracking-wide text-white leading-tight">
                         {{ $heroMatch->homeTeam?->localized_name ?? 'A definir' }}
                     </p>
-                    @if($heroMatch->homeTeam?->tla)
-                    <p class="text-[10px] text-bolao-muted mt-0.5">{{ $heroMatch->homeTeam->tla }}</p>
+                    @if($heroMatch->homeTeam?->abbr3)
+                    <p class="text-[10px] text-bolao-muted mt-0.5">{{ $heroMatch->homeTeam->abbr3 }}</p>
                     @endif
                 </div>
             </div>
@@ -171,8 +218,8 @@
                     <p class="font-bc font-bold text-base uppercase tracking-wide text-white leading-tight">
                         {{ $heroMatch->awayTeam?->localized_name ?? 'A definir' }}
                     </p>
-                    @if($heroMatch->awayTeam?->tla)
-                    <p class="text-[10px] text-bolao-muted mt-0.5">{{ $heroMatch->awayTeam->tla }}</p>
+                    @if($heroMatch->awayTeam?->abbr3)
+                    <p class="text-[10px] text-bolao-muted mt-0.5">{{ $heroMatch->awayTeam->abbr3 }}</p>
                     @endif
                 </div>
             </div>
@@ -401,7 +448,7 @@
                 <div class="flex items-center gap-2 flex-1 min-w-0">
                     <x-match-team-logo :team="$match->homeTeam" size="sm" />
                     <span class="text-sm font-medium text-slate-200 truncate">
-                        {{ $match->homeTeam?->short_name ?? $match->homeTeam?->name ?? 'A definir' }}
+                        {{ $match->homeTeam?->localized_name ?? $match->homeTeam?->short_name ?? $match->homeTeam?->name ?? 'A definir' }}
                     </span>
                 </div>
                 <div class="flex flex-col items-center shrink-0 min-w-[64px]">
@@ -410,7 +457,7 @@
                 </div>
                 <div class="flex items-center gap-2 flex-1 min-w-0 justify-end">
                     <span class="text-sm font-medium text-slate-200 truncate text-right">
-                        {{ $match->awayTeam?->short_name ?? $match->awayTeam?->name ?? 'A definir' }}
+                        {{ $match->awayTeam?->localized_name ?? $match->awayTeam?->short_name ?? $match->awayTeam?->name ?? 'A definir' }}
                     </span>
                     <x-match-team-logo :team="$match->awayTeam" size="sm" />
                 </div>
@@ -473,7 +520,7 @@
                         <td class="px-1 sm:px-2 py-2">
                             <div class="flex items-center gap-2">
                                 <x-match-team-logo :team="$row->team" size="xs" />
-                                <span class="text-[12px] sm:text-[13px] font-medium text-slate-200 truncate max-w-[4.5rem] sm:max-w-[6rem]" title="{{ $row->team?->name }}">
+                                <span class="text-[12px] sm:text-[13px] font-medium text-slate-200 truncate max-w-[4.5rem] sm:max-w-[6rem]" title="{{ $row->team?->localized_name ?? $row->team?->name }}">
                                     {{ $row->team?->localized_name ?? '—' }}
                                 </span>
                             </div>
@@ -555,7 +602,7 @@
                     <div class="flex items-center gap-2 min-w-0 flex-1">
                         <x-match-team-logo :team="$match->homeTeam" size="sm" />
                         <span class="text-sm font-medium text-slate-200 truncate">
-                            {{ $match->homeTeam?->short_name ?? $match->homeTeam?->name ?? 'A definir' }}
+                            {{ $match->homeTeam?->localized_name ?? $match->homeTeam?->short_name ?? $match->homeTeam?->name ?? 'A definir' }}
                         </span>
                     </div>
                     <div class="font-bc font-extrabold text-xl text-white shrink-0 tracking-wider px-1">
@@ -563,7 +610,7 @@
                     </div>
                     <div class="flex items-center gap-2 min-w-0 flex-1 justify-end">
                         <span class="text-sm font-medium text-slate-200 truncate text-right">
-                            {{ $match->awayTeam?->short_name ?? $match->awayTeam?->name ?? 'A definir' }}
+                            {{ $match->awayTeam?->localized_name ?? $match->awayTeam?->short_name ?? $match->awayTeam?->name ?? 'A definir' }}
                         </span>
                         <x-match-team-logo :team="$match->awayTeam" size="sm" />
                     </div>
@@ -599,9 +646,9 @@
         @endphp
         <a href="{{ route('matches.show', ['match' => $match->id]) }}" class="block py-2 hover:bg-white/[0.02] -mx-2 px-2 rounded-md transition-colors">
             <div class="flex items-center justify-between gap-2">
-                <span class="text-xs text-slate-300 truncate">{{ $match->homeTeam?->short_name ?? $match->homeTeam?->tla ?? '?' }}</span>
+                <span class="text-xs text-slate-300 truncate">{{ $match->homeTeam?->localized_name ?? $match->homeTeam?->short_name ?? $match->homeTeam?->abbr3 ?? '?' }}</span>
                 <span class="font-bc font-extrabold text-xl text-white">{{ $match->home_score_full_time ?? 0 }}–{{ $match->away_score_full_time ?? 0 }}</span>
-                <span class="text-xs text-slate-300 truncate text-right">{{ $match->awayTeam?->short_name ?? $match->awayTeam?->tla ?? '?' }}</span>
+                <span class="text-xs text-slate-300 truncate text-right">{{ $match->awayTeam?->localized_name ?? $match->awayTeam?->short_name ?? $match->awayTeam?->abbr3 ?? '?' }}</span>
             </div>
             <div class="mt-1 flex items-center justify-between text-[10px] text-bolao-muted">
                 <span class="text-bolao-red">{{ $minute ? $minute . "'" : 'AO VIVO' }}</span>
@@ -665,9 +712,9 @@
         @foreach($upcoming->filter(fn($m) => $m->matchday === $nextMatchday)->take(2) as $match)
         <div class="py-2 first:pt-1">
             <p class="font-bc font-bold text-xs text-slate-200">
-                {{ $match->homeTeam?->tla ?? '?' }}
+                {{ $match->homeTeam?->abbr3 ?? '?' }}
                 <span class="text-bolao-muted2 font-normal text-[10px] mx-1">vs</span>
-                {{ $match->awayTeam?->tla ?? '?' }}
+                {{ $match->awayTeam?->abbr3 ?? '?' }}
             </p>
             <p class="text-[10px] text-bolao-muted mt-0.5">
                 {{ $match->kickoffAtBrazil()?->format('d/m · H:i') }}
