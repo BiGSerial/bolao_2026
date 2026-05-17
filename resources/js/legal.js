@@ -11,6 +11,29 @@ function renderMarkdown(content, emptyHtml) {
     return String(content).replace(/\n/g, '<br>');
 }
 
+function renderMarkdownWhenReady(targetId, content, emptyHtml = '', attempts = 20) {
+    const el = document.getElementById(targetId);
+    if (!el) return;
+
+    const raw = (content || '').trim();
+    if (!raw) {
+        el.innerHTML = emptyHtml;
+        return;
+    }
+
+    if (typeof window.marked !== 'undefined') {
+        el.innerHTML = renderMarkdown(raw, emptyHtml);
+        return;
+    }
+
+    if (attempts <= 0) {
+        el.innerHTML = String(raw).replace(/\n/g, '<br>');
+        return;
+    }
+
+    window.setTimeout(() => renderMarkdownWhenReady(targetId, raw, emptyHtml, attempts - 1), 50);
+}
+
 window.createLegalModalData = function createLegalModalData(config = {}) {
     const docs = config.docs || {};
     const modalBodyId = config.modalBodyId || '';
@@ -58,7 +81,9 @@ window.createAcceptanceData = function createAcceptanceData(config = {}) {
 };
 
 window.renderLegalDocumentContent = function renderLegalDocumentContent(targetId, content) {
-    const el = document.getElementById(targetId);
-    if (!el) return;
-    el.innerHTML = renderMarkdown(content || '', '');
+    renderMarkdownWhenReady(
+        targetId,
+        content || '',
+        "<p style='color:#94a3b8;font-style:italic;text-align:center;padding:1.2rem 0'>Documento não disponível no momento.</p>",
+    );
 };

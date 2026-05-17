@@ -904,7 +904,7 @@ body.landing-page::before {
       <div>
         <div class="lp-footer-col-title">Suporte</div>
         <a href="{{ route('legal.terms') }}" class="lp-footer-link">Termos de Uso</a>
-        <a href="{{ route('legal.privacy-policy') }}" class="lp-footer-link">Privacidade</a>
+        <a href="{{ route('legal.confidentiality-policy') }}" class="lp-footer-link">Confidencialidade</a>
         <a href="{{ route('about') }}" class="lp-footer-link">Sobre</a>
       </div>
     </div>
@@ -912,7 +912,7 @@ body.landing-page::before {
       <div>© {{ date('Y') }} VixForge Sistemas · Feito com ⚽ para fãs de futebol</div>
       <div style="display:flex;gap:18px">
         <a href="{{ route('legal.terms') }}">Termos de uso</a>
-        <a href="{{ route('legal.privacy-policy') }}">Política de privacidade</a>
+        <a href="{{ route('legal.confidentiality-policy') }}">Política de confidencialidade</a>
       </div>
     </div>
   </div>

@@ -41,9 +41,10 @@ Schedule::call(function (): void {
             ->whereHas('season',      fn ($q) => $q->where('year', $season));
 
         // Detecta estado atual da competição
-        $hasLive = (clone $base)
+        $liveCount = (clone $base)
             ->whereIn('status', ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'])
-            ->exists();
+            ->count();
+        $hasLive = $liveCount > 0;
 
         $hasPreMatch = ! $hasLive && (clone $base)
             ->where('status', 'PRE_MATCH')
@@ -52,6 +53,10 @@ Schedule::call(function (): void {
         $hasSoon = ! $hasLive && ! $hasPreMatch && (clone $base)
             ->whereIn('status', ['TIMED', 'SCHEDULED'])
             ->where('utc_date', '<=', now()->addHour())
+            ->exists();
+        $hasLikelyInProgressByKickoffWindow = ! $hasLive && (clone $base)
+            ->whereNotIn('status', ['FINISHED', 'POSTPONED', 'CANCELLED', 'SUSPENDED'])
+            ->whereBetween('utc_date', [now()->subHours(4), now()->addHours(2)])
             ->exists();
 
         /*
@@ -83,14 +88,17 @@ Schedule::call(function (): void {
          *    3 = ocioso (backfill de detalhes antigos)
          */
         [$afMin, $afMax, $detailsLimit] = match(true) {
-            $hasLive     => [1, 2,  15],
+            // Garante cobertura de TODOS os jogos ao vivo no batch de detalhes
+            // (lineups/eventos) com folga para pré-jogos próximos.
+            $hasLive     => [1, 2,  max(15, min(60, $liveCount + 6))],
             $hasPreMatch => [2, 3,   8],
             $hasSoon     => [3, 5,   5],
-            default      => [12, 18, 3],
+            default      => [30, 45, 2],
         };
 
-        if (shouldDispatchForWindow("scheduler:af:$code:$season:$stage", $afMin, $afMax)) {
-            $syncType = $hasLive ? 'live_priority' : 'complementary_off_live';
+        $shouldUsePaidApi = $hasLive || $hasPreMatch || $hasSoon || $hasLikelyInProgressByKickoffWindow;
+        if ($shouldUsePaidApi && shouldDispatchForWindow("scheduler:af:$code:$season:$stage", $afMin, $afMax)) {
+            $syncType = $hasLive ? 'live_priority' : ($hasLikelyInProgressByKickoffWindow ? 'kickoff_window_priority' : 'pre_live_priority');
             RunCompetitionMatchDetailsSyncJob::dispatch($code, $season, $stage, $detailsLimit, $syncType);
         }
     }

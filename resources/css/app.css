@@ -436,7 +436,7 @@
 }
 
 /* ─── Legal document content ─────────────────────────────────── */
-/* Legal document content — white background, black text, shared across modal/acceptance/document pages */
+/* Legal document content — white reading surface inside dark app shell */
 .legal-doc-body {
     color: #1a1a1a;
     background: #ffffff;
@@ -507,11 +507,12 @@
 }
 
 .legal-doc-body a {
-    color: #059669;
+    color: #d97706;
     text-decoration: none;
 }
 
 .legal-doc-body a:hover {
+    color: #b45309;
     text-decoration: underline;
 }
 
@@ -522,7 +523,7 @@
 }
 
 .legal-doc-body blockquote {
-    border-left: 2px solid #10b981;
+    border-left: 2px solid #f59e0b;
     padding-left: 0.75rem;
     color: #1a1a1a;
     font-size: 0.75rem;

@@ -12,7 +12,6 @@ use App\Services\Api\Connectors\ApiFootballConnector;
 use App\Services\Api\Connectors\FootballDataConnector;
 use App\Services\FootballData\Projections\ApiFootballDetailProjectionService;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 class SyncWorldCupMatchDetailsService
@@ -204,54 +203,14 @@ class SyncWorldCupMatchDetailsService
         return $matchIndex;
     }
 
-    /**
-     * Fora de jogos ao vivo, API-Football atua apenas como complemento (máx. 30 atualizações/dia).
-     */
     private function canUseApiFootballForCurrentBatch(Collection $matches): bool
     {
-        $hasLiveMatches = $matches->contains(function (FootballMatch $match): bool {
-            return in_array((string) $match->status, ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'], true);
-        });
-
-        if ($hasLiveMatches) {
-            $this->apiFootballSyncType = 'live_priority';
-
-            return true;
-        }
-
-        $maxDailyComplementaryUpdates = max(0, (int) config('api-football.complementary.max_daily_updates_outside_live', 30));
-        if ($maxDailyComplementaryUpdates === 0) {
-            $this->apiFootballSyncType = 'complementary_disabled';
-
+        if ($matches->isEmpty()) {
+            $this->apiFootballSyncType = 'empty_batch';
             return false;
         }
-
-        $dayKey = now('America/Sao_Paulo')->format('Ymd');
-        $counterKey = 'api-football:complementary:daily-updates:'.$dayKey;
-        $lock = Cache::lock($counterKey.':lock', 5);
-        $acquired = $lock->block(3);
-
-        if (! $acquired) {
-            $this->apiFootballSyncType = 'complementary_lock_timeout';
-
-            return false;
-        }
-
-        try {
-            $currentCount = (int) Cache::get($counterKey, 0);
-            if ($currentCount >= $maxDailyComplementaryUpdates) {
-                $this->apiFootballSyncType = 'complementary_daily_cap_reached';
-
-                return false;
-            }
-
-            Cache::put($counterKey, $currentCount + 1, now('America/Sao_Paulo')->endOfDay()->addHour());
-            $this->apiFootballSyncType = 'complementary_off_live';
-
-            return true;
-        } finally {
-            optional($lock)->release();
-        }
+        $this->apiFootballSyncType = 'always_on_non_empty_batch';
+        return true;
     }
 
     private function syncMatchStateFromApiFootball(FootballMatch $match, array $apiFootballPayload): void
@@ -417,7 +376,6 @@ class SyncWorldCupMatchDetailsService
      */
     private function matchesToSync(int $limit, ?string $competitionCode = null, ?int $seasonYear = null, ?string $stage = null): Collection
     {
-        $staleMinutes = (int) config('football-data.match_details.stale_minutes', 15);
         $backfillDays = max(1, (int) config('football-data.match_details.backfill_finished_days', 120));
         $safeLimit = max(1, $limit);
 
@@ -425,6 +383,20 @@ class SyncWorldCupMatchDetailsService
             ->when($competitionCode, fn ($q) => $q->whereHas('competition', fn ($qc) => $qc->where('code', strtoupper((string) $competitionCode))))
             ->when($seasonYear, fn ($q) => $q->whereHas('season', fn ($qs) => $qs->where('year', $seasonYear)))
             ->when($stage !== null && $stage !== '', fn ($q) => $q->where('stage', $stage));
+
+        // Durante jogo ao vivo, garantimos cobertura de lineup/eventos para TODOS os jogos live.
+        $liveStatuses = ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'];
+        $livePriority = (clone $baseQuery)
+            ->whereIn('status', $liveStatuses)
+            ->orderByRaw("case football_matches.status when 'IN_PLAY' then 0 when 'PAUSED' then 1 when 'EXTRA_TIME' then 2 when 'PENALTY_SHOOTOUT' then 3 else 4 end")
+            ->orderBy('football_matches.utc_date')
+            ->select('football_matches.*')
+            ->limit($safeLimit)
+            ->get();
+
+        if ($livePriority->isNotEmpty()) {
+            return $livePriority->values();
+        }
 
         $backfill = (clone $baseQuery)
             ->where('status', 'FINISHED')
@@ -443,13 +415,8 @@ class SyncWorldCupMatchDetailsService
 
         $priority = (clone $baseQuery)
             ->whereBetween('utc_date', [now()->utc()->subHours(3), now()->utc()->addHours(24)])
-            ->whereIn('status', ['TIMED', 'SCHEDULED', 'IN_PLAY', 'PAUSED', 'FINISHED'])
-            ->leftJoin('football_match_details', 'football_match_details.football_match_id', '=', 'football_matches.id')
-            ->where(function ($q) use ($staleMinutes): void {
-                $q->whereNull('football_match_details.fetched_at')
-                    ->orWhere('football_match_details.fetched_at', '<', now()->subMinutes($staleMinutes));
-            })
-            ->orderByRaw("case football_matches.status when 'IN_PLAY' then 0 when 'PAUSED' then 1 when 'TIMED' then 2 when 'SCHEDULED' then 3 else 4 end")
+            ->whereIn('status', ['TIMED', 'SCHEDULED', 'IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT', 'FINISHED'])
+            ->orderByRaw("case football_matches.status when 'IN_PLAY' then 0 when 'PAUSED' then 1 when 'EXTRA_TIME' then 2 when 'PENALTY_SHOOTOUT' then 3 when 'TIMED' then 4 when 'SCHEDULED' then 5 else 6 end")
             ->orderBy('football_matches.utc_date')
             ->select('football_matches.*')
             ->limit($remaining)
