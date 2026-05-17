@@ -19,6 +19,7 @@ class PoolShow extends Component
     public Pool $pool;
     public array $scores = [];
     public string $activeTab = 'jogos';
+    public ?int $predictionMemberUserId = null;
     public bool $showAllRounds = false;
     public ?string $bulkGroup = null;
     public bool $showInstructions = false;
@@ -34,7 +35,9 @@ class PoolShow extends Component
         if (in_array($tab, ['jogos', 'ranking', 'resumo'], true)) {
             $this->activeTab = $tab;
         }
-        $this->assertMember();
+        $currentMember = $this->assertMember();
+
+        $this->predictionMemberUserId = $this->resolveRequestedPredictionMember($currentMember);
     }
 
     public function teamDisplayName(?Team $team): string
@@ -53,6 +56,7 @@ class PoolShow extends Component
 
     public function savePrediction(int $matchId, PredictionService $service): void
     {
+        $this->assertCanEditPredictions();
         $this->assertMember();
 
         $home = (int) data_get($this->scores, $matchId.'.home', 0);
@@ -75,6 +79,7 @@ class PoolShow extends Component
 
     public function applyBulkPrediction(string $home, string $away, PredictionService $service): void
     {
+        $this->assertCanEditPredictions();
         $this->assertMember();
 
         $h = max(0, min(30, (int) $home));
@@ -154,6 +159,42 @@ class PoolShow extends Component
         return $member;
     }
 
+    private function assertCanEditPredictions(): void
+    {
+        $viewerUserId = (int) Auth::id();
+        if ($this->predictionMemberUserId && $this->predictionMemberUserId !== $viewerUserId) {
+            abort(403);
+        }
+    }
+
+    private function resolveRequestedPredictionMember(PoolMember $currentMember): ?int
+    {
+        $requestedMemberUserId = request()->integer('member');
+        if ($requestedMemberUserId <= 0) {
+            return null;
+        }
+
+        if ($requestedMemberUserId === (int) Auth::id()) {
+            return null;
+        }
+
+        $targetMember = $this->pool->members()
+            ->where('user_id', $requestedMemberUserId)
+            ->where('status', 'active')
+            ->first();
+
+        return $targetMember ? (int) $targetMember->user_id : null;
+    }
+
+    private function canViewOpenPredictionsFromOther(PoolMember $viewer): bool
+    {
+        if ((bool) Auth::user()?->is_admin) {
+            return true;
+        }
+
+        return (string) $viewer->role === 'owner';
+    }
+
     private function matchStatusLabel(string $status): string
     {
         return match ($status) {
@@ -191,9 +232,15 @@ class PoolShow extends Component
 
     public function render()
     {
-        $userId = (int) Auth::id();
+        $viewerUserId = (int) Auth::id();
+        $targetUserId = $this->predictionMemberUserId ?: $viewerUserId;
 
-        $member = $this->pool->members()->where('user_id', $userId)->first();
+        $member = $this->pool->members()->where('user_id', $viewerUserId)->first();
+        abort_if(! $member, 403);
+
+        $isViewingOtherMember = $targetUserId !== $viewerUserId;
+        $canEditPredictions = ! $isViewingOtherMember;
+        $canViewOpenPredictionsFromOther = ! $isViewingOtherMember || $this->canViewOpenPredictionsFromOther($member);
 
         $matches = FootballMatch::query()
             ->where('competition_id', $this->pool->competition_id)
@@ -214,16 +261,30 @@ class PoolShow extends Component
 
         $predictions = Prediction::query()
             ->where('pool_id', $this->pool->id)
-            ->where('user_id', $userId)
+            ->where('user_id', $targetUserId)
             ->get()
             ->keyBy('football_match_id');
 
-        foreach ($predictions as $prediction) {
-            if (! isset($this->scores[$prediction->football_match_id])) {
-                $this->scores[$prediction->football_match_id] = [
-                    'home' => $prediction->home_score,
-                    'away' => $prediction->away_score,
-                ];
+        $predictionVisibility = [];
+        foreach ($matches as $match) {
+            $isVisible = ! $isViewingOtherMember
+                || $canViewOpenPredictionsFromOther
+                || $match->isPredictionLockedFor($this->pool);
+
+            $predictionVisibility[$match->id] = $isVisible;
+            if (! $isVisible) {
+                $predictions->forget($match->id);
+            }
+        }
+
+        if ($canEditPredictions) {
+            foreach ($predictions as $prediction) {
+                if (! isset($this->scores[$prediction->football_match_id])) {
+                    $this->scores[$prediction->football_match_id] = [
+                        'home' => $prediction->home_score,
+                        'away' => $prediction->away_score,
+                    ];
+                }
             }
         }
 
@@ -252,7 +313,7 @@ class PoolShow extends Component
             ? $this->buildProvisionalRankingRows()
             : $rankings;
 
-        $myRanking = $rankingRows->firstWhere('user_id', $userId);
+        $myRanking = $rankingRows->firstWhere('user_id', $targetUserId);
 
         $totalMatches = $matches->count();
         $predictedCount = $predictions->count();
@@ -265,7 +326,8 @@ class PoolShow extends Component
 
         return view('livewire.pools.poolshow', compact(
             'member', 'groupedMatches', 'predictions', 'statusLabels',
-            'liveMinutes', 'predictionStatuses', 'rankings', 'rankingRows', 'rankingColumns', 'myRanking', 'totalMatches', 'predictedCount', 'nearestTickerMatches', 'currentMatchday'
+            'liveMinutes', 'predictionStatuses', 'rankings', 'rankingRows', 'rankingColumns', 'myRanking', 'totalMatches', 'predictedCount', 'nearestTickerMatches', 'currentMatchday',
+            'isViewingOtherMember', 'canEditPredictions', 'predictionVisibility'
         ));
     }
 

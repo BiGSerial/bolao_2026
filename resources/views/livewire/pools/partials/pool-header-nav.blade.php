@@ -47,54 +47,6 @@
             @endif
         </div>
 
-        <div class="pool-tabs-desktop pool-tabs-bar gap-0 mt-2 border-b border-slate-800">
-            <a href="{{ route('pools.show', ['pool' => $pool->slug, 'tab' => 'jogos']) }}" class="tab-btn {{ $activeItem === 'jogos' ? 'active' : '' }}">
-                <svg class="tab-ico" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="9" stroke-width="1.8"></circle>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 3v4m0 10v4m-9-9h4m10 0h4m-7-5 3 2 1 4-2 3h-4l-2-3 1-4 3-2z"></path>
-                </svg>
-                <span class="tab-label">Jogos</span>
-            </a>
-            <a href="{{ route('pools.show', ['pool' => $pool->slug, 'tab' => 'ranking']) }}" class="tab-btn {{ $activeItem === 'ranking' ? 'active' : '' }}">
-                <svg class="tab-ico" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 18V8m6 10V4m6 14v-6m4 6H2"></path>
-                </svg>
-                <span class="tab-label">Ranking</span>
-            </a>
-            <a href="{{ route('pools.show', ['pool' => $pool->slug, 'tab' => 'resumo']) }}" class="tab-btn {{ $activeItem === 'resumo' ? 'active' : '' }}">
-                <svg class="tab-ico" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 6h12M8 12h12M8 18h12M3.5 6h.01M3.5 12h.01M3.5 18h.01"></path>
-                </svg>
-                <span class="tab-label">Resumo</span>
-            </a>
-            <a href="{{ route('pools.members', $pool->slug) }}" class="tab-btn tab-btn-right {{ $activeItem === 'participantes' ? 'active' : '' }}">
-                <svg class="tab-ico" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="9" cy="7" r="3" stroke-width="1.8"></circle>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 3.13a3 3 0 0 1 0 5.75"></path>
-                </svg>
-                <span class="tab-label">Participantes</span>
-            </a>
-            @if(in_array($memberRole, ['owner', 'manager']))
-            <a href="{{ route('pools.settings', $pool->slug) }}" class="tab-btn {{ $activeItem === 'config' ? 'active' : '' }}">
-                <svg class="tab-ico" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 1-2 0 1.7 1.7 0 0 0-1-.6 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 1 0-2 1.7 1.7 0 0 0 .6-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6c.37 0 .73-.14 1-.4a1.7 1.7 0 0 1 2 0c.27.26.63.4 1 .4a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c0 .37.14.73.4 1a1.7 1.7 0 0 1 0 2c-.26.27-.4.63-.4 1z"></path>
-                </svg>
-                <span class="tab-label">Config</span>
-            </a>
-            @endif
-
-            @if($showBulkAction)
-            <button type="button" x-on:click="$dispatch('toggle-bulk-bar')" class="pool-bulk-top-btn ml-auto">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                </svg>
-                Palpite em Massa
-            </button>
-            @endif
-        </div>
     </div>
 </div>
 

@@ -25,6 +25,26 @@
         'showInstructionsToggle' => true,
     ])
 
+    @php
+        $competitionCode = strtoupper((string) request()->query('competition', session('competition', config('football-data.default_competition_code', 'WC'))));
+        $tabLabel = match($activeTab) {
+            'ranking' => 'Ranking',
+            'resumo' => 'Resumo',
+            default => 'Jogos',
+        };
+    @endphp
+    <div class="mx-3 sm:mx-6 lg:mx-8 mt-2">
+        <nav aria-label="Breadcrumb" class="flex items-center gap-2 text-xs text-slate-500">
+            <a href="{{ route('dashboard', ['competition' => $competitionCode]) }}" class="hover:text-slate-300 transition-colors">Início</a>
+            <i class="ti ti-chevron-right text-[10px] text-slate-600"></i>
+            <a href="{{ route('pools.index', ['competition' => $competitionCode]) }}" class="hover:text-slate-300 transition-colors">Meus Bolões</a>
+            <i class="ti ti-chevron-right text-[10px] text-slate-600"></i>
+            <a href="{{ route('pools.show', ['pool' => $pool->slug, 'competition' => $competitionCode]) }}" class="hover:text-slate-300 transition-colors">{{ $pool->name }}</a>
+            <i class="ti ti-chevron-right text-[10px] text-slate-600"></i>
+            <span class="text-slate-300 font-medium">{{ $tabLabel }}</span>
+        </nav>
+    </div>
+
     @if($showInstructions && $pool->instructions)
     <div x-transition class="mx-3 sm:mx-6 lg:mx-8 mt-2 rounded-lg bg-blue-950/40 border border-blue-800/30 p-4">
         <p class="text-xs font-semibold text-blue-400 mb-2 uppercase tracking-wider">📋 Instruções / Regulamento</p>
@@ -32,162 +52,6 @@
     </div>
     @endif
 
-            @if($activeTab === 'jogos')
-                {{-- Live scores ticker --}}
-                <div class="pool-ticker mt-1.5 pb-0.5"
-                     x-data="{
-                        animated: false,
-                        init() {
-                            const track = this.$refs.track;
-                            if (!track) return;
-                            this.$nextTick(() => {
-                                this.animated = track.scrollWidth > track.clientWidth;
-                            });
-                        }
-                     }">
-                    @if($nearestTickerMatches->isNotEmpty())
-                    @php
-                        $duplicateTickerItems = $nearestTickerMatches->count() > 3;
-                    @endphp
-                    <div class="pool-ticker-box relative overflow-hidden rounded-lg border border-slate-800 bg-slate-900/40">
-                        <div class="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[#13161b] to-transparent pointer-events-none z-10"></div>
-                        <div class="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#13161b] to-transparent pointer-events-none z-10"></div>
-
-                        <div class="px-2 py-1.5" :class="animated ? 'ticker-mask' : ''">
-                            <div class="flex items-center gap-2" x-ref="track" :class="animated ? 'ticker-track' : ''">
-                                @foreach($nearestTickerMatches as $matchTicker)
-                                @php
-                                    $isLiveTicker    = in_array($matchTicker->status, ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'], true);
-                                    $isInPlayTicker  = $matchTicker->status === 'IN_PLAY';
-                                    $isFinishedTicker = $matchTicker->status === 'FINISHED';
-                                    $tickerMinute    = $liveMinutes[$matchTicker->id] ?? null;
-                                    $tickerDate      = ($matchTicker->utc_date ?? $matchTicker->local_date)?->timezone('America/Sao_Paulo');
-                                    $tickerCardClass = $isLiveTicker
-                                        ? 'border-amber-500/45 bg-[#1e1e1e]'
-                                        : 'border-[#2a2a2a] bg-[#1e1e1e]';
-                                    $statusBadgeClass = $isLiveTicker
-                                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/35'
-                                        : 'bg-[#232323] text-[#666] border-[#333]';
-                                    $statusLabel = $statusLabels[$matchTicker->id] ?? ucfirst(strtolower($matchTicker->status));
-                                    if (in_array($matchTicker->status, ['TIMED', 'SCHEDULED'], true) && $tickerDate) {
-                                        if ($tickerDate->isToday()) {
-                                            $statusLabel = 'Hoje';
-                                        } elseif ($tickerDate->isTomorrow()) {
-                                            $statusLabel = 'Amanhã';
-                                        }
-                                    }
-                                @endphp
-                                <a href="{{ route('matches.show', ['match' => $matchTicker->id]) }}"
-                                   class="ticker-item shrink-0 rounded-lg border px-2.5 py-1.5 hover:border-[#444] transition-colors block {{ $tickerCardClass }}">
-                                    <div class="flex items-center gap-2">
-                                        <div class="flex items-center min-w-0 flex-1 justify-start">
-                                            @if($matchTicker->homeTeam?->crest)
-                                            <img src="{{ $matchTicker->homeTeam->crest }}" alt="{{ $matchTicker->homeTeam->tla }}" class="h-5 w-5 object-contain shrink-0" loading="lazy">
-                                            @endif
-                                        </div>
-                                        @if($isLiveTicker || $isFinishedTicker)
-                                        <span class="text-[17px] font-black text-[#e8e8e0] tabular-nums leading-none whitespace-nowrap">
-                                            {{ $matchTicker->home_score_full_time ?? 0 }}-{{ $matchTicker->away_score_full_time ?? 0 }}
-                                        </span>
-                                        @else
-                                        <span class="text-[10px] text-[#777] whitespace-nowrap tabular-nums font-semibold">
-                                            {{ ($matchTicker->utc_date ?? $matchTicker->local_date)?->timezone('America/Sao_Paulo')->format('d/m H:i') }}
-                                        </span>
-                                        @endif
-                                        <div class="flex items-center min-w-0 flex-1 justify-end">
-                                            @if($matchTicker->awayTeam?->crest)
-                                            <img src="{{ $matchTicker->awayTeam->crest }}" alt="{{ $matchTicker->awayTeam->tla }}" class="h-5 w-5 object-contain shrink-0" loading="lazy">
-                                            @endif
-                                        </div>
-                                    </div>
-                                    <div class="mt-1 text-center">
-                                        <span class="inline-flex items-center rounded-full border px-1.5 py-0 text-[8px] font-semibold tracking-wide uppercase {{ $statusBadgeClass }}">
-                                            @if($isInPlayTicker)
-                                            <span class="relative mr-1 inline-flex h-2 w-2 items-center justify-center">
-                                                <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-red-300 opacity-80"></span>
-                                                <span class="relative inline-flex h-2 w-2 rounded-full bg-red-200"></span>
-                                            </span>
-                                            @elseif($isLiveTicker)
-                                            <span class="mr-1 inline-flex h-1.5 w-1.5 rounded-full bg-red-200"></span>
-                                            @endif
-                                            {{ $statusLabel }}@if($isLiveTicker && $tickerMinute !== null) · {{ $tickerMinute }}' @endif
-                                        </span>
-                                    </div>
-                                </a>
-                                @endforeach
-
-                                @if($duplicateTickerItems)
-                                    @foreach($nearestTickerMatches as $matchTicker)
-                                @php
-                                        $isLiveTicker    = in_array($matchTicker->status, ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'], true);
-                                        $isInPlayTicker  = $matchTicker->status === 'IN_PLAY';
-                                        $isFinishedTicker = $matchTicker->status === 'FINISHED';
-                                        $tickerMinute    = $liveMinutes[$matchTicker->id] ?? null;
-                                        $tickerDate      = ($matchTicker->utc_date ?? $matchTicker->local_date)?->timezone('America/Sao_Paulo');
-                                        $tickerCardClass = $isLiveTicker
-                                            ? 'border-amber-500/45 bg-[#1e1e1e]'
-                                            : 'border-[#2a2a2a] bg-[#1e1e1e]';
-                                        $statusBadgeClass = $isLiveTicker
-                                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/35'
-                                            : 'bg-[#232323] text-[#666] border-[#333]';
-                                        $statusLabel = $statusLabels[$matchTicker->id] ?? ucfirst(strtolower($matchTicker->status));
-                                        if (in_array($matchTicker->status, ['TIMED', 'SCHEDULED'], true) && $tickerDate) {
-                                            if ($tickerDate->isToday()) {
-                                                $statusLabel = 'Hoje';
-                                            } elseif ($tickerDate->isTomorrow()) {
-                                                $statusLabel = 'Amanhã';
-                                            }
-                                        }
-                                    @endphp
-                                    <a href="{{ route('matches.show', ['match' => $matchTicker->id]) }}"
-                                       class="ticker-item shrink-0 rounded-lg border px-2.5 py-1.5 hover:border-[#444] transition-colors block {{ $tickerCardClass }}">
-                                        <div class="flex items-center gap-2">
-                                            <div class="flex items-center min-w-0 flex-1 justify-start">
-                                                @if($matchTicker->homeTeam?->crest)
-                                                <img src="{{ $matchTicker->homeTeam->crest }}" alt="{{ $matchTicker->homeTeam->tla }}" class="h-5 w-5 object-contain shrink-0" loading="lazy">
-                                                @endif
-                                            </div>
-                                            @if($isLiveTicker || $isFinishedTicker)
-                                            <span class="text-[17px] font-black text-[#e8e8e0] tabular-nums leading-none whitespace-nowrap">
-                                                {{ $matchTicker->home_score_full_time ?? 0 }}-{{ $matchTicker->away_score_full_time ?? 0 }}
-                                            </span>
-                                            @else
-                                            <span class="text-[10px] text-[#777] whitespace-nowrap tabular-nums font-semibold">
-                                                {{ ($matchTicker->utc_date ?? $matchTicker->local_date)?->timezone('America/Sao_Paulo')->format('d/m H:i') }}
-                                            </span>
-                                            @endif
-                                            <div class="flex items-center min-w-0 flex-1 justify-end">
-                                                @if($matchTicker->awayTeam?->crest)
-                                                <img src="{{ $matchTicker->awayTeam->crest }}" alt="{{ $matchTicker->awayTeam->tla }}" class="h-5 w-5 object-contain shrink-0" loading="lazy">
-                                                @endif
-                                            </div>
-                                        </div>
-                                        <div class="mt-1 text-center">
-                                            <span class="inline-flex items-center rounded-full border px-1.5 py-0 text-[8px] font-semibold tracking-wide uppercase {{ $statusBadgeClass }}">
-                                                @if($isInPlayTicker)
-                                                <span class="relative mr-1 inline-flex h-2 w-2 items-center justify-center">
-                                                    <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-red-300 opacity-80"></span>
-                                                    <span class="relative inline-flex h-2 w-2 rounded-full bg-red-200"></span>
-                                                </span>
-                                                @elseif($isLiveTicker)
-                                                <span class="mr-1 inline-flex h-1.5 w-1.5 rounded-full bg-red-200"></span>
-                                                @endif
-                                                {{ $statusLabel }}@if($isLiveTicker && $tickerMinute !== null) · {{ $tickerMinute }}' @endif
-                                            </span>
-                                        </div>
-                                    </a>
-                                    @endforeach
-                                @endif
-                            </div>
-                        </div>
-                    </div>
-                    @else
-                    <div class="pool-ticker-empty rounded-lg border border-slate-800 bg-slate-900/30 px-3 py-2 text-xs text-slate-500">
-                        Sem jogos da primeira rodada no momento.
-                    </div>
-                    @endif
-                </div>
-            @endif
 
     @once
     <style>
@@ -201,18 +65,6 @@
             .ranking-side { flex: 0 0 220px; width: 220px; }
         }
 
-        /* ── Ticker ── */
-        .ticker-item { width: 154px; }
-        @media (min-width: 640px) { .ticker-item { width: 212px; } }
-        .ticker-mask {
-            mask-image: linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
-            -webkit-mask-image: linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
-        }
-        .ticker-track { width: max-content; animation: live-score-ticker 90s linear infinite; }
-        @keyframes live-score-ticker {
-            from { transform: translateX(0); }
-            to { transform: translateX(-50%); }
-        }
 
         /* ── Header stat pills ── */
         .pool-header-root {
@@ -489,10 +341,11 @@
             </div>
         </div>
 
-        {{-- Bulk prediction --}}
-        <div class="card p-4"
-             x-data="{ open: false, bh: '', ba: '' }"
-             x-on:toggle-bulk-bar.window="open = !open">
+           {{-- Bulk prediction --}}
+           @if($canEditPredictions)
+           <div class="card p-4"
+               x-data="{ open: false, bh: '', ba: '' }"
+               x-on:toggle-bulk-bar.window="open = !open">
             <button @click="open = !open"
                     class="flex w-full items-center justify-between text-sm font-medium text-slate-300 hover:text-white transition-colors">
                 <span class="flex items-center gap-2">
@@ -546,6 +399,7 @@
                 </div>
             </div>
         </div>
+        @endif
 
         {{-- Groups --}}
         <div class="flex items-center justify-between gap-3">
@@ -748,7 +602,7 @@
                     </div>
 
                     {{-- Prediction input --}}
-                    @if(!$isLocked || $prediction)
+                    @if($canEditPredictions && (!$isLocked || $prediction))
                     @php
                         $initH = $prediction ? (string) $prediction->home_score : '';
                         $initA = $prediction ? (string) $prediction->away_score : '';
@@ -834,6 +688,40 @@
                         @error('scores.'.$match->id)
                         <p class="mt-1.5 text-xs text-red-400">{{ $message }}</p>
                         @enderror
+                    </div>
+                    @elseif(!$canEditPredictions)
+                    @php
+                        $canSeeThisPrediction = $predictionVisibility[$match->id] ?? true;
+                    @endphp
+                    <div class="border-t border-slate-800 px-3 py-2 bg-slate-900/30">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-xs text-slate-500 shrink-0">Palpite do participante:</span>
+
+                            @if(!$canSeeThisPrediction)
+                            <span class="text-xs text-slate-500">Oculto até fechamento do palpite</span>
+                            @elseif($prediction)
+                            <div class="flex items-center gap-2">
+                                <span class="inline-flex items-center justify-center min-w-[38px] rounded-md border border-slate-700 bg-slate-800/70 px-2 py-1 text-xs font-bold tabular-nums text-slate-100">
+                                    {{ $prediction->home_score }}
+                                </span>
+                                <span class="text-slate-600 font-bold text-xs">×</span>
+                                <span class="inline-flex items-center justify-center min-w-[38px] rounded-md border border-slate-700 bg-slate-800/70 px-2 py-1 text-xs font-bold tabular-nums text-slate-100">
+                                    {{ $prediction->away_score }}
+                                </span>
+                            </div>
+                            @elseif($isLocked)
+                            <span class="text-xs text-slate-500">Sem palpite</span>
+                            @else
+                            <span class="text-xs text-slate-500">Aguardando fechamento</span>
+                            @endif
+                        </div>
+
+                        @if($prediction && $predStatus === 'calculado')
+                        <div class="mt-1.5 flex items-center justify-end gap-1">
+                            <span class="text-xs text-slate-500">Pontos:</span>
+                            <span class="text-sm font-bold text-amber-400">{{ $prediction->points }}</span>
+                        </div>
+                        @endif
                     </div>
                     @endif
                 </div>

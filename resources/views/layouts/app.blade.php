@@ -10,7 +10,7 @@
     ])
 </head>
 <body class="antialiased"
-      x-data="{ sidebar: false, userMenu: false, compMenu: false, rightPanel: false }"
+    x-data="{ userMenu: false, compMenu: false, rightPanel: false }"
       @rp-opened.window="rightPanel = true"
       @rp-closed.window="rightPanel = false">
 @php
@@ -89,6 +89,30 @@
     $pendingTotal   = $isManagedPool
         ? \App\Models\PoolMember::where('status', 'pending')->whereIn('pool_id', $managedPoolIds)->count()
         : 0;
+    $managedPools = $isManagedPool
+        ? \App\Models\Pool::query()
+            ->whereIn('id', $managedPoolIds)
+            ->with(['competition:id,code,name', 'season:id,year'])
+            ->withCount(['members as pending_count' => fn ($q) => $q->where('status', 'pending')])
+            ->orderBy('competition_id')
+            ->orderBy('name')
+            ->get(['id', 'competition_id', 'competition_season_id', 'name', 'slug'])
+        : collect();
+    $managedByCompetition = $managedPools->groupBy(function ($pool) {
+        $code = strtoupper((string) ($pool->competition?->code ?? 'SEM'));
+        $name = (string) ($pool->competition?->name ?? 'Sem competição');
+        $season = (string) ($pool->season?->year ?? '—');
+        return "{$code}|{$name}|{$season}";
+    })->map(function ($pools, $groupKey) {
+        [$code, $name, $season] = array_pad(explode('|', (string) $groupKey), 3, '—');
+        return [
+            'code' => $code,
+            'name' => $name,
+            'season' => $season,
+            'pending_total' => (int) $pools->sum('pending_count'),
+            'pools' => $pools,
+        ];
+    })->values();
 
     /* Helpers for active nav styling */
     $sbActive   = 'flex items-center h-11 pl-5 gap-[14px] text-bolao-accent border-l-[3px] border-bolao-accent bg-bolao-accent/[0.08] font-medium transition-all';
@@ -99,12 +123,12 @@
 @endphp
 
 {{-- ═══════════════════════════════════════════════════
-     ROOT x-data — sidebar overlay + competition/user menus
-     ════════════════════════════════════════════════ --}}
+    ROOT x-data — competition/user menus + right panel
+    ════════════════════════════════════════════════ --}}
 <div class="h-screen flex flex-col overflow-hidden md:flex-row">
 
     {{-- ╔══════════════════════════════════════════╗
-         ║  SIDEBAR  (hidden on mobile → overlay)  ║
+            ║  SIDEBAR  (desktop/tablet only)          ║
          ║  Icon-only 64px tablet, 220px desktop   ║
          ╚══════════════════════════════════════════╝ --}}
     <aside class="bolao-sidebar hidden md:flex flex-col bg-bolao-bg2 border-r border-white/[0.07]">
@@ -163,16 +187,53 @@
             </a>
 
             @if($isManagedPool)
-            <a href="{{ route('management.pools') }}"
-               class="{{ request()->routeIs('management.*') ? $sbActive : $sbInactive }}">
-                <i class="ti ti-layout-dashboard text-xl shrink-0"></i>
-                <span class="sb-label text-sm">Gestão</span>
-                @if($pendingTotal > 0)
-                <span class="ml-auto mr-4 sb-label flex h-5 min-w-5 items-center justify-center rounded-full bg-bolao-accent text-[10px] font-bold text-black px-1">
-                    {{ $pendingTotal }}
-                </span>
-                @endif
-            </a>
+            <div x-data="{ open: {{ request()->routeIs('management.*') ? 'true' : 'false' }} }">
+                <button type="button" @click="open = !open"
+                        class="{{ request()->routeIs('management.*') ? $sbActive : $sbInactive }} w-full flex items-center gap-2">
+                    <i class="ti ti-layout-dashboard text-xl shrink-0"></i>
+                    <span class="sb-label text-sm">Gestão</span>
+                    @if($pendingTotal > 0)
+                    <span class="ml-auto sb-label flex h-5 min-w-5 items-center justify-center rounded-full bg-bolao-accent text-[10px] font-bold text-black px-1">
+                        {{ $pendingTotal }}
+                    </span>
+                    @endif
+                    <i class="ti ti-chevron-down sb-label ml-2 mr-4 text-xs transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                </button>
+
+                <div x-show="open" x-collapse class="mt-1 space-y-1 border-l border-bolao-muted2/30 ml-2.5 mr-3 pb-1">
+                    @foreach($managedByCompetition as $group)
+                    <div class="ml-4 border-l border-bolao-muted2/20 pl-2"
+                         x-data="{ compOpen: {{ request()->routeIs('management.*') ? 'true' : 'false' }} }">
+                        <button type="button" @click="compOpen = !compOpen"
+                                class="w-full flex items-center gap-2 px-2 py-1.5 text-left rounded-md text-xs text-slate-300 hover:text-slate-200 hover:bg-bolao-bg4/25 transition-colors">
+                            <i class="ti ti-folder text-sm text-bolao-accent/70 shrink-0"></i>
+                            <span class="font-semibold text-bolao-accent truncate">{{ $group['code'] }} {{ $group['season'] }}</span>
+                            @if($group['pending_total'] > 0)
+                            <span class="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 text-[10px] font-bold text-black px-1">
+                                {{ $group['pending_total'] }}
+                            </span>
+                            @endif
+                            <i class="ti ti-chevron-down text-[10px] text-slate-500 transition-transform" :class="compOpen ? 'rotate-180' : ''"></i>
+                        </button>
+
+                        <div x-show="compOpen" x-collapse class="ml-3 mt-0.5 space-y-0.5 border-l border-bolao-muted2/10 pl-2">
+                            @foreach($group['pools'] as $managedPool)
+                            <a href="{{ route('management.pools', ['competition' => $group['code'], 'pool' => $managedPool->id]) }}"
+                               class="inline-flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors {{ request()->integer('pool') === (int) $managedPool->id ? 'bg-bolao-accent/12 text-bolao-accent shadow-[inset_0_0_0_1px_rgba(245,166,35,0.22)]' : 'text-slate-400 hover:bg-bolao-bg4/35 hover:text-slate-200' }}">
+                                <i class="ti ti-trophy text-sm shrink-0"></i>
+                                <span class="truncate">{{ $managedPool->name }}</span>
+                                @if((int) $managedPool->pending_count > 0)
+                                <span class="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 text-[10px] font-bold text-black px-1">
+                                    {{ (int) $managedPool->pending_count }}
+                                </span>
+                                @endif
+                            </a>
+                            @endforeach
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
             @endif
 
             @if($authUser->is_admin)
@@ -405,6 +466,19 @@
             </a>
 
             @if($isManagedPool)
+            @if(request()->routeIs('management.*'))
+            <button type="button"
+                    onclick="window.dispatchEvent(new CustomEvent('toggle-management-mobile-menu'))"
+                    class="flex flex-1 flex-col items-center gap-1 px-1 py-1 cursor-pointer transition-colors relative text-bolao-accent">
+                <span class="relative">
+                    <i class="ti ti-layout-dashboard text-[22px]"></i>
+                    @if($pendingTotal > 0)
+                    <span class="absolute -top-1 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-bolao-accent text-[9px] font-bold text-black px-0.5">{{ $pendingTotal }}</span>
+                    @endif
+                </span>
+                <span class="text-[10px] font-bold uppercase tracking-wide leading-none">Gestão</span>
+            </button>
+            @else
             <a href="{{ route('management.pools') }}"
                class="flex flex-1 flex-col items-center gap-1 px-1 py-1 cursor-pointer transition-colors relative {{ request()->routeIs('management.*') ? 'text-bolao-accent' : 'text-bolao-muted2 hover:text-bolao-muted' }}">
                 <span class="relative">
@@ -415,6 +489,7 @@
                 </span>
                 <span class="text-[10px] font-bold uppercase tracking-wide leading-none">Gestão</span>
             </a>
+            @endif
             @elseif($authUser->is_admin)
             <a href="{{ route('admin.users.approval') }}"
                class="flex flex-1 flex-col items-center gap-1 px-1 py-1 cursor-pointer transition-colors {{ request()->routeIs('admin.*') ? 'text-amber-400' : 'text-bolao-muted2 hover:text-bolao-muted' }}">
@@ -450,142 +525,6 @@
     </aside>
 
 </div>{{-- end root flex --}}
-
-{{-- ╔══════════════════════════════════════════════╗
-     ║  MOBILE SIDEBAR OVERLAY                     ║
-     ╚══════════════════════════════════════════════╝ --}}
-<div x-show="sidebar" x-cloak
-     x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-     x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-     class="md:hidden fixed inset-0 z-50 bg-black/70"
-     @click="sidebar = false" aria-hidden="true"></div>
-
-<aside x-show="sidebar" x-cloak
-       x-transition:enter="transition ease-out duration-250" x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0"
-       x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full"
-       class="md:hidden fixed inset-y-0 left-0 z-[60] w-72 flex flex-col bg-bolao-bg2 border-r border-white/[0.07] shadow-2xl">
-
-    {{-- Overlay header --}}
-    <div class="flex h-14 shrink-0 items-center justify-between px-4 border-b border-white/[0.07]">
-        <div class="flex items-center gap-2">
-            <x-application-logo class="h-8 w-8 shrink-0" />
-            <div class="font-bc font-extrabold text-[20px] leading-none text-white">
-                Bolão<span class="text-bolao-accent">FC</span>
-            </div>
-        </div>
-        <button @click="sidebar = false"
-                class="flex h-9 w-9 items-center justify-center rounded-lg text-bolao-muted hover:text-slate-200 hover:bg-bolao-bg3 transition-colors">
-            <i class="ti ti-x text-xl"></i>
-        </button>
-    </div>
-
-    {{-- Competition switcher (mobile overlay) --}}
-    @if($canSwitchCompetition)
-    <div class="px-4 py-2.5 border-b border-white/[0.07]">
-        <div class="relative">
-            <select
-                aria-label="Selecionar competição"
-                onchange="if(this.value){ window.location.href = this.value; }"
-                class="w-full appearance-none rounded-lg border border-bolao-accent/30 bg-bolao-accent/[0.08] px-3 py-2 pr-9 text-xs font-semibold text-bolao-accent transition-colors hover:bg-bolao-accent/[0.14] focus:outline-none focus:ring-1 focus:ring-bolao-accent/50"
-            >
-                @foreach($allowedCompetitions as $code => $competition)
-                <option
-                    value="{{ route('dashboard', ['competition' => $code]) }}"
-                    @selected($currentCompetitionCode === $code)
-                    class="bg-bolao-bg3 text-slate-100"
-                >
-                    {{ $competition['name'] }} {{ $competition['season'] }} ({{ $code }}){{ !($competition['enabled'] ?? false) ? ' [OFF]' : '' }}
-                </option>
-                @endforeach
-            </select>
-            <i class="ti ti-chevron-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-bolao-accent/80"></i>
-        </div>
-    </div>
-    @endif
-
-    {{-- Overlay nav --}}
-    <nav class="flex-1 overflow-y-auto py-3 space-y-0.5">
-        <p class="px-5 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-bolao-muted2">Principal</p>
-
-        <a href="{{ route('dashboard', ['competition' => $currentCompetitionCode]) }}" @click="sidebar = false"
-           class="{{ request()->routeIs('dashboard') ? $sbActive : $sbInactive }}">
-            <i class="ti ti-home text-xl shrink-0"></i>
-            <span class="text-sm">Início</span>
-        </a>
-        <a href="{{ route('pools.index', ['competition' => $currentCompetitionCode]) }}" @click="sidebar = false"
-           class="{{ request()->routeIs('pools.*') ? $sbActive : $sbInactive }}">
-            <i class="ti ti-trophy text-xl shrink-0"></i>
-            <span class="text-sm">Meus Bolões</span>
-        </a>
-        @if($isManagedPool)
-        <a href="{{ route('management.pools') }}" @click="sidebar = false"
-           class="{{ request()->routeIs('management.*') ? $sbActive : $sbInactive }}">
-            <i class="ti ti-layout-dashboard text-xl shrink-0"></i>
-            <span class="text-sm">Gestão</span>
-            @if($pendingTotal > 0)
-            <span class="ml-auto mr-4 flex h-5 min-w-5 items-center justify-center rounded-full bg-bolao-accent text-[10px] font-bold text-black px-1">{{ $pendingTotal }}</span>
-            @endif
-        </a>
-        @endif
-
-        @if($authUser->is_admin)
-        <p class="px-5 pt-4 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-bolao-muted2">Admin</p>
-        <a href="{{ route('admin.users.approval') }}" @click="sidebar = false"
-           class="{{ $sbAdmin(request()->routeIs('admin.users.*')) }}">
-            <i class="ti ti-users text-xl shrink-0"></i><span class="text-sm">Usuários</span>
-        </a>
-        <a href="{{ route('admin.pools.control') }}" @click="sidebar = false"
-           class="{{ $sbAdmin(request()->routeIs('admin.pools.*')) }}">
-            <i class="ti ti-tournament text-xl shrink-0"></i><span class="text-sm">Grupos</span>
-        </a>
-        <a href="{{ route('admin.teams.canonical') }}" @click="sidebar = false"
-           class="{{ $sbAdmin(request()->routeIs('admin.teams.*')) }}">
-            <i class="ti ti-shield text-xl shrink-0"></i><span class="text-sm">Times</span>
-        </a>
-        <a href="{{ route('admin.api.sync') }}" @click="sidebar = false"
-           class="{{ $sbAdmin(request()->routeIs('admin.api.*')) }}">
-            <i class="ti ti-refresh text-xl shrink-0"></i><span class="text-sm">Sync API</span>
-        </a>
-        <a href="{{ route('admin.matches.manual-correction') }}" @click="sidebar = false"
-           class="{{ $sbAdmin(request()->routeIs('admin.matches.*')) }}">
-            <i class="ti ti-pencil text-xl shrink-0"></i><span class="text-sm">Correção Manual</span>
-        </a>
-        <a href="{{ route('admin.legal.index') }}" @click="sidebar = false"
-           class="{{ $sbAdmin(request()->routeIs('admin.legal.*')) }}">
-            <i class="ti ti-file-text text-xl shrink-0"></i><span class="text-sm">Jurídico</span>
-        </a>
-        @endif
-    </nav>
-
-    {{-- Overlay user footer --}}
-    <div class="shrink-0 border-t border-white/[0.07] p-3 space-y-1">
-        <div class="flex items-center gap-3 px-2 py-1.5">
-            <div class="bolao-avatar w-9 h-9 text-sm shrink-0">{{ $initials }}</div>
-            <div class="min-w-0">
-                <p class="text-sm font-semibold text-slate-200 truncate">{{ $authUser->name }}</p>
-                <p class="text-xs text-bolao-muted truncate">{{ $authUser->area ?: $authUser->email }}</p>
-            </div>
-        </div>
-        <a href="{{ route('profile.edit') }}" @click="sidebar = false"
-           class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-bolao-bg3 rounded-lg transition-colors">
-            <i class="ti ti-user-circle text-base"></i> Meu Perfil
-        </a>
-        <a href="{{ route('about') }}" @click="sidebar = false"
-           class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-bolao-bg3 rounded-lg transition-colors">
-            <i class="ti ti-info-circle text-base"></i> Sobre
-        </a>
-        <form method="POST" action="{{ route('logout') }}">
-            @csrf
-            <button type="submit"
-                    class="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-bolao-bg3 rounded-lg transition-colors">
-                <i class="ti ti-logout text-base"></i> Sair
-            </button>
-        </form>
-        <p class="px-3 text-[10px] text-bolao-muted2 text-center pb-1">
-            &copy; {{ date('Y') }} VixForge &middot; v{{ config('app.version') }}
-        </p>
-    </div>
-</aside>
 
 {{-- ╔══════════════════════════════════════════════╗
      ║  MOBILE RIGHT PANEL                         ║
