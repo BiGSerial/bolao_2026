@@ -58,85 +58,116 @@ class ApiSyncDashboard extends Component
             $totalDetailsUpdated = 0;
             $totalDetailsEnriched = 0;
             $summaryParts = [];
+            $failedParts = [];
+            $successfulCompetitions = 0;
 
             foreach ($competitions as $ctx) {
-                $payload = $client->competitionMatches($ctx['code'], $ctx['season'], $ctx['stage']);
-                $changed = $syncService->sync($payload, $ctx['season']);
-                $standingsPayload = $client->competitionStandings($ctx['code'], $ctx['season']);
-                $standingsCount = $standingsSyncService->sync($standingsPayload, $ctx['season'], $ctx['stage']);
+                try {
+                    $payload = $client->competitionMatches($ctx['code'], $ctx['season'], $ctx['stage']);
+                    $changed = $syncService->sync($payload, $ctx['season']);
+                    $standingsPayload = $client->competitionStandings($ctx['code'], $ctx['season']);
+                    $standingsCount = $standingsSyncService->sync($standingsPayload, $ctx['season'], $ctx['stage']);
 
-                $liveCount = $this->liveMatchCountForCompetition($ctx['code'], $ctx['season']);
-                $detailsLimit = $liveCount > 0
-                    ? max($baseDetailsLimit, min(60, $liveCount + 6))
-                    : $baseDetailsLimit;
+                    $liveCount = $this->liveMatchCountForCompetition($ctx['code'], $ctx['season']);
+                    $detailsLimit = $liveCount > 0
+                        ? max($baseDetailsLimit, min(60, $liveCount + 6))
+                        : $baseDetailsLimit;
 
-                $detailsResult = $detailsSyncService->syncBatch(
-                    $detailsLimit,
-                    $ctx['code'],
-                    $ctx['season'],
-                    $ctx['stage']
-                );
+                    $detailsResult = $detailsSyncService->syncBatch(
+                        $detailsLimit,
+                        $ctx['code'],
+                        $ctx['season'],
+                        $ctx['stage']
+                    );
 
-                foreach ($changed as $match) {
-                    if ($match->status === 'FINISHED') {
-                        CalculatePredictionsForMatchJob::dispatch($match->id);
+                    foreach ($changed as $match) {
+                        if ($match->status === 'FINISHED') {
+                            CalculatePredictionsForMatchJob::dispatch($match->id);
+                        }
                     }
+
+                    $recordsTotal = count($payload['matches'] ?? []);
+                    $recordsChanged = $changed->count();
+                    $totalMatches += $recordsTotal;
+                    $totalChanged += $recordsChanged;
+                    $totalStandings += $standingsCount;
+                    $totalDetailsUpdated += (int) ($detailsResult['updated'] ?? 0);
+                    $totalDetailsEnriched += (int) ($detailsResult['enriched'] ?? 0);
+                    $successfulCompetitions++;
+
+                    ApiSyncLog::create([
+                        'provider' => 'football_data',
+                        'endpoint' => '/competitions/'.$ctx['code'].'/matches',
+                        'http_status' => 200,
+                        'success' => true,
+                        'records_total' => $recordsTotal,
+                        'records_changed' => $recordsChanged,
+                        'message' => 'Sync manual via painel admin.',
+                        'meta' => [
+                            'competition_code' => $ctx['code'],
+                            'season' => $ctx['season'],
+                            'stage' => $ctx['stage'],
+                            'apis_synced' => $this->resolveApisSynced($detailsResult),
+                            'sync_type' => $liveCount > 0 ? 'manual_admin_live_priority' : 'manual_admin',
+                            'sync_mode' => (string) ($detailsResult['sync_mode'] ?? 'batch'),
+                            'api_football_sync_type' => (string) ($detailsResult['api_football_sync_type'] ?? 'not_used'),
+                            'data_source' => 'database_only',
+                            'standings_synced' => $standingsCount,
+                            'details_updated' => (int) ($detailsResult['updated'] ?? 0),
+                            'details_enriched' => (int) ($detailsResult['enriched'] ?? 0),
+                            'live_matches_detected' => $liveCount,
+                            'details_limit_used' => $detailsLimit,
+                        ],
+                        'synced_at' => now(),
+                    ]);
+
+                    $summaryParts[] = sprintf(
+                        '%s/%d: %d alterados, %d grupos, %d detalhes (limite=%d, ao vivo=%d)',
+                        $ctx['code'],
+                        $ctx['season'],
+                        $recordsChanged,
+                        $standingsCount,
+                        (int) ($detailsResult['updated'] ?? 0),
+                        $detailsLimit,
+                        $liveCount
+                    );
+                } catch (Throwable $e) {
+                    ApiSyncLog::create([
+                        'provider' => 'football_data',
+                        'endpoint' => '/competitions/'.$ctx['code'].'/matches',
+                        'success' => false,
+                        'message' => 'Falha parcial na sincronizacao manual via painel admin.',
+                        'meta' => [
+                            'competition_code' => $ctx['code'],
+                            'season' => $ctx['season'],
+                            'stage' => $ctx['stage'],
+                            'apis_synced' => ['football_data'],
+                            'sync_type' => 'manual_admin',
+                            'sync_mode' => 'batch',
+                            'data_source' => 'database_only',
+                            'exception' => get_class($e),
+                            'error' => $e->getMessage(),
+                        ],
+                        'synced_at' => now(),
+                    ]);
+
+                    $failedParts[] = sprintf('%s/%d: %s', $ctx['code'], $ctx['season'], Str::limit($e->getMessage(), 120));
                 }
-
-                $recordsTotal = count($payload['matches'] ?? []);
-                $recordsChanged = $changed->count();
-                $totalMatches += $recordsTotal;
-                $totalChanged += $recordsChanged;
-                $totalStandings += $standingsCount;
-                $totalDetailsUpdated += (int) ($detailsResult['updated'] ?? 0);
-                $totalDetailsEnriched += (int) ($detailsResult['enriched'] ?? 0);
-
-                ApiSyncLog::create([
-                    'provider' => 'football_data',
-                    'endpoint' => '/competitions/'.$ctx['code'].'/matches',
-                    'http_status' => 200,
-                    'success' => true,
-                    'records_total' => $recordsTotal,
-                    'records_changed' => $recordsChanged,
-                    'message' => 'Sync manual via painel admin.',
-                    'meta' => [
-                        'competition_code' => $ctx['code'],
-                        'season' => $ctx['season'],
-                        'stage' => $ctx['stage'],
-                        'apis_synced' => $this->resolveApisSynced($detailsResult),
-                        'sync_type' => $liveCount > 0 ? 'manual_admin_live_priority' : 'manual_admin',
-                        'sync_mode' => (string) ($detailsResult['sync_mode'] ?? 'batch'),
-                        'api_football_sync_type' => (string) ($detailsResult['api_football_sync_type'] ?? 'not_used'),
-                        'data_source' => 'database_only',
-                        'standings_synced' => $standingsCount,
-                        'details_updated' => (int) ($detailsResult['updated'] ?? 0),
-                        'details_enriched' => (int) ($detailsResult['enriched'] ?? 0),
-                        'live_matches_detected' => $liveCount,
-                        'details_limit_used' => $detailsLimit,
-                    ],
-                    'synced_at' => now(),
-                ]);
-
-                $summaryParts[] = sprintf(
-                    '%s/%d: %d alterados, %d grupos, %d detalhes (limite=%d, ao vivo=%d)',
-                    $ctx['code'],
-                    $ctx['season'],
-                    $recordsChanged,
-                    $standingsCount,
-                    (int) ($detailsResult['updated'] ?? 0),
-                    $detailsLimit,
-                    $liveCount
-                );
             }
 
-            Pool::query()->pluck('id')->each(fn (int $id) => RecalculatePoolRankingsJob::dispatch($id));
+            if ($successfulCompetitions > 0) {
+                Pool::query()->pluck('id')->each(fn (int $id) => RecalculatePoolRankingsJob::dispatch($id));
+            }
 
-            $this->syncSuccess = true;
-            $this->syncMessage = 'Sync concluído (todas as competições ativas). '
+            $this->syncSuccess = $successfulCompetitions > 0 && $failedParts === [];
+            $statusLabel = $failedParts === [] ? 'Sync concluído (todas as competições ativas).' : 'Sync concluído com falhas parciais.';
+            $this->syncMessage = $statusLabel.' '
+                ."Competições OK: {$successfulCompetitions}/{$competitionCount}. "
                 ."Jogos alterados: {$totalChanged}/{$totalMatches}. "
                 ."Grupos sincronizados: {$totalStandings}. "
                 ."Detalhes atualizados: {$totalDetailsUpdated}. Enriquecidos (lineup/stats): {$totalDetailsEnriched}. "
-                .'['.implode(' | ', $summaryParts).']';
+                .'['.implode(' | ', $summaryParts).']'
+                .($failedParts === [] ? '' : ' Falhas: ['.implode(' | ', $failedParts).']');
         } catch (Throwable $e) {
             ApiSyncLog::create([
                 'provider' => 'football_data',
