@@ -82,6 +82,7 @@ class SyncWorldCupMatchesService
                 $score = $matchPayload['score'] ?? [];
                 $utcDate = Carbon::parse($matchPayload['utcDate'])->utc();
                 $incomingStatus = (string) ($matchPayload['status'] ?? '');
+                $resolvedStatus = $this->resolveIncomingStatus($existing, $incomingStatus);
                 $attributes = [
                     'competition_id' => $competition->id,
                     'competition_season_id' => $season->id,
@@ -89,8 +90,9 @@ class SyncWorldCupMatchesService
                     'away_team_id' => $away->id,
                     'utc_date' => $utcDate,
                     'local_date' => $utcDate->copy()->timezone('America/Sao_Paulo'),
-                    // Status/tempo/intervalo em partidas existentes ficam sob responsabilidade da API paga.
-                    'status' => $existing?->status ?: $incomingStatus,
+                    // Atualiza status do provider base quando necessario (especialmente terminal),
+                    // mas preserva status da API paga durante fase ao vivo.
+                    'status' => $resolvedStatus,
                     'matchday' => $matchPayload['matchday'] ?? null,
                     'stage' => $matchPayload['stage'] ?? null,
                     'group_name' => $matchPayload['group'] ?? null,
@@ -108,9 +110,7 @@ class SyncWorldCupMatchesService
                     'raw_payload' => $matchPayload,
                 ];
 
-                if (! $existing) {
-                    $attributes = $this->applyLiveStatusTracking($existing, $incomingStatus, $attributes);
-                }
+                $attributes = $this->applyLiveStatusTracking($existing, $resolvedStatus, $attributes);
 
                 $match = FootballMatch::updateOrCreate(
                     ['provider' => 'football_data', 'external_id' => $matchPayload['id']],
@@ -218,5 +218,29 @@ class SyncWorldCupMatchesService
         }
 
         return $attributes;
+    }
+
+    private function resolveIncomingStatus(?FootballMatch $existing, string $incomingStatus): string
+    {
+        if (! $existing) {
+            return $incomingStatus;
+        }
+
+        $currentStatus = (string) ($existing->status ?? '');
+        if ($incomingStatus === '') {
+            return $currentStatus;
+        }
+
+        $isTerminalIncoming = in_array($incomingStatus, ['FINISHED', 'POSTPONED', 'CANCELLED'], true);
+        if ($isTerminalIncoming) {
+            return $incomingStatus;
+        }
+
+        $hasApiFootballLiveStatus = (string) data_get($existing->raw_payload, 'api_football_status.short', '') !== '';
+        if ($hasApiFootballLiveStatus) {
+            return $currentStatus;
+        }
+
+        return $incomingStatus;
     }
 }

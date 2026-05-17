@@ -16,7 +16,7 @@ $homeScore = $match->home_score_full_time ?? 0;
 $awayScore = $match->away_score_full_time ?? 0;
 
 $liveMinute = $isLive ? data_get($match->raw_payload, 'minute') : null;
-$matchDate  = ($match->utc_date ?? $match->local_date)?->timezone('America/Sao_Paulo');
+$matchDate  = $match->kickoffAtBrazil();
 if (in_array($match->status, ['TIMED', 'SCHEDULED'], true) && $matchDate) {
     if ($matchDate->isToday()) {
         $statusLabel = 'Hoje';

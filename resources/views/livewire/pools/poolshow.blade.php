@@ -45,6 +45,26 @@
         </nav>
     </div>
 
+    <div class="mx-3 sm:mx-6 lg:mx-8 mt-3">
+        <div class="inline-flex rounded-xl border border-white/10 bg-slate-900/60 p-1 shadow-sm">
+            <button type="button"
+                    wire:click="setTab('jogos')"
+                    class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'jogos' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
+                Palpites
+            </button>
+            <button type="button"
+                    wire:click="setTab('ranking')"
+                    class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'ranking' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
+                Ranking
+            </button>
+            <button type="button"
+                    wire:click="setTab('resumo')"
+                    class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'resumo' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
+                Meu resumo
+            </button>
+        </div>
+    </div>
+
     @if($showInstructions && $pool->instructions)
     <div x-transition class="mx-3 sm:mx-6 lg:mx-8 mt-2 rounded-lg bg-blue-950/40 border border-blue-800/30 p-4">
         <p class="text-xs font-semibold text-blue-400 mb-2 uppercase tracking-wider">📋 Instruções / Regulamento</p>
@@ -333,7 +353,7 @@
             </div>
             <div class="stat-card">
                 <span class="stat-value text-emerald-400">{{ $predictedCount }}</span>
-                <span class="stat-label">Meus palpites</span>
+                <span class="stat-label">{{ $isViewingOtherMember ? 'Palpites de '.($predictionTargetName ?? 'participante') : 'Meus palpites' }}</span>
             </div>
             <div class="stat-card">
                 <span class="stat-value text-amber-400">{{ $pool->activeMembers()->count() }}</span>
@@ -341,10 +361,20 @@
             </div>
         </div>
 
+        @if($isViewingOtherMember)
+        <div class="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-300">
+            Você está visualizando os palpites de <span class="font-semibold">{{ $predictionTargetName ?? 'participante' }}</span> em modo somente leitura.
+        </div>
+        @endif
+
            {{-- Bulk prediction --}}
-           @if($canEditPredictions)
+        @if($canEditPredictions)
            <div class="card p-4"
-               x-data="{ open: false, bh: '', ba: '' }"
+             x-data="{
+                open: false,
+                bh: '',
+                ba: ''
+             }"
                x-on:toggle-bulk-bar.window="open = !open">
             <button @click="open = !open"
                     class="flex w-full items-center justify-between text-sm font-medium text-slate-300 hover:text-white transition-colors">
@@ -365,13 +395,30 @@
 
                 <div class="flex flex-wrap items-end gap-3">
                     <div class="flex-1 min-w-0">
-                        <label class="label text-xs">Grupo (opcional)</label>
-                        <select wire:model="bulkGroup" class="select-field">
-                            <option value="">Todos os jogos</option>
-                            @foreach($groupedMatches->keys() as $group)
-                            <option value="{{ $group }}">{{ $group }}</option>
+                        <label class="label text-xs">Escopo de aplicação</label>
+                        @if(!empty($bulkRoundOptions))
+                        <div class="flex items-center gap-2">
+                            <button type="button"
+                                    wire:click="selectPreviousBulkRound"
+                                    class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
+                                <i class="ti ti-chevron-left text-base"></i>
+                            </button>
+                            <div class="input-field flex-1 text-center text-sm font-semibold text-slate-100">
+                                {{ $bulkCurrentRoundLabel ?? 'Rodada' }}
+                            </div>
+                            <button type="button"
+                                    wire:click="selectNextBulkRound"
+                                    class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
+                                <i class="ti ti-chevron-right text-base"></i>
+                            </button>
+                        </div>
+                        @else
+                        <select wire:model="bulkDelimiter" class="select-field">
+                            @foreach($bulkDelimiters as $delimiter)
+                            <option value="{{ $delimiter['value'] }}">{{ $delimiter['label'] }}</option>
                             @endforeach
                         </select>
+                        @endif
                     </div>
 
                     <div class="flex items-end gap-2">
@@ -401,15 +448,66 @@
         </div>
         @endif
 
+        @if($canEditPredictions)
+        <div class="flex justify-end" x-data="{
+            async confirmReplication() {
+                const result = await Swal.fire({
+                    icon: 'question',
+                    title: 'Replicar palpites?',
+                    text: 'Seus palpites elegíveis serão replicados para os outros bolões em que você participa, respeitando as regras de cada bolão.',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sim, replicar',
+                    cancelButtonText: 'Cancelar'
+                });
+
+                if (result.isConfirmed) {
+                    $wire.replicatePredictionsToOtherPools();
+                }
+            }
+        }">
+            <button type="button"
+                    @click="confirmReplication()"
+                    class="btn-ghost"
+                    wire:loading.attr="disabled"
+                    wire:target="replicatePredictionsToOtherPools">
+                <svg wire:loading wire:target="replicatePredictionsToOtherPools" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                <svg wire:loading.remove wire:target="replicatePredictionsToOtherPools" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v6h6M20 20v-6h-6M5.5 15a7 7 0 0011 2.5M18.5 9a7 7 0 00-11-2.5"/>
+                </svg>
+                Replicar estes palpites para todos meus bolões
+            </button>
+        </div>
+        @endif
+
         {{-- Groups --}}
         <div class="flex items-center justify-between gap-3">
-            <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Meus palpites por grupo e rodada</h2>
+            <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+                {{ $isViewingOtherMember ? 'Palpites por grupo e rodada de '.($predictionTargetName ?? 'participante') : 'Meus palpites por grupo e rodada' }}
+            </h2>
             <div class="flex items-center gap-3">
-                <button type="button"
-                        wire:click="{{ $showAllRounds ? 'enableFocusRounds' : 'enableAllRounds' }}"
-                        class="text-xs text-bolao-accent hover:text-amber-300 transition-colors">
-                    {{ $showAllRounds ? 'Mostrar foco (atual + próxima)' : 'Ver todas' }}
-                </button>
+                @if($displayLeftRound !== null)
+                <span class="text-xs text-slate-400">Atual: <span class="font-semibold text-slate-200">Rodada {{ $displayLeftRound }}</span></span>
+                @endif
+
+                @if(($displayRightCandidates ?? collect())->isNotEmpty())
+                <div class="flex items-center gap-1.5">
+                    <button type="button"
+                            wire:click="previousDisplayRound"
+                            class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
+                        <i class="ti ti-chevron-left text-sm"></i>
+                    </button>
+                    <span class="text-xs text-slate-400">Lado direito: <span class="font-semibold text-slate-200">Rodada {{ $displayRightRound }}</span></span>
+                    <button type="button"
+                            wire:click="nextDisplayRound"
+                            class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
+                        <i class="ti ti-chevron-right text-sm"></i>
+                    </button>
+                </div>
+                @endif
+
                 <span class="text-xs text-slate-500">{{ $predictedCount }} preenchido(s)</span>
             </div>
         </div>
@@ -441,7 +539,7 @@
                     $isFinished = $match->status === 'FINISHED';
                     $isPreMatch = $match->status === 'PRE_MATCH';
                     $isLocked   = in_array($predStatus, ['bloqueado', 'calculado', 'finalizado', 'inelegivel']);
-                    $matchDate  = ($match->utc_date ?? $match->local_date)?->timezone('America/Sao_Paulo');
+                    $matchDate  = $this->kickoffAtBrazil($match);
                     $liveMinute = $liveMinutes[$match->id] ?? null;
                     $statusLabel = $statusLabels[$match->id] ?? '';
                     if (in_array($match->status, ['TIMED', 'SCHEDULED'], true) && $matchDate) {
@@ -808,6 +906,13 @@
                                                 @if($row->user?->area)
                                                 <p class="text-xs text-slate-600">{{ $row->user->area }}</p>
                                                 @endif
+                                                @if($row->user_id)
+                                                <a href="{{ route('pools.show', ['pool' => $pool->slug, 'tab' => 'jogos', 'member' => $row->user_id, 'competition' => $competitionCode]) }}"
+                                                   class="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors">
+                                                    <i class="ti ti-eye text-sm"></i>
+                                                    {{ $isMe ? 'Ver meus palpites' : 'Ver palpites' }}
+                                                </a>
+                                                @endif
                                             </div>
                                         </div>
                                     </td>
@@ -893,58 +998,120 @@
             </div>
         </div>
 
-        @if($myRanking)
-        <div class="card p-6">
-            <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Meu Desempenho</h2>
-            <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
-                <div class="flex flex-col gap-1 rounded-lg bg-slate-800 p-4">
-                    <span class="text-2xl font-black text-amber-400">{{ $myRanking->points_total }}</span>
-                    <span class="text-xs text-slate-500">Pontos Totais</span>
-                </div>
-                <div class="flex flex-col gap-1 rounded-lg bg-slate-800 p-4">
-                    <span class="text-2xl font-black text-emerald-400">{{ $myRanking->exact_scores }}</span>
-                    <span class="text-xs text-slate-500">Placares Exatos (5pts)</span>
-                </div>
-                <div class="flex flex-col gap-1 rounded-lg bg-slate-800 p-4">
-                    <span class="text-2xl font-black text-blue-400">{{ $myRanking->correct_results }}</span>
-                    <span class="text-xs text-slate-500">Resultados Corretos (3pts)</span>
-                </div>
-                <div class="flex flex-col gap-1 rounded-lg bg-slate-800 p-4">
-                    <span class="text-2xl font-black text-slate-300">{{ $myRanking->predictions_counted }}</span>
-                    <span class="text-xs text-slate-500">Palpites Válidos</span>
+        <div class="card p-4 sm:p-5">
+            <div class="mb-4 flex items-center justify-between gap-3">
+                <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Resultados e Pontuação</h2>
+
+                <div class="flex items-center gap-2">
+                    <button type="button"
+                            wire:click="previousSummaryScope"
+                            class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
+                        <i class="ti ti-chevron-left text-sm"></i>
+                    </button>
+
+                    <span class="rounded-md border border-slate-700/80 bg-slate-900/70 px-3 py-1.5 text-xs font-semibold text-slate-200">
+                        {{ $summaryCurrentScopeLabel !== '' ? $summaryCurrentScopeLabel : 'Escopo' }}
+                    </span>
+
+                    <button type="button"
+                            wire:click="nextSummaryScope"
+                            class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
+                        <i class="ti ti-chevron-right text-sm"></i>
+                    </button>
                 </div>
             </div>
-        </div>
-        @endif
 
-        @if($pool->description || $pool->instructions)
-        <div class="card p-6 space-y-4">
-            @if($pool->description)
-            <div>
-                <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Descrição</h2>
-                <p class="text-sm text-slate-300 leading-relaxed">{{ $pool->description }}</p>
+            @if($summaryMatches->isEmpty())
+            <div class="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-8 text-center text-sm text-slate-500">
+                Nenhum jogo encontrado neste {{ $summaryNavigationMode === 'groups' ? 'grupo' : 'recorte de rodada' }}.
+            </div>
+            @else
+            <div class="space-y-2">
+                @foreach($summaryMatches as $match)
+                @php
+                    $prediction = $predictions->get($match->id);
+                    $canSeeThisPrediction = $predictionVisibility[$match->id] ?? true;
+                    $matchDate = $this->kickoffAtBrazil($match);
+                    $homeReal = $match->home_score_full_time;
+                    $awayReal = $match->away_score_full_time;
+                    $points = $this->pointsForSummaryMatch($match, $prediction);
+                    $outcomeType = $this->summaryOutcomeType($match, $prediction);
+                    $leftBarClass = match($outcomeType) {
+                        'exact' => 'bg-emerald-400',
+                        'result' => 'bg-sky-400',
+                        'bonus' => 'bg-amber-400',
+                        'error' => 'bg-red-400',
+                        default => 'bg-slate-600',
+                    };
+                    $pointsBadgeClass = match($outcomeType) {
+                        'exact' => 'bg-emerald-500/20 text-emerald-300',
+                        'result' => 'bg-sky-500/20 text-sky-300',
+                        'bonus' => 'bg-amber-500/20 text-amber-300',
+                        'error' => 'bg-red-500/20 text-red-300',
+                        default => 'bg-slate-700/70 text-slate-400',
+                    };
+                @endphp
+                <div class="relative overflow-hidden rounded-xl border border-white/[0.08] bg-bolao-bg2/95 px-3 py-2 sm:px-4 sm:py-2.5">
+                    <span class="absolute inset-y-0 left-0 w-1 {{ $leftBarClass }}"></span>
+
+                    <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-3 pl-2">
+                        <div class="flex min-w-0 items-center gap-2">
+                            @if($match->homeTeam?->crest)
+                            <img src="{{ $match->homeTeam->crest }}" alt="{{ $match->homeTeam?->tla ?? 'Mandante' }}" class="h-7 w-7 shrink-0 object-contain drop-shadow">
+                            @else
+                            <div class="h-7 w-7 shrink-0 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-300">
+                                {{ $match->homeTeam?->tla ?? '?' }}
+                            </div>
+                            @endif
+                            <p class="truncate text-base font-semibold text-slate-100">{{ $this->teamDisplayName($match->homeTeam) }}</p>
+                        </div>
+
+                        <div class="px-2 text-center leading-none">
+                            <p class="text-4xl font-black tracking-tight text-bolao-accent tabular-nums">
+                                {{ $homeReal !== null && $awayReal !== null ? ($homeReal.'-'.$awayReal) : '—' }}
+                            </p>
+                            <p class="mt-1 text-xs font-semibold tabular-nums {{ !$canSeeThisPrediction ? 'text-slate-500' : ($prediction ? 'text-slate-200' : 'text-slate-500') }}">
+                                @if(!$canSeeThisPrediction)
+                                    Oculto
+                                @elseif($prediction)
+                                    {{ $prediction->home_score }}-{{ $prediction->away_score }}
+                                @else
+                                    —
+                                @endif
+                            </p>
+                        </div>
+
+                        <div class="flex min-w-0 items-center justify-end gap-2">
+                            <p class="truncate text-right text-base font-semibold text-slate-100">{{ $this->teamDisplayName($match->awayTeam) }}</p>
+                            @if($match->awayTeam?->crest)
+                            <img src="{{ $match->awayTeam->crest }}" alt="{{ $match->awayTeam?->tla ?? 'Visitante' }}" class="h-7 w-7 shrink-0 object-contain drop-shadow">
+                            @else
+                            <div class="h-7 w-7 shrink-0 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-300">
+                                {{ $match->awayTeam?->tla ?? '?' }}
+                            </div>
+                            @endif
+                        </div>
+                    </div>
+
+                    <div class="mt-1.5 flex items-center justify-between gap-2 pl-2">
+                        <div class="flex items-center gap-2">
+                            <span class="rounded bg-slate-800/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                {{ $summaryNavigationMode === 'groups' ? ('Grupo '.($match->group_name ?: '—')) : ('Rodada '.($match->matchday ?? '—')) }}
+                            </span>
+                            <span class="text-[11px] text-slate-500">{{ $matchDate?->format('d/m H:i') ?? '—' }}</span>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <span class="rounded px-2 py-0.5 text-[11px] font-black {{ $points === null ? 'bg-slate-800/80 text-slate-500' : $pointsBadgeClass }}">
+                                {{ $points === null ? '—' : ($points > 0 ? '+' : '').$points }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                @endforeach
             </div>
             @endif
-            @if($pool->instructions)
-            <div>
-                <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">📋 Instruções</h2>
-                <p class="text-sm text-slate-300 whitespace-pre-line leading-relaxed">{{ $pool->instructions }}</p>
-            </div>
-            @endif
         </div>
-        @endif
-
-        @if(in_array($member->role, ['owner', 'manager']))
-        <div class="card p-5 flex items-center justify-between gap-4">
-            <div>
-                <p class="text-sm font-medium text-slate-200">Código de Convite</p>
-                <p class="text-xs text-slate-500 mt-0.5">Compartilhe para novos participantes entrarem</p>
-            </div>
-            <div class="flex items-center gap-3">
-                <span class="font-mono text-xl font-bold text-emerald-400 tracking-widest">{{ $pool->invite_code }}</span>
-            </div>
-        </div>
-        @endif
     </div>
     @endif
 

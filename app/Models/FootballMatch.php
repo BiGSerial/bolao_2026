@@ -72,4 +72,18 @@ class FootballMatch extends Model
     {
         return now()->utc()->greaterThanOrEqualTo($this->predictionLockTimeFor($pool)) || $this->isFinished();
     }
+
+    public function kickoffAtBrazil(): ?Carbon
+    {
+        if ($this->utc_date) {
+            return $this->utc_date->copy()->timezone('America/Sao_Paulo');
+        }
+
+        if ($this->local_date) {
+            // local_date may be stored as Sao Paulo wall-clock time.
+            return Carbon::parse($this->local_date->format('Y-m-d H:i:s'), 'America/Sao_Paulo');
+        }
+
+        return null;
+    }
 }

@@ -10,9 +10,11 @@
     ])
 </head>
 <body class="antialiased"
-    x-data="{ userMenu: false, compMenu: false, rightPanel: false }"
+        x-data="{ userMenu: false, compMenu: false, rightPanel: false, managementMobileMenu: false }"
       @rp-opened.window="rightPanel = true"
-      @rp-closed.window="rightPanel = false">
+            @rp-closed.window="rightPanel = false"
+            @toggle-management-mobile-menu.window="managementMobileMenu = !managementMobileMenu"
+            @open-management-mobile-menu.window="managementMobileMenu = true">
 @php
     $authUser = Auth::user();
 
@@ -466,10 +468,9 @@
             </a>
 
             @if($isManagedPool)
-            @if(request()->routeIs('management.*'))
             <button type="button"
-                    onclick="window.dispatchEvent(new CustomEvent('toggle-management-mobile-menu'))"
-                    class="flex flex-1 flex-col items-center gap-1 px-1 py-1 cursor-pointer transition-colors relative text-bolao-accent">
+                    @click="managementMobileMenu = !managementMobileMenu"
+                    class="flex flex-1 flex-col items-center gap-1 px-1 py-1 cursor-pointer transition-colors relative {{ request()->routeIs('management.*') ? 'text-bolao-accent' : 'text-bolao-muted2 hover:text-bolao-muted' }}">
                 <span class="relative">
                     <i class="ti ti-layout-dashboard text-[22px]"></i>
                     @if($pendingTotal > 0)
@@ -478,18 +479,6 @@
                 </span>
                 <span class="text-[10px] font-bold uppercase tracking-wide leading-none">Gestão</span>
             </button>
-            @else
-            <a href="{{ route('management.pools') }}"
-               class="flex flex-1 flex-col items-center gap-1 px-1 py-1 cursor-pointer transition-colors relative {{ request()->routeIs('management.*') ? 'text-bolao-accent' : 'text-bolao-muted2 hover:text-bolao-muted' }}">
-                <span class="relative">
-                    <i class="ti ti-layout-dashboard text-[22px]"></i>
-                    @if($pendingTotal > 0)
-                    <span class="absolute -top-1 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-bolao-accent text-[9px] font-bold text-black px-0.5">{{ $pendingTotal }}</span>
-                    @endif
-                </span>
-                <span class="text-[10px] font-bold uppercase tracking-wide leading-none">Gestão</span>
-            </a>
-            @endif
             @elseif($authUser->is_admin)
             <a href="{{ route('admin.users.approval') }}"
                class="flex flex-1 flex-col items-center gap-1 px-1 py-1 cursor-pointer transition-colors {{ request()->routeIs('admin.*') ? 'text-amber-400' : 'text-bolao-muted2 hover:text-bolao-muted' }}">
@@ -515,6 +504,128 @@
                 </button>
             </form>
         </nav>
+
+        @if($isManagedPool)
+        <div x-cloak class="fixed inset-0 z-[70] pointer-events-none md:hidden">
+            <div x-show="managementMobileMenu"
+                 x-transition:enter="transition ease-out duration-180" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+                 x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                 class="absolute inset-0 bg-black/70 pointer-events-auto"
+                 @click="managementMobileMenu = false"></div>
+
+            <div x-show="managementMobileMenu"
+                 class="absolute inset-x-0 top-0 bottom-[calc(68px+env(safe-area-inset-bottom,0px))] overflow-hidden border-y border-white/10 bg-bolao-bg2 shadow-2xl pointer-events-auto flex flex-col"
+                 x-transition:enter="transition ease-out duration-320"
+                 x-transition:enter-start="opacity-0 translate-y-20"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 x-transition:leave="transition ease-in duration-240"
+                 x-transition:leave-start="opacity-100 translate-y-0"
+                 x-transition:leave-end="opacity-0 translate-y-20">
+                <div class="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-200">Selecionar gestão</p>
+                        <p class="text-xs text-bolao-muted">Acesse rapidamente seus bolões e áreas administrativas</p>
+                    </div>
+                    <button type="button" @click="managementMobileMenu = false"
+                            class="inline-flex h-8 w-8 items-center justify-center rounded-md text-bolao-muted hover:bg-bolao-bg3 hover:text-slate-200">
+                        <i class="ti ti-x text-lg"></i>
+                    </button>
+                </div>
+
+                <div class="flex-1 overflow-y-auto p-3 space-y-4">
+                    <section class="space-y-2">
+                        <p class="px-1 text-[10px] font-bold uppercase tracking-widest text-bolao-muted2">Gestão Bolão</p>
+                        @forelse($managedByCompetition as $group)
+                        <div class="rounded-xl border border-white/[0.08] bg-bolao-bg" x-data="{ open: {{ request()->routeIs('management.*') ? 'true' : 'false' }} }">
+                            <button type="button"
+                                    @click="open = !open"
+                                    class="flex w-full items-center gap-2 px-3 py-2.5 text-left">
+                                <div class="min-w-0">
+                                    <p class="text-[11px] font-semibold uppercase tracking-wide text-bolao-accent truncate">{{ $group['code'] }} {{ $group['season'] }}</p>
+                                    <p class="text-[11px] text-bolao-muted truncate">{{ $group['name'] }}</p>
+                                </div>
+                                @if($group['pending_total'] > 0)
+                                <span class="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-black">
+                                    {{ (int) $group['pending_total'] }}
+                                </span>
+                                @endif
+                                <i class="ti ti-chevron-down text-[11px] text-slate-500 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                            </button>
+
+                            <div x-show="open" x-collapse class="space-y-1 px-2 pb-2">
+                                @foreach($group['pools'] as $managedPool)
+                                <a href="{{ route('management.pools', ['competition' => $group['code'], 'pool' => $managedPool->id]) }}"
+                                   @click="managementMobileMenu = false"
+                                   class="flex items-center gap-2 rounded-lg border px-3 py-2.5 transition-colors {{ request()->integer('pool') === (int) $managedPool->id ? 'border-amber-400/80 bg-amber-500/10' : 'border-transparent bg-bolao-bg3/40 text-slate-300' }}">
+                                    <i class="ti ti-trophy text-sm {{ request()->integer('pool') === (int) $managedPool->id ? 'text-amber-300' : 'text-slate-500' }}"></i>
+                                    <p class="truncate text-sm {{ request()->integer('pool') === (int) $managedPool->id ? 'font-semibold text-amber-300' : 'text-slate-200' }}">{{ $managedPool->name }}</p>
+                                    @if((int) $managedPool->pending_count > 0)
+                                    <span class="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-black">
+                                        {{ (int) $managedPool->pending_count }}
+                                    </span>
+                                    @endif
+                                </a>
+                                @endforeach
+                            </div>
+                        </div>
+                        @empty
+                        <div class="rounded-xl border border-white/[0.08] bg-bolao-bg px-4 py-6 text-center">
+                            <p class="text-sm text-slate-400">Nenhum bolão ativo para gerenciar.</p>
+                        </div>
+                        @endforelse
+                    </section>
+
+                    @if($authUser->is_admin)
+                    <section class="space-y-2">
+                        <p class="px-1 text-[10px] font-bold uppercase tracking-widest text-bolao-muted2">Gestão Aplicativo</p>
+
+                        <a href="{{ route('admin.users.approval') }}"
+                           @click="managementMobileMenu = false"
+                           class="flex items-center gap-2 rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-2.5 text-sm font-medium text-amber-300 transition-colors hover:bg-amber-500/15">
+                            <i class="ti ti-users text-base"></i>
+                            <span>Usuários</span>
+                        </a>
+
+                        <a href="{{ route('admin.pools.control') }}"
+                           @click="managementMobileMenu = false"
+                           class="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-bolao-bg px-3 py-2.5 text-sm text-slate-300 transition-colors hover:bg-bolao-bg3/60 hover:text-slate-100">
+                            <i class="ti ti-tournament text-base"></i>
+                            <span>Grupos</span>
+                        </a>
+
+                        <a href="{{ route('admin.teams.canonical') }}"
+                           @click="managementMobileMenu = false"
+                           class="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-bolao-bg px-3 py-2.5 text-sm text-slate-300 transition-colors hover:bg-bolao-bg3/60 hover:text-slate-100">
+                            <i class="ti ti-shield text-base"></i>
+                            <span>Times</span>
+                        </a>
+
+                        <a href="{{ route('admin.api.sync') }}"
+                           @click="managementMobileMenu = false"
+                           class="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-bolao-bg px-3 py-2.5 text-sm text-slate-300 transition-colors hover:bg-bolao-bg3/60 hover:text-slate-100">
+                            <i class="ti ti-refresh text-base"></i>
+                            <span>Sync API</span>
+                        </a>
+
+                        <a href="{{ route('admin.matches.manual-correction') }}"
+                           @click="managementMobileMenu = false"
+                           class="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-bolao-bg px-3 py-2.5 text-sm text-slate-300 transition-colors hover:bg-bolao-bg3/60 hover:text-slate-100">
+                            <i class="ti ti-pencil text-base"></i>
+                            <span>Correção Manual</span>
+                        </a>
+
+                        <a href="{{ route('admin.legal.index') }}"
+                           @click="managementMobileMenu = false"
+                           class="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-bolao-bg px-3 py-2.5 text-sm text-slate-300 transition-colors hover:bg-bolao-bg3/60 hover:text-slate-100">
+                            <i class="ti ti-file-text text-base"></i>
+                            <span>Jurídico</span>
+                        </a>
+                    </section>
+                    @endif
+                </div>
+            </div>
+        </div>
+        @endif
     </div>
 
     {{-- ╔══════════════════════════════════════════╗
@@ -612,11 +723,23 @@
             rankPositions.set(key, pos);
             if (!Number.isFinite(prevPos) || prevPos === pos) return;
 
+            var rowHeight = row.offsetHeight || 34;
+            var deltaY = (prevPos - pos) * rowHeight;
+            if (deltaY !== 0) {
+                row.style.transition = 'none';
+                row.style.transform = 'translateY(' + deltaY + 'px)';
+                void row.offsetHeight;
+                row.style.transition = 'transform 260ms cubic-bezier(0.22,1,0.36,1), background-color 220ms ease';
+                row.style.transform = 'translateY(0px)';
+            }
+
             row.classList.remove('rp-rank-up', 'rp-rank-down');
             void row.offsetWidth;
             row.classList.add(pos < prevPos ? 'rp-rank-up' : 'rp-rank-down');
             window.setTimeout(function () {
                 row.classList.remove('rp-rank-up', 'rp-rank-down');
+                row.style.transition = '';
+                row.style.transform = '';
             }, 450);
         });
     }
