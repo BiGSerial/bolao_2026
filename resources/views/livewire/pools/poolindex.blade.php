@@ -24,6 +24,9 @@
         {{-- Minha participação --}}
         <div class="lg:col-span-2 space-y-4">
             <h2 class="text-base font-semibold text-white">Minha Participação</h2>
+            @php
+                $activeHomePoolId = (int) session('home_pool_'.strtoupper((string) $competition_code), 0);
+            @endphp
 
             @if($myPools->isEmpty())
             <div class="card p-12 text-center">
@@ -42,6 +45,8 @@
             <div class="grid gap-3 sm:grid-cols-2">
                 @foreach($myPools as $membership)
                 @php
+                $isActiveForAppView = $activeHomePoolId > 0 && (int) $membership->pool_id === $activeHomePoolId;
+                $membersCount = (int) ($membership->pool_members_count ?? 0);
                 $statusColor = match($membership->status) {
                     'active' => 'badge-green',
                     'pending' => 'badge-amber',
@@ -70,45 +75,50 @@
                 };
                 @endphp
                 <a href="{{ route('pools.show', $membership->pool->slug) }}"
-                   class="card-hover p-4 block group"
+                   class="card-hover p-4 block group border {{ $isActiveForAppView ? 'border-amber-400/90 bg-amber-500/5 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]' : 'border-white/[0.07]' }}"
                    x-data="{ copied: false }">
-                    <div class="flex items-start justify-between gap-2 mb-3">
+                    <div class="flex items-start justify-between gap-2">
                         <div class="min-w-0">
-                            <h3 class="font-semibold text-slate-100 group-hover:text-white transition-colors truncate">
+                            <h3 class="font-semibold {{ $isActiveForAppView ? 'text-amber-300' : 'text-slate-100 group-hover:text-white' }} transition-colors truncate">
                                 {{ $membership->pool->name }}
                             </h3>
-                            @if($ranking)
-                            <span class="mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 {{ $rankingBadge }}">
-                                Ranking #{{ $ranking->position }} · {{ $ranking->points_total }} pts
-                            </span>
-                            @else
-                            <span class="mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 bg-slate-800 text-slate-400 ring-slate-600/40">
-                                Ranking pendente
-                            </span>
-                            @endif
                         </div>
                         <span class="{{ $statusColor }} shrink-0">{{ $statusLabel }}</span>
                     </div>
 
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <span class="text-xs text-slate-500">{{ $roleLabel }}</span>
-                        @if($membership->pool->status === 'active')
-                        <span class="text-slate-700">·</span>
-                        <span class="text-xs text-slate-500">
-                            {{ match($membership->pool->visibility) {
-                                'public' => '🌐 Público',
-                                'invite_only' => '🔗 Convite',
-                                default => '🔒 Privado',
-                            } }}
+                    <div class="mt-1.5 flex items-center gap-3 text-xs text-slate-500">
+                        <span class="inline-flex items-center gap-1">
+                            <i class="ti ti-ball-football text-sm"></i>
+                            jogos
                         </span>
-                        @endif
+                        <span class="inline-flex items-center gap-1">
+                            <i class="ti ti-users text-sm"></i>
+                            {{ $membersCount }} membro{{ $membersCount !== 1 ? 's' : '' }}
+                        </span>
+                    </div>
+
+                    <div class="mt-3 flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-2 min-w-0">
+                            @if($ranking)
+                            <span class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 {{ $rankingBadge }}">
+                                #{{ $ranking->position }}
+                            </span>
+                            <span class="text-sm text-slate-300">{{ $ranking->points_total }} pts</span>
+                            @else
+                            <span class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 bg-slate-800 text-slate-400 ring-slate-600/40">
+                                Ranking pendente
+                            </span>
+                            @endif
+                        </div>
+                        <span class="text-xs text-amber-300 shrink-0">{{ $roleLabel }}</span>
                     </div>
 
                     <div class="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
                         @if(in_array($membership->role, ['owner', 'manager']))
                         <div class="flex items-center gap-2">
                             <span class="text-xs text-slate-500">
-                                Código: <span class="font-mono text-emerald-400">{{ $membership->pool->invite_code }}</span>
+                                <span class="text-slate-500">🔗</span>
+                                <span class="font-mono text-emerald-400">{{ $membership->pool->invite_code }}</span>
                             </span>
                             <button type="button"
                                     @click.prevent.stop="navigator.clipboard.writeText('{{ $membership->pool->invite_code }}').then(() => { copied = true; setTimeout(() => copied = false, 1400); })"

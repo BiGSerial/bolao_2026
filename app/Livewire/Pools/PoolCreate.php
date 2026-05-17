@@ -7,6 +7,7 @@ use App\Enums\PoolMemberStatus;
 use App\Models\Competition;
 use App\Models\CompetitionSeason;
 use App\Models\Pool;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -142,6 +143,17 @@ class PoolCreate extends Component
 
     public function save(): void
     {
+        /** @var User|null $user */
+        $user = Auth::user();
+        if (! $user) {
+            abort(403);
+        }
+        if ($user->reachedManagedPoolsLimit()) {
+            $max = User::MAX_MANAGED_POOLS;
+            $this->notify('error', 'Limite atingido', "Você já atingiu o limite de {$max} bolões entre criação e moderação. Saia de um bolão para liberar capacidade.");
+            return;
+        }
+
         $this->appendPendingSector();
 
         $data = $this->validate([
@@ -169,7 +181,7 @@ class PoolCreate extends Component
             fn (string $item) => in_array($item, $enabledTieBreakers, true)
         ));
 
-        $userId = (int) Auth::id();
+        $userId = (int) $user->id;
         $context = $this->resolveCompetitionContext($data['competition_code']);
 
         $pool = DB::transaction(function () use ($data, $userId): Pool {

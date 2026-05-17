@@ -9,6 +9,7 @@ use App\Models\PoolRanking;
 use App\Models\Prediction;
 use App\Models\Standing;
 use App\Models\StandingRow;
+use App\Services\Pools\LivePoolRankingService;
 use App\Services\Predictions\PredictionService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -17,15 +18,23 @@ use Livewire\Component;
 class Home extends Component
 {
     public ?int $selectedPoolId = null;
+    public int $liveRankingVersion = 0;
 
-    public function refreshMatches(): void {}
+    public function refreshMatches(): void
+    {
+        $this->liveRankingVersion++;
+    }
 
-    public function refreshPoolRanking(): void {}
+    public function refreshPoolRanking(): void
+    {
+        $this->liveRankingVersion++;
+    }
 
     protected function getListeners(): array
     {
         $listeners = [
             'echo:matches,MatchUpdated' => 'refreshMatches',
+            'echo:matches,MatchDetailUpdated' => 'refreshMatches',
         ];
 
         if ($this->selectedPoolId) {
@@ -317,40 +326,22 @@ class Home extends Component
             $selectedPool = $myMembershipsForComp->firstWhere('pool_id', $this->selectedPoolId)?->pool;
 
             if ($selectedPool) {
-                $selectedPoolRanking = PoolRanking::where('pool_id', $this->selectedPoolId)
-                    ->where('user_id', $userId)
-                    ->first();
+                $liveRankingRows = app(LivePoolRankingService::class)->build($selectedPool);
+
+                $selectedPoolRanking = $liveRankingRows->firstWhere('user_id', $userId);
 
                 $selectedPoolMemberCount = PoolMember::where('pool_id', $this->selectedPoolId)
                     ->where('status', 'active')
                     ->count();
 
-                $selectedPoolTopRankings = PoolRanking::query()
-                    ->where('pool_id', $this->selectedPoolId)
-                    ->with('user:id,name,display_name')
-                    ->orderByRaw('case when position is null then 1 else 0 end')
-                    ->orderBy('position')
-                    ->orderByDesc('points_total')
-                    ->limit(5)
-                    ->get();
+                $selectedPoolTopRankings = $liveRankingRows->take(5)->values();
 
                 // Top sempre limitado a 5 itens.
                 // Se o usuário estiver fora do top 5, ele ocupa o 5º elemento com sua posição real destacada.
                 if ($selectedPoolRanking && (int) ($selectedPoolRanking->position ?? 0) > 5) {
-                    $topFour = PoolRanking::query()
-                        ->where('pool_id', $this->selectedPoolId)
-                        ->with('user:id,name,display_name')
-                        ->orderByRaw('case when position is null then 1 else 0 end')
-                        ->orderBy('position')
-                        ->orderByDesc('points_total')
-                        ->limit(4)
-                        ->get();
+                    $topFour = $liveRankingRows->take(4)->values();
 
-                    $myRanking = PoolRanking::query()
-                        ->where('pool_id', $this->selectedPoolId)
-                        ->where('user_id', $userId)
-                        ->with('user:id,name,display_name')
-                        ->first();
+                    $myRanking = $liveRankingRows->firstWhere('user_id', $userId);
 
                     if ($myRanking) {
                         $myRanking->setAttribute('forced_fifth_slot', true);
@@ -358,10 +349,21 @@ class Home extends Component
                     }
                 }
 
-                $selectedPoolRealtimeStats = $this->buildRealtimeStatsForPool(
-                    pool: $selectedPool,
-                    userId: $userId,
-                );
+                if ($selectedPoolRanking) {
+                    $selectedPoolRealtimeStats = [
+                        'points_total' => (int) ($selectedPoolRanking->points_total ?? 0),
+                        'exact_scores' => (int) ($selectedPoolRanking->exact_scores ?? 0),
+                        'correct_results' => (int) ($selectedPoolRanking->correct_results ?? 0),
+                        'correct_home_goals' => (int) ($selectedPoolRanking->correct_home_goals ?? 0),
+                        'correct_away_goals' => (int) ($selectedPoolRanking->correct_away_goals ?? 0),
+                        'predictions_counted' => (int) ($selectedPoolRanking->predictions_counted ?? 0),
+                    ];
+                } else {
+                    $selectedPoolRealtimeStats = $this->buildRealtimeStatsForPool(
+                        pool: $selectedPool,
+                        userId: $userId,
+                    );
+                }
             }
         }
 

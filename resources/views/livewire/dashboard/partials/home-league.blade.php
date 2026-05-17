@@ -110,7 +110,7 @@
 @if($heroMatch)
 @php
     $isHeroLive = false;
-    $kickoff    = $heroMatch->utc_date?->timezone('America/Sao_Paulo');
+    $kickoff    = $heroMatch->kickoffAtBrazil();
     $timeLabel  = $kickoff
         ? ($kickoff->isToday()    ? 'Hoje · '.$kickoff->format('H:i')
         : ($kickoff->isTomorrow() ? 'Amanhã · '.$kickoff->format('H:i')
@@ -388,7 +388,7 @@
             @foreach($matchdayMatches as $match)
             @php
                 $href    = $matchLinks[$match->id] ?? null;
-                $kickoff = $match->utc_date?->timezone('America/Sao_Paulo');
+                $kickoff = $match->kickoffAtBrazil();
                 $label   = $kickoff
                     ? ($kickoff->isToday() ? 'Hoje · '.$kickoff->format('H:i') : $kickoff->format('d/m · H:i'))
                     : '';
@@ -545,7 +545,7 @@
         @else<div class="bg-bolao-bg2 border border-white/[0.07] rounded-lg px-3 py-2.5 flex items-center gap-2 {{ $borderClass }}">
         @endif
             @php
-                $kickoff = $match->utc_date?->timezone('America/Sao_Paulo');
+                $kickoff = $match->kickoffAtBrazil();
                 $metaDate = $kickoff ? $kickoff->format('d/m · H:i') : 'Data indefinida';
                 $stageClass = \App\Livewire\Dashboard\Home::stageBadgeClass($match->stage ?? '');
                 $stageLabel = \App\Livewire\Dashboard\Home::stageLabel($match->stage ?? '');
@@ -611,7 +611,7 @@
                     @elseif(isset($stats['poss_home'], $stats['poss_away']) && $stats['poss_home'] !== null)
                         Posse {{ $stats['poss_home'] }}%-{{ $stats['poss_away'] }}%
                     @else
-                        Atualizando…
+                        {{ $minute ? 'Parcial sem estatísticas da API' : 'Ao vivo sem estatísticas da API' }}
                     @endif
                 </span>
             </div>
@@ -670,7 +670,7 @@
                 {{ $match->awayTeam?->tla ?? '?' }}
             </p>
             <p class="text-[10px] text-bolao-muted mt-0.5">
-                {{ $match->utc_date?->timezone('America/Sao_Paulo')->format('d/m · H:i') }}
+                {{ $match->kickoffAtBrazil()?->format('d/m · H:i') }}
                 @if($selectedPool)
                 @php $rp = $upcomingPredictions->get($match->id); @endphp
                 · @if($rp)<span class="text-bolao-accent">✓</span>@else<span class="text-bolao-red">sem palpite</span>@endif
