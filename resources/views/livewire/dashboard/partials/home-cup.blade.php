@@ -130,21 +130,19 @@
                     @php $rankingRows = $liveRankingPredictions[$match->id] ?? collect(); @endphp
                     @if($selectedPool && $rankingRows->isNotEmpty())
                     <div class="rounded-md border border-white/[0.08] bg-bolao-bg3/70 px-2 py-1.5">
-                        <p class="text-[10px] font-semibold text-slate-200 truncate mb-1">{{ $selectedPool->name }}</p>
+                        <div class="flex items-center gap-1 px-1 text-[8px] uppercase tracking-wide text-bolao-muted2 mb-0.5">
+                            <span class="w-[26px] shrink-0"></span>
+                            <span class="min-w-0 flex-1 text-[10px] normal-case tracking-normal font-semibold text-slate-200 truncate">{{ $selectedPool->name }}</span>
+                            <span class="w-[52px] shrink-0 text-center">Palpite</span>
+                            <span class="w-[30px] shrink-0 text-right">Pts</span>
+                        </div>
                         <div class="space-y-1">
                             @foreach($rankingRows as $row)
-                            <div class="flex items-center justify-between gap-2 text-[10px] {{ !empty($row['is_me']) ? 'text-amber-300 font-semibold' : 'text-slate-300' }}">
-                                <span class="min-w-0 truncate">
-                                    {{ (int) ($row['position'] ?? 0) }}º {{ $row['name'] ?? 'Participante' }}@if(!empty($row['is_me'])) ★@endif
-                                </span>
-                                <span class="shrink-0 text-right">
-                                    <span class="block font-bc font-bold text-bolao-accent leading-none">
-                                        {{ $row['prediction'] ?? 'sem palpite' }}
-                                    </span>
-                                    <span class="block text-[9px] text-amber-300 leading-none mt-0.5">
-                                        {{ is_numeric($row['points'] ?? null) ? ((int) $row['points']).' pts' : '— pts' }}
-                                    </span>
-                                </span>
+                            <div class="flex items-center gap-1 rounded-md px-1 py-0.5 text-[10px] whitespace-nowrap {{ !empty($row['is_me']) ? 'bg-amber-400/10 text-amber-300 font-semibold' : 'text-slate-300' }}">
+                                <span class="w-[26px] shrink-0 font-bc font-bold">{{ (int) ($row['position'] ?? 0) }}º</span>
+                                <span class="min-w-0 flex-1 truncate">{{ $row['name'] ?? 'Participante' }}@if(!empty($row['is_me'])) ★@endif</span>
+                                <span class="w-[52px] shrink-0 font-bc font-bold text-bolao-accent text-center">{{ $row['prediction'] ?? 's/p' }}</span>
+                                <span class="w-[30px] shrink-0 text-right font-bc font-bold text-amber-300">{{ is_numeric($row['points'] ?? null) ? (int) $row['points'] : '—' }}</span>
                             </div>
                             @endforeach
                         </div>
