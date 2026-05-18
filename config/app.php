@@ -116,6 +116,8 @@ return [
         ),
     ],
 
+    'privacy_contact_email' => env('PRIVACY_CONTACT_EMAIL', 'privacidade@vixforge.com.br'),
+
     /*
     |--------------------------------------------------------------------------
     | Maintenance Mode Driver
