@@ -156,7 +156,7 @@
                         <label class="label">Código de convite</label>
                         <input type="text"
                                maxlength="8"
-                               wire:model="invite_code"
+                               wire:model.live.debounce.250ms="invite_code"
                                placeholder="XXXXXXXX"
                                class="input-field text-center text-lg font-mono tracking-widest uppercase"
                                autocomplete="off">
@@ -182,7 +182,7 @@
                     @if(!empty($invite_sectors))
                     <div>
                         <label class="label">Seu setor / departamento</label>
-                        <select wire:model="invite_sector" class="select-field">
+                        <select wire:model.live="invite_sector" class="select-field">
                             <option value="">Selecione seu setor</option>
                             @foreach($invite_sectors as $sector)
                             <option value="{{ $sector }}">{{ $sector }}</option>

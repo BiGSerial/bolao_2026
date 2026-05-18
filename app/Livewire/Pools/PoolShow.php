@@ -237,38 +237,34 @@ class PoolShow extends Component
     {
         $rounds = $this->resolveDisplayRounds();
         $leftRound = $this->ensureFixedLeftRound($rounds);
-        $candidates = $rounds->filter(fn (int $round) => $round !== $leftRound)->values();
-
-        if ($candidates->isEmpty()) {
+        if ($leftRound === null) {
             return;
         }
 
-        $currentRight = $this->resolveRightRound($candidates, $leftRound);
-        $index = (int) $candidates->search($currentRight);
+        $index = (int) $rounds->search($leftRound);
         if ($index <= 0) {
             return;
         }
 
-        $this->displayRightRound = (int) $candidates->get($index - 1);
+        $this->displayLeftRoundFixed = (int) $rounds->get($index - 1);
+        $this->displayRightRound = null;
     }
 
     public function nextDisplayRound(): void
     {
         $rounds = $this->resolveDisplayRounds();
         $leftRound = $this->ensureFixedLeftRound($rounds);
-        $candidates = $rounds->filter(fn (int $round) => $round !== $leftRound)->values();
-
-        if ($candidates->isEmpty()) {
+        if ($leftRound === null) {
             return;
         }
 
-        $currentRight = $this->resolveRightRound($candidates, $leftRound);
-        $index = (int) $candidates->search($currentRight);
-        if ($index >= $candidates->count() - 1) {
+        $index = (int) $rounds->search($leftRound);
+        if ($index >= $rounds->count() - 1) {
             return;
         }
 
-        $this->displayRightRound = (int) $candidates->get($index + 1);
+        $this->displayLeftRoundFixed = (int) $rounds->get($index + 1);
+        $this->displayRightRound = null;
     }
 
     public function selectPreviousBulkRound(): void
@@ -507,10 +503,13 @@ class PoolShow extends Component
 
         $displayRounds = $this->resolveDisplayRounds($matches);
         $displayLeftRound = $this->ensureFixedLeftRound($displayRounds, $currentMatchday);
+        $displayRightRound = $this->resolveRightRound($displayRounds, $displayLeftRound);
         $displayRightCandidates = $displayRounds
-            ->filter(fn (int $round) => $round !== $displayLeftRound)
+            ->filter(fn (int $round) => $displayLeftRound !== null && $round > $displayLeftRound)
             ->values();
-        $displayRightRound = $this->resolveRightRound($displayRightCandidates, $displayLeftRound);
+        $displayLeftIndex = $displayLeftRound !== null ? (int) $displayRounds->search($displayLeftRound) : -1;
+        $canMoveDisplayPrev = $displayLeftIndex > 0;
+        $canMoveDisplayNext = $displayLeftIndex >= 0 && $displayLeftIndex < ($displayRounds->count() - 1);
         $displayRoundWindow = collect([$displayLeftRound, $displayRightRound])->filter(fn ($round) => $round !== null)->values();
 
         $displayMatches = $matches->filter(function (FootballMatch $match) use ($displayRoundWindow) {
@@ -599,7 +598,7 @@ class PoolShow extends Component
             'member', 'groupedMatches', 'predictions', 'statusLabels',
             'liveMinutes', 'predictionStatuses', 'rankings', 'rankingRows', 'rankingColumns', 'myRanking', 'totalMatches', 'predictedCount', 'nearestTickerMatches', 'currentMatchday',
             'isViewingOtherMember', 'canEditPredictions', 'predictionVisibility', 'predictionTargetName', 'bulkDelimiters', 'bulkRoundOptions', 'bulkCurrentRoundLabel',
-            'displayLeftRound', 'displayRightRound', 'displayRightCandidates',
+            'displayLeftRound', 'displayRightRound', 'displayRightCandidates', 'canMoveDisplayPrev', 'canMoveDisplayNext',
             'summaryNavigationMode', 'summaryScopes', 'summaryCurrentScopeLabel', 'summaryMatches'
         ));
     }
@@ -803,22 +802,20 @@ class PoolShow extends Component
         return $this->displayLeftRoundFixed;
     }
 
-    private function resolveRightRound(Collection $candidates, ?int $leftRound = null): ?int
+    private function resolveRightRound(Collection $rounds, ?int $leftRound = null): ?int
     {
+        if ($rounds->isEmpty() || $leftRound === null) {
+            $this->displayRightRound = null;
+            return null;
+        }
+
+        $candidates = $rounds->filter(fn (int $round) => $round > $leftRound)->values();
         if ($candidates->isEmpty()) {
             $this->displayRightRound = null;
             return null;
         }
 
-        if ($this->displayRightRound !== null && $candidates->contains($this->displayRightRound)) {
-            return $this->displayRightRound;
-        }
-
-        $nextRound = $leftRound !== null
-            ? $candidates->first(fn (int $round) => $round > $leftRound)
-            : null;
-
-        $this->displayRightRound = (int) ($nextRound ?? $candidates->first());
+        $this->displayRightRound = (int) $candidates->first();
         return $this->displayRightRound;
     }
 
@@ -918,6 +915,7 @@ class PoolShow extends Component
         }
 
         return match ($type) {
+            'all' => 'todos válidos',
             'matchday' => 'rodada '.$value,
             'group' => 'grupo '.$value,
             'date' => 'data '.$value,
@@ -932,6 +930,13 @@ class PoolShow extends Component
         $openMatches = $matches->filter(
             fn (FootballMatch $match) => ! $match->isFinished() && ! $match->isPredictionLockedFor($this->pool)
         )->values();
+
+        if ($openMatches->isNotEmpty()) {
+            $options[] = [
+                'value' => 'all:valid',
+                'label' => 'Todos válidos',
+            ];
+        }
 
         $matchdays = $openMatches
             ->pluck('matchday')
@@ -1025,9 +1030,46 @@ class PoolShow extends Component
 
     private function resolveCurrentMatchday(Collection $matches): ?int
     {
+        $nextOpenMatchday = $matches
+            ->filter(fn (FootballMatch $match) => $match->matchday !== null && in_array($match->status, [
+                'TIMED',
+                'SCHEDULED',
+                'PRE_MATCH',
+                'IN_PLAY',
+                'PAUSED',
+                'EXTRA_TIME',
+                'PENALTY_SHOOTOUT',
+            ], true))
+            ->map(fn (FootballMatch $match) => (int) $match->matchday)
+            ->sort()
+            ->first();
+
+        if ($nextOpenMatchday !== null && $nextOpenMatchday > 0) {
+            return (int) $nextOpenMatchday;
+        }
+
         $configured = (int) ($this->pool->season?->current_matchday ?? 0);
         if ($configured > 0) {
-            return $configured;
+            $availableRounds = $matches
+                ->pluck('matchday')
+                ->filter(fn ($matchday) => $matchday !== null && $matchday !== '')
+                ->map(fn ($matchday) => (int) $matchday)
+                ->unique()
+                ->sort()
+                ->values();
+
+            if ($availableRounds->contains($configured)) {
+                return $configured;
+            }
+
+            $nextAvailable = $availableRounds->first(fn (int $round) => $round > $configured);
+            if ($nextAvailable !== null) {
+                return (int) $nextAvailable;
+            }
+
+            if ($availableRounds->isNotEmpty()) {
+                return (int) $availableRounds->last();
+            }
         }
 
         $active = $matches
