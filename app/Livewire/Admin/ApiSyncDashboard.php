@@ -11,6 +11,7 @@ use App\Services\FootballData\FootballDataClient;
 use App\Services\FootballData\SyncWorldCupMatchDetailsService;
 use App\Services\FootballData\SyncWorldCupMatchesService;
 use App\Services\FootballData\SyncWorldCupStandingsService;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
@@ -22,6 +23,7 @@ class ApiSyncDashboard extends Component
     use WithPagination;
 
     public bool $syncing = false;
+    public bool $consolidating = false;
     public string $syncMessage = '';
     public bool $syncSuccess = false;
 
@@ -245,6 +247,31 @@ class ApiSyncDashboard extends Component
             'apiHourlyVolume',
             'apiUsageSummary'
         ));
+    }
+
+    public function triggerConsolidation(): void
+    {
+        $this->assertAdmin();
+
+        $this->consolidating = true;
+        $this->syncMessage = '';
+
+        try {
+            $exitCode = Artisan::call('sports:consolidate-daily-results', [
+                '--timezone' => 'America/Sao_Paulo',
+            ]);
+
+            $output = trim((string) Artisan::output());
+            $this->syncSuccess = $exitCode === 0;
+            $this->syncMessage = $exitCode === 0
+                ? 'Consolidação manual executada com sucesso.'.($output !== '' ? ' '.$output : '')
+                : 'Falha ao executar consolidação manual.'.($output !== '' ? ' '.$output : '');
+        } catch (Throwable $e) {
+            $this->syncSuccess = false;
+            $this->syncMessage = 'Erro ao executar consolidação manual: '.$e->getMessage();
+        } finally {
+            $this->consolidating = false;
+        }
     }
 
     private function assertAdmin(): void

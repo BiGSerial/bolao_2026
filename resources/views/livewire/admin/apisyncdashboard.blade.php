@@ -22,6 +22,21 @@
                 Ir para o jogo (Ver detalhes)
             </a>
 
+            <button wire:click="triggerConsolidation"
+                    wire:loading.attr="disabled"
+                    wire:target="triggerConsolidation"
+                    class="inline-flex items-center gap-2 rounded-lg border border-amber-300/40 bg-amber-500 px-3 py-2 text-sm font-bold text-slate-950 shadow-sm hover:bg-amber-400 transition-colors disabled:opacity-60">
+                <svg wire:loading wire:target="triggerConsolidation" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                <svg wire:loading.remove wire:target="triggerConsolidation" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                <span wire:loading.remove wire:target="triggerConsolidation">Consolidar Resultados</span>
+                <span wire:loading wire:target="triggerConsolidation">Consolidando…</span>
+            </button>
+
             <button wire:click="triggerSync"
                     wire:loading.attr="disabled"
                     wire:target="triggerSync"
