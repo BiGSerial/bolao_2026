@@ -393,56 +393,40 @@
             <div x-show="open" x-cloak x-transition class="mt-4 space-y-3">
                 <p class="text-xs text-slate-500">Aplica o mesmo palpite para todos os jogos não bloqueados.</p>
 
-                <div class="flex flex-wrap items-end gap-3">
-                    <div class="flex-1 min-w-0">
+                <div class="space-y-3">
+                    <div>
                         <label class="label text-xs">Escopo de aplicação</label>
-                        @if(!empty($bulkRoundOptions))
-                        <div class="flex items-center gap-2">
-                            <button type="button"
-                                    wire:click="selectPreviousBulkRound"
-                                    class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
-                                <i class="ti ti-chevron-left text-base"></i>
-                            </button>
-                            <div class="input-field flex-1 text-center text-sm font-semibold text-slate-100">
-                                {{ $bulkCurrentRoundLabel ?? 'Rodada' }}
-                            </div>
-                            <button type="button"
-                                    wire:click="selectNextBulkRound"
-                                    class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
-                                <i class="ti ti-chevron-right text-base"></i>
-                            </button>
-                        </div>
-                        @else
                         <select wire:model="bulkDelimiter" class="select-field">
                             @foreach($bulkDelimiters as $delimiter)
                             <option value="{{ $delimiter['value'] }}">{{ $delimiter['label'] }}</option>
                             @endforeach
                         </select>
-                        @endif
                     </div>
 
-                    <div class="flex items-end gap-2">
-                        <div>
+                    <div class="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+                        <div class="min-w-0">
                             <label class="label text-xs">Mandante</label>
                             <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2"
                                    oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,2)"
                                    @input="bh = $event.target.value.replace(/[^0-9]/g,'').slice(0,2)"
-                                   class="input-field w-16 text-center tabular-nums">
+                                   class="input-field w-full min-w-[56px] text-center tabular-nums">
                         </div>
                         <span class="pb-2.5 text-slate-600 text-lg">×</span>
-                        <div>
+                        <div class="min-w-0">
                             <label class="label text-xs">Visitante</label>
                             <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2"
                                    oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,2)"
                                    @input="ba = $event.target.value.replace(/[^0-9]/g,'').slice(0,2)"
-                                   class="input-field w-16 text-center tabular-nums">
+                                   class="input-field w-full min-w-[56px] text-center tabular-nums">
                         </div>
                     </div>
 
-                    <button @click="$wire.applyBulkPrediction(bh, ba)"
-                            class="btn-secondary shrink-0">
-                        Aplicar
-                    </button>
+                    <div>
+                        <button @click="$wire.applyBulkPrediction(bh, ba)"
+                                class="btn-secondary h-10 w-full sm:w-auto">
+                            Aplicar
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -487,21 +471,26 @@
             <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">
                 {{ $isViewingOtherMember ? 'Palpites por grupo e rodada de '.($predictionTargetName ?? 'participante') : 'Meus palpites por grupo e rodada' }}
             </h2>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center justify-end gap-3">
                 @if($displayLeftRound !== null)
-                <span class="text-xs text-slate-400">Atual: <span class="font-semibold text-slate-200">Rodada {{ $displayLeftRound }}</span></span>
+                <span class="text-xs text-slate-400">Esquerda: <span class="font-semibold text-slate-200">Rodada {{ $displayLeftRound }}</span></span>
                 @endif
 
-                @if(($displayRightCandidates ?? collect())->isNotEmpty())
+                @if($displayRightRound !== null)
+                <span class="text-xs text-slate-400">Direita: <span class="font-semibold text-slate-200">Rodada {{ $displayRightRound }}</span></span>
+                @endif
+
+                @if(($displayRightCandidates ?? collect())->isNotEmpty() || ($canMoveDisplayPrev ?? false) || ($canMoveDisplayNext ?? false))
                 <div class="flex items-center gap-1.5">
                     <button type="button"
                             wire:click="previousDisplayRound"
+                            @disabled(!($canMoveDisplayPrev ?? false))
                             class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
                         <i class="ti ti-chevron-left text-sm"></i>
                     </button>
-                    <span class="text-xs text-slate-400">Lado direito: <span class="font-semibold text-slate-200">Rodada {{ $displayRightRound }}</span></span>
                     <button type="button"
                             wire:click="nextDisplayRound"
+                            @disabled(!($canMoveDisplayNext ?? false))
                             class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
                         <i class="ti ti-chevron-right text-sm"></i>
                     </button>
