@@ -25,11 +25,10 @@ class SecurityHeaders
         $response->headers->set(
             'Content-Security-Policy',
             "default-src 'self'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'; ".
-            "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; ".
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; ".
             "img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self' https: ws: wss:;"
         );
 
         return $response;
     }
 }
-
