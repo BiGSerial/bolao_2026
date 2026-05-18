@@ -9,9 +9,10 @@ use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('horizon:snapshot')->everyFiveMinutes();
 Schedule::command('sports:consolidate-daily-results --timezone=America/Sao_Paulo')
-    ->dailyAt('23:58')
+    ->timezone('America/Sao_Paulo')
+    ->dailyAt('23:59')
     ->name('sports:daily-consolidation')
-    ->withoutOverlapping();
+    ->withoutOverlapping(120);
 
 Artisan::command('inspire', function () {
     $this->comment('Bolao 2026 pronto para sincronizacao.');

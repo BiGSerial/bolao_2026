@@ -3,6 +3,7 @@
 namespace App\Livewire\Pools;
 
 use App\Events\PoolMembersUpdated;
+use App\Events\PoolJoinRequestCreated;
 use App\Enums\PoolMemberStatus;
 use App\Models\Competition;
 use App\Models\Pool;
@@ -122,8 +123,38 @@ class PoolIndex extends Component
             ->first();
 
         if ($member) {
-            session()->flash('status', 'Voce ja faz parte deste bolao.');
-            $this->redirectRoute('pools.show', ['pool' => $pool->slug], navigate: true);
+            if ($member->status === PoolMemberStatus::Active->value) {
+                session()->flash('status', 'Voce ja faz parte deste bolao.');
+                $this->redirectRoute('pools.show', ['pool' => $pool->slug], navigate: true);
+                return;
+            }
+
+            if ($member->status === PoolMemberStatus::Pending->value) {
+                session()->flash('status', 'Sua solicitacao ja esta em analise. Aguarde aprovacao do gestor.');
+                return;
+            }
+
+            $member->update([
+                'role' => 'member',
+                'sector' => ! empty($this->invite_sectors) ? ($data['invite_sector'] ?: null) : null,
+                'status' => PoolMemberStatus::Pending->value,
+                'activated_by' => null,
+                'activated_at' => null,
+                'deactivated_by' => null,
+                'deactivated_at' => null,
+            ]);
+            PoolMembersUpdated::dispatch($pool);
+            $this->notifyManagersAboutJoinRequest($pool);
+            $poolCompetitionCode = strtoupper((string) ($pool->competition?->code ?? ''));
+            if ($poolCompetitionCode !== '') {
+                session(['competition' => $poolCompetitionCode]);
+            }
+
+            session()->flash('status', 'Solicitacao reenviada. Aguarde liberacao do gestor do bolao.');
+            $this->invite_code = '';
+            $this->invite_sector = '';
+            $this->invite_sectors = [];
+            $this->invite_pool_preview = null;
             return;
         }
 
@@ -134,6 +165,7 @@ class PoolIndex extends Component
             'status' => PoolMemberStatus::Pending->value,
         ]);
         PoolMembersUpdated::dispatch($pool);
+        $this->notifyManagersAboutJoinRequest($pool);
         $poolCompetitionCode = strtoupper((string) ($pool->competition?->code ?? ''));
         if ($poolCompetitionCode !== '') {
             session(['competition' => $poolCompetitionCode]);
@@ -185,10 +217,29 @@ class PoolIndex extends Component
             ->first();
 
         if ($member) {
-            session()->flash('status', 'Você já possui participação solicitada/ativa neste bolão.');
             if ($member->status === PoolMemberStatus::Active->value) {
+                session()->flash('status', 'Você já participa deste bolão.');
                 $this->redirectRoute('pools.show', ['pool' => $pool->slug], navigate: true);
+                return;
             }
+
+            if ($member->status === PoolMemberStatus::Pending->value) {
+                session()->flash('status', 'Sua solicitação já está em análise.');
+                return;
+            }
+
+            $member->update([
+                'role' => 'member',
+                'sector' => null,
+                'status' => PoolMemberStatus::Pending->value,
+                'activated_by' => null,
+                'activated_at' => null,
+                'deactivated_by' => null,
+                'deactivated_at' => null,
+            ]);
+            PoolMembersUpdated::dispatch($pool);
+            $this->notifyManagersAboutJoinRequest($pool);
+            session()->flash('status', 'Solicitação reenviada. Aguarde aprovação do gestor do bolão.');
             return;
         }
 
@@ -199,6 +250,7 @@ class PoolIndex extends Component
             'status' => PoolMemberStatus::Pending->value,
         ]);
         PoolMembersUpdated::dispatch($pool);
+        $this->notifyManagersAboutJoinRequest($pool);
 
         session()->flash('status', 'Solicitação enviada. Aguarde aprovação do gestor do bolão.');
     }
@@ -253,5 +305,23 @@ class PoolIndex extends Component
         sort($all);
 
         return $all !== [] ? $all : ['WC'];
+    }
+
+    private function notifyManagersAboutJoinRequest(Pool $pool): void
+    {
+        $pendingCount = (int) $pool->members()->where('status', PoolMemberStatus::Pending->value)->count();
+
+        $managerIds = $pool->members()
+            ->where('status', PoolMemberStatus::Active->value)
+            ->whereIn('role', ['owner', 'manager'])
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values();
+
+        foreach ($managerIds as $managerId) {
+            PoolJoinRequestCreated::dispatch($managerId, (int) $pool->id, $pendingCount);
+        }
     }
 }

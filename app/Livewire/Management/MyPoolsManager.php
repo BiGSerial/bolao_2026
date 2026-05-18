@@ -12,12 +12,15 @@ use Livewire\Component;
 
 class MyPoolsManager extends Component
 {
+    public int $managerUserId = 0;
     public ?int $selectedPoolId = null;
     public string $filterStatus = '';
     public string $search = '';
 
     public function mount(): void
     {
+        $this->managerUserId = (int) Auth::id();
+
         $requestedPoolId = request()->integer('pool');
         if ($requestedPoolId > 0 && $this->myPools()->whereKey($requestedPoolId)->exists()) {
             $this->selectedPoolId = $requestedPoolId;
@@ -46,6 +49,12 @@ class MyPoolsManager extends Component
     public function refreshManagedPoolData(): void
     {
         // Evento recebido via Reverb; re-render já consulta os dados atualizados.
+    }
+
+    #[On('echo-private:App.Models.User.{managerUserId},PoolJoinRequestCreated')]
+    public function refreshManagedPoolDataFromJoinRequest(): void
+    {
+        // Evento global para gestores: atualiza badges/listas de pendentes sem refresh manual.
     }
 
     public function activateMember(int $memberId, PoolMembershipService $service): void
