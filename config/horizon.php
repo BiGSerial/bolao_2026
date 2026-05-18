@@ -23,15 +23,19 @@ return [
     |--------------------------------------------------------------------------
     | Alertas de espera por fila (segundos)
     |--------------------------------------------------------------------------
-    | Se um job ficar mais que N segundos aguardando, dispara LongWaitDetected.
+    |
+    | Para o bolão com placar ao vivo, broadcast/scoring/ranking precisam
+    | alertar rápido. API e mail podem ter tolerância maior.
+    |
     */
+
     'waits' => [
-        'redis:mail'       => 30,
-        'redis:broadcast'  => 10,
-        'redis:scoring'    => 60,
-        'redis:ranking'    => 120,
-        'redis:api-funnel' => 300,
-        'redis:api-sync'   => 300,
+        'redis:broadcast'  => 5,
+        'redis:scoring'    => 10,
+        'redis:ranking'    => 15,
+        'redis:api-funnel' => 30,
+        'redis:api-sync'   => 120,
+        'redis:mail'       => 60,
         'redis:default'    => 60,
     ],
 
@@ -46,9 +50,13 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Jobs silenciados no dashboard (alto volume, pouco interesse visual)
+    | Jobs silenciados no dashboard
     |--------------------------------------------------------------------------
+    |
+    | Jobs de sincronização de alto volume podem poluir o dashboard.
+    |
     */
+
     'silenced' => [
         App\Jobs\RunCompetitionSyncJob::class,
         App\Jobs\RunCompetitionMatchDetailsSyncJob::class,
@@ -72,120 +80,288 @@ return [
     | Configuração dos workers por ambiente
     |--------------------------------------------------------------------------
     |
-    | Estratégia de filas (a ORDEM dentro de cada supervisor define prioridade):
+    | Estratégia para bolão ao vivo:
     |
-    |  supervisor-mail  → fila exclusiva de e-mail. Nunca compete com sync.
-    |                     Garante entrega rápida independente do volume de API.
+    |  1. broadcast    -> resposta visual imediata no navegador
+    |  2. scoring      -> recalcula pontuação dos palpites
+    |  3. ranking      -> atualiza classificação
+    |  4. api-funnel   -> organiza entrada de dados externos
+    |  5. api-sync     -> sincronizações mais pesadas/rate-limited
+    |  6. mail         -> e-mails, avisos e notificações não críticas
+    |  7. default      -> fila de segurança para jobs sem onQueue()
     |
-    |  supervisor-jobs  → pontuação e ranking. Executam logo após partidas.
-    |
-    |  supervisor-api   → sync de dados das APIs externas (alto volume,
-    |                     rate-limited). Isolado para não bloquear os demais.
-    |
-    | balance=auto + autoScalingStrategy=time → Horizon escala processos
-    | automaticamente baseado no tempo de espera de cada fila.
     */
+
     'defaults' => [
-        'supervisor-mail' => [
-            'connection'           => 'redis',
-            'queue'                => ['mail'],
-            'balance'              => 'auto',
-            'autoScalingStrategy'  => 'time',
-            'minProcesses'         => 1,
-            'maxProcesses'         => 3,
-            'maxTime'              => 0,
-            'maxJobs'              => 0,
-            'memory'               => 128,
-            'tries'                => 3,
-            'timeout'              => 60,
-            'nice'                 => 0,
-        ],
 
-        'supervisor-jobs' => [
-            'connection'           => 'redis',
-            'queue'                => ['scoring', 'ranking'],
-            'balance'              => 'auto',
-            'autoScalingStrategy'  => 'time',
-            'minProcesses'         => 1,
-            'maxProcesses'         => 3,
-            'maxTime'              => 0,
-            'maxJobs'              => 0,
-            'memory'               => 128,
-            'tries'                => 3,
-            'timeout'              => 90,
-            'nice'                 => 5,
-        ],
-
-        'supervisor-api' => [
-            'connection'           => 'redis',
-            'queue'                => ['api-funnel', 'api-sync'],
-            'balance'              => 'auto',
-            'autoScalingStrategy'  => 'time',
-            'minProcesses'         => 1,
-            'maxProcesses'         => 2,
-            'maxTime'              => 0,
-            'maxJobs'              => 0,
-            'memory'               => 128,
-            'tries'                => 3,
-            'timeout'              => 120,
-            'nice'                 => 10,
-        ],
+        /*
+        |--------------------------------------------------------------------------
+        | Broadcast
+        |--------------------------------------------------------------------------
+        |
+        | Fila mais sensível do sistema ao vivo.
+        | Deve ficar sempre com workers prontos.
+        |
+        */
 
         'supervisor-broadcast' => [
-            'connection'           => 'redis',
-            'queue'                => ['broadcast'],
-            'balance'              => 'simple',
-            'minProcesses'         => 1,
-            'maxProcesses'         => 2,
-            'maxTime'              => 0,
-            'maxJobs'              => 0,
-            'memory'               => 64,
-            'tries'                => 2,
-            'timeout'              => 30,
-            'nice'                 => 3,
+            'connection'          => 'redis',
+            'queue'               => ['broadcast'],
+            'balance'             => 'simple',
+            'minProcesses'        => 3,
+            'maxProcesses'        => 5,
+            'maxTime'             => 0,
+            'maxJobs'             => 0,
+            'memory'              => 64,
+            'tries'               => 2,
+            'timeout'             => 15,
+            'nice'                => 0,
+        ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | Scoring
+        |--------------------------------------------------------------------------
+        |
+        | Recalcula pontos após mudanças em partidas/eventos.
+        |
+        */
+
+        'supervisor-scoring' => [
+            'connection'          => 'redis',
+            'queue'               => ['scoring'],
+            'balance'             => 'auto',
+            'autoScalingStrategy' => 'time',
+            'minProcesses'        => 2,
+            'maxProcesses'        => 5,
+            'balanceMaxShift'     => 1,
+            'balanceCooldown'     => 3,
+            'maxTime'             => 0,
+            'maxJobs'             => 0,
+            'memory'              => 128,
+            'tries'               => 3,
+            'timeout'             => 60,
+            'nice'                => 1,
+        ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | Ranking
+        |--------------------------------------------------------------------------
+        |
+        | Atualiza ranking geral, grupos, rodadas e competições.
+        |
+        */
+
+        'supervisor-ranking' => [
+            'connection'          => 'redis',
+            'queue'               => ['ranking'],
+            'balance'             => 'auto',
+            'autoScalingStrategy' => 'time',
+            'minProcesses'        => 1,
+            'maxProcesses'        => 4,
+            'balanceMaxShift'     => 1,
+            'balanceCooldown'     => 3,
+            'maxTime'             => 0,
+            'maxJobs'             => 0,
+            'memory'              => 128,
+            'tries'               => 3,
+            'timeout'             => 60,
+            'nice'                => 2,
+        ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | API Funnel
+        |--------------------------------------------------------------------------
+        |
+        | Recebe, organiza e distribui dados vindos da API externa.
+        | Deve ser rápido, mas sem atropelar o tempo real.
+        |
+        */
+
+        'supervisor-api-funnel' => [
+            'connection'          => 'redis',
+            'queue'               => ['api-funnel'],
+            'balance'             => 'auto',
+            'autoScalingStrategy' => 'time',
+            'minProcesses'        => 1,
+            'maxProcesses'        => 3,
+            'balanceMaxShift'     => 1,
+            'balanceCooldown'     => 5,
+            'maxTime'             => 0,
+            'maxJobs'             => 0,
+            'memory'              => 128,
+            'tries'               => 3,
+            'timeout'             => 60,
+            'nice'                => 4,
+        ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | API Sync
+        |--------------------------------------------------------------------------
+        |
+        | Sincronizações externas mais pesadas e sujeitas a rate limit.
+        | Controlada para não roubar CPU do placar ao vivo.
+        |
+        */
+
+        'supervisor-api-sync' => [
+            'connection'          => 'redis',
+            'queue'               => ['api-sync'],
+            'balance'             => 'auto',
+            'autoScalingStrategy' => 'time',
+            'minProcesses'        => 1,
+            'maxProcesses'        => 2,
+            'balanceMaxShift'     => 1,
+            'balanceCooldown'     => 10,
+            'maxTime'             => 0,
+            'maxJobs'             => 0,
+            'memory'              => 128,
+            'tries'               => 3,
+            'timeout'             => 120,
+            'nice'                => 7,
+        ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | Mail
+        |--------------------------------------------------------------------------
+        |
+        | E-mails são importantes, mas não devem competir com resultado ao vivo.
+        |
+        */
+
+        'supervisor-mail' => [
+            'connection'          => 'redis',
+            'queue'               => ['mail'],
+            'balance'             => 'auto',
+            'autoScalingStrategy' => 'time',
+            'minProcesses'        => 1,
+            'maxProcesses'        => 3,
+            'balanceMaxShift'     => 1,
+            'balanceCooldown'     => 5,
+            'maxTime'             => 0,
+            'maxJobs'             => 0,
+            'memory'              => 128,
+            'tries'               => 3,
+            'timeout'             => 60,
+            'nice'                => 8,
+        ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | Default
+        |--------------------------------------------------------------------------
+        |
+        | Fila de segurança para jobs que eventualmente forem enviados sem onQueue().
+        |
+        */
+
+        'supervisor-default' => [
+            'connection'          => 'redis',
+            'queue'               => ['default'],
+            'balance'             => 'auto',
+            'autoScalingStrategy' => 'time',
+            'minProcesses'        => 1,
+            'maxProcesses'        => 1,
+            'balanceMaxShift'     => 1,
+            'balanceCooldown'     => 10,
+            'maxTime'             => 0,
+            'maxJobs'             => 0,
+            'memory'              => 128,
+            'tries'               => 3,
+            'timeout'             => 60,
+            'nice'                => 10,
         ],
     ],
 
     'environments' => [
+
         'production' => [
-            'supervisor-mail' => [
-                'minProcesses'      => 1,
-                'maxProcesses'      => 4,
-                'balanceMaxShift'   => 2,
-                'balanceCooldown'   => 3,
-            ],
-            'supervisor-jobs' => [
-                'minProcesses'      => 1,
-                'maxProcesses'      => 4,
-                'balanceMaxShift'   => 1,
-                'balanceCooldown'   => 3,
-            ],
-            'supervisor-api' => [
-                'minProcesses'      => 1,
-                'maxProcesses'      => 2,
-                'balanceMaxShift'   => 1,
-                'balanceCooldown'   => 5,
-            ],
+
             'supervisor-broadcast' => [
-                'minProcesses'      => 1,
-                'maxProcesses'      => 2,
+                'minProcesses' => 3,
+                'maxProcesses' => 5,
+            ],
+
+            'supervisor-scoring' => [
+                'minProcesses'    => 2,
+                'maxProcesses'    => 5,
+                'balanceMaxShift' => 1,
+                'balanceCooldown' => 3,
+            ],
+
+            'supervisor-ranking' => [
+                'minProcesses'    => 1,
+                'maxProcesses'    => 4,
+                'balanceMaxShift' => 1,
+                'balanceCooldown' => 3,
+            ],
+
+            'supervisor-api-funnel' => [
+                'minProcesses'    => 1,
+                'maxProcesses'    => 3,
+                'balanceMaxShift' => 1,
+                'balanceCooldown' => 5,
+            ],
+
+            'supervisor-api-sync' => [
+                'minProcesses'    => 1,
+                'maxProcesses'    => 2,
+                'balanceMaxShift' => 1,
+                'balanceCooldown' => 10,
+            ],
+
+            'supervisor-mail' => [
+                'minProcesses'    => 1,
+                'maxProcesses'    => 3,
+                'balanceMaxShift' => 1,
+                'balanceCooldown' => 5,
+            ],
+
+            'supervisor-default' => [
+                'minProcesses'    => 1,
+                'maxProcesses'    => 1,
+                'balanceMaxShift' => 1,
+                'balanceCooldown' => 10,
             ],
         ],
 
         'local' => [
-            'supervisor-mail' => [
+
+            'supervisor-broadcast' => [
                 'minProcesses' => 1,
                 'maxProcesses' => 2,
             ],
-            'supervisor-jobs' => [
+
+            'supervisor-scoring' => [
                 'minProcesses' => 1,
                 'maxProcesses' => 2,
             ],
-            'supervisor-api' => [
+
+            'supervisor-ranking' => [
+                'minProcesses' => 1,
+                'maxProcesses' => 2,
+            ],
+
+            'supervisor-api-funnel' => [
                 'minProcesses' => 1,
                 'maxProcesses' => 1,
             ],
-            'supervisor-broadcast' => [
+
+            'supervisor-api-sync' => [
+                'minProcesses' => 1,
+                'maxProcesses' => 1,
+            ],
+
+            'supervisor-mail' => [
+                'minProcesses' => 1,
+                'maxProcesses' => 1,
+            ],
+
+            'supervisor-default' => [
                 'minProcesses' => 1,
                 'maxProcesses' => 1,
             ],
