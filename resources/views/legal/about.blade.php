@@ -8,6 +8,7 @@
     ])
 
     @php
+        $privacyContactEmail = (string) config('app.privacy_contact_email', 'privacidade@vixforge.com.br');
         try {
             $aboutEula = \App\Models\LegalDocument::active()
                 ->ofType(\App\Enums\LegalDocumentType::Eula)
@@ -103,7 +104,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                         </svg>
                         <p class="text-xs text-slate-400 leading-relaxed">
-                            Exclusão de conta e dados: <a href="mailto:woliveiravix@gmail.com" class="text-emerald-400 hover:underline">woliveiravix@gmail.com</a>
+                            Exclusão de conta e dados: <a href="mailto:{{ $privacyContactEmail }}" class="text-emerald-400 hover:underline">{{ $privacyContactEmail }}</a>
                         </p>
                     </div>
                 </div>

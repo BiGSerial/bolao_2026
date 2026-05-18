@@ -44,6 +44,6 @@ class PasswordResetLinkController extends Controller
             ]));
         }
 
-        return back()->with('status', 'Enviamos um link de recuperação para seu e-mail.');
+        return back()->with('status', 'Se o e-mail existir, enviaremos as instruções em instantes.');
     }
 }
