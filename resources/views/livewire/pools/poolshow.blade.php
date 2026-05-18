@@ -938,6 +938,10 @@
                                         <span class="text-xl font-black {{ $isMe ? 'text-emerald-400' : 'text-white' }}">
                                             {{ $row->points_total }}
                                         </span>
+                                        @php $delta = (int) ($row->today_delta_points ?? 0); @endphp
+                                        <div class="text-[11px] leading-none mt-1 {{ $delta > 0 ? 'text-emerald-300' : ($delta < 0 ? 'text-rose-300' : 'text-slate-600') }}">
+                                            {{ $delta > 0 ? '+' : '' }}{{ $delta }}
+                                        </div>
                                     </td>
                                 </tr>
                                 @endforeach

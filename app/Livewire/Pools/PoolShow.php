@@ -9,6 +9,7 @@ use App\Models\Prediction;
 use App\Models\Team;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use App\Services\Pools\LivePoolRankingService;
 use App\Services\Predictions\PredictionService;
 use DomainException;
 use Illuminate\Support\Facades\Auth;
@@ -566,9 +567,22 @@ class PoolShow extends Component
             ->orderBy('position')
             ->get();
 
-        $rankingRows = $rankings->isEmpty()
+        $liveRankingRows = app(LivePoolRankingService::class)->build($this->pool)->values();
+        $baseRankingRows = $rankings->isEmpty()
             ? $this->buildProvisionalRankingRows()
             : $rankings;
+
+        $livePointsByUser = $liveRankingRows
+            ->mapWithKeys(fn ($row) => [(int) ($row->user_id ?? 0) => (int) ($row->points_total ?? 0)]);
+
+        $rankingRows = $baseRankingRows
+            ->map(function ($row) use ($livePointsByUser) {
+                $consolidated = (int) ($row->points_total ?? 0);
+                $live = (int) ($livePointsByUser->get((int) ($row->user_id ?? 0), $consolidated));
+                $row->today_delta_points = $live - $consolidated;
+                return $row;
+            })
+            ->values();
 
         $myRanking = $rankingRows->firstWhere('user_id', $targetUserId);
 

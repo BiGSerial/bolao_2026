@@ -65,18 +65,19 @@ Schedule::call(function (): void {
 
         /*
          * ── Football-Data (gratuita · 10 RPM) ───────────────────────────
-         * Responsável por scores, status e listagem de partidas.
-         * Ao vivo: todo minuto | Pré/breve: 2-4 min | Ocioso: 7-10 min
+         * Fora de ao vivo: mantém calendário, status e placares gerais.
+         * Durante ao vivo: NÃO despacha sync base (somente fallback na camada de detalhes).
          */
-        [$fdMin, $fdMax] = match(true) {
-            $hasLive     => [1, 1],
-            $hasPreMatch => [2, 3],
-            $hasSoon     => [2, 4],
-            default      => [7, 10],
-        };
+        if (! $hasLive) {
+            [$fdMin, $fdMax] = match(true) {
+                $hasPreMatch => [2, 3],
+                $hasSoon     => [2, 4],
+                default      => [7, 10],
+            };
 
-        if (shouldDispatchForWindow("scheduler:fd:$code:$season:$stage", $fdMin, $fdMax)) {
-            RunCompetitionSyncJob::dispatch($code, $season, $stage);
+            if (shouldDispatchForWindow("scheduler:fd:$code:$season:$stage", $fdMin, $fdMax)) {
+                RunCompetitionSyncJob::dispatch($code, $season, $stage);
+            }
         }
 
         /*
@@ -91,18 +92,20 @@ Schedule::call(function (): void {
          *    5 = jogo próximo (atualização de prováveis escalações)
          *    3 = ocioso (backfill de detalhes antigos)
          */
-        [$afMin, $afMax, $detailsLimit] = match(true) {
+        [$afMin, $afMax, $detailsLimit, $syncType] = match(true) {
             // Garante cobertura de TODOS os jogos ao vivo no batch de detalhes
             // (lineups/eventos) com folga para pré-jogos próximos.
-            $hasLive     => [1, 2,  max(15, min(60, $liveCount + 6))],
-            $hasPreMatch => [2, 3,   8],
-            $hasSoon     => [3, 5,   5],
-            default      => [30, 45, 2],
+            $hasLive     => [1, 1,  max(15, min(60, $liveCount + 6)), (now()->minute % 3 === 0 ? 'live_stats_refresh' : 'live_minute_tick')],
+            $hasPreMatch => [2, 3,   8, 'pre_live_priority'],
+            $hasSoon     => [3, 5,   5, 'pre_live_priority'],
+            default      => [30, 45, 2, 'scheduled_auto'],
         };
 
         $shouldUsePaidApi = $hasLive || $hasPreMatch || $hasSoon || $hasLikelyInProgressByKickoffWindow;
         if ($shouldUsePaidApi && shouldDispatchForWindow("scheduler:af:$code:$season:$stage", $afMin, $afMax)) {
-            $syncType = $hasLive ? 'live_priority' : ($hasLikelyInProgressByKickoffWindow ? 'kickoff_window_priority' : 'pre_live_priority');
+            if ($hasLikelyInProgressByKickoffWindow && ! $hasLive && ! $hasPreMatch && ! $hasSoon) {
+                $syncType = 'kickoff_window_priority';
+            }
             RunCompetitionMatchDetailsSyncJob::dispatch($code, $season, $stage, $detailsLimit, $syncType);
         }
     }

@@ -25,7 +25,13 @@ class SyncWorldCupMatchDetailsService
     ) {
     }
 
-    public function syncBatch(int $limit = 8, ?string $competitionCode = null, ?int $seasonYear = null, ?string $stage = null): array
+    public function syncBatch(
+        int $limit = 8,
+        ?string $competitionCode = null,
+        ?int $seasonYear = null,
+        ?string $stage = null,
+        string $syncType = 'scheduled_auto'
+    ): array
     {
         $this->apiFootballConnector->resetMetrics();
         $this->apiFootballSyncType = 'not_used';
@@ -56,6 +62,9 @@ class SyncWorldCupMatchDetailsService
                 if (is_array($apiFootballPayload)) {
                     $this->upsertApiFootballTeamRefs($match, $apiFootballPayload);
                     $this->syncMatchStateFromApiFootball($match, $apiFootballPayload);
+                } elseif (in_array($match->status, ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'], true)) {
+                    // Fallback durante ao vivo quando a API paga falha/indisponível.
+                    $this->syncMatchStateFromFootballDataDetail($match, $footballDataPayload);
                 }
 
                 $mergedPayload = $this->mergePayloads($footballDataPayload, $apiFootballPayload);
@@ -81,7 +90,8 @@ class SyncWorldCupMatchDetailsService
                         );
                     }
 
-                    if ((bool) config('api-integration.project_match_details', true)) {
+                    $shouldProjectDetails = $syncType !== 'live_minute_tick';
+                    if ($shouldProjectDetails && (bool) config('api-integration.project_match_details', true)) {
                         $this->projectionService->project($match, $apiFootballPayload);
                     }
                 }
@@ -329,6 +339,45 @@ class SyncWorldCupMatchDetailsService
             'status' => (string) $match->status,
             'utc_date' => optional($match->utc_date)?->format('Y-m-d H:i:s'),
             'minute' => data_get($match->raw_payload, 'minute'),
+            'home_score_full_time' => $match->home_score_full_time,
+            'away_score_full_time' => $match->away_score_full_time,
+        ];
+
+        if ($before !== $after) {
+            MatchUpdated::dispatch($match);
+        }
+    }
+
+    private function syncMatchStateFromFootballDataDetail(FootballMatch $match, array $footballDataPayload): void
+    {
+        $incomingStatus = strtoupper((string) data_get($footballDataPayload, 'match.status', ''));
+        $mappedStatus = $incomingStatus !== '' ? $incomingStatus : (string) $match->status;
+
+        $score = (array) data_get($footballDataPayload, 'match.score', []);
+        $homeFull = data_get($score, 'fullTime.home');
+        $awayFull = data_get($score, 'fullTime.away');
+
+        $before = [
+            'status' => (string) $match->status,
+            'home_score_full_time' => $match->home_score_full_time,
+            'away_score_full_time' => $match->away_score_full_time,
+        ];
+
+        $match->fill([
+            'status' => $mappedStatus,
+            'home_score_full_time' => is_numeric($homeFull) ? (int) $homeFull : $match->home_score_full_time,
+            'away_score_full_time' => is_numeric($awayFull) ? (int) $awayFull : $match->away_score_full_time,
+            'last_updated_by_provider_at' => now()->utc(),
+        ]);
+
+        if (! $match->isDirty(['status', 'home_score_full_time', 'away_score_full_time'])) {
+            return;
+        }
+
+        $match->save();
+
+        $after = [
+            'status' => (string) $match->status,
             'home_score_full_time' => $match->home_score_full_time,
             'away_score_full_time' => $match->away_score_full_time,
         ];

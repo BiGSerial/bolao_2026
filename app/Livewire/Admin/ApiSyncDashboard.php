@@ -77,7 +77,8 @@ class ApiSyncDashboard extends Component
                         $detailsLimit,
                         $ctx['code'],
                         $ctx['season'],
-                        $ctx['stage']
+                        $ctx['stage'],
+                        'manual_admin'
                     );
 
                     foreach ($changed as $match) {

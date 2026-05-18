@@ -38,7 +38,7 @@ class SyncWorldCupMatchDetails extends Command
             $requestedSyncType = 'scheduled_auto';
         }
 
-        $result = $service->syncBatch($limit, $ctx['code'], $ctx['season'], $ctx['stage']);
+        $result = $service->syncBatch($limit, $ctx['code'], $ctx['season'], $ctx['stage'], $requestedSyncType);
         $standingsInfo = $this->syncStandingsIfDue($client, $standingsSyncService, $ctx['code'], $ctx['season'], $ctx['stage']);
         $apiFootballRequests = (int) ($result['api_football_requests'] ?? 0);
         $apiFootballFailures = (int) ($result['api_football_failures'] ?? 0);

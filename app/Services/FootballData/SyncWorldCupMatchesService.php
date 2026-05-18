@@ -84,6 +84,7 @@ class SyncWorldCupMatchesService
                 $utcDate = Carbon::parse($matchPayload['utcDate'])->utc();
                 $incomingStatus = (string) ($matchPayload['status'] ?? '');
                 $resolvedStatus = $this->resolveIncomingStatus($existing, $incomingStatus);
+                $lockFinishedSnapshot = (string) ($existing?->status ?? '') === 'FINISHED';
                 $keepPaidFinalScore = $this->shouldKeepPaidApiFinalScore($existing);
                 $attributes = [
                     'competition_id' => $competition->id,
@@ -94,24 +95,24 @@ class SyncWorldCupMatchesService
                     'local_date' => $utcDate->copy()->timezone('America/Sao_Paulo'),
                     // Atualiza status do provider base quando necessario (especialmente terminal),
                     // mas preserva status da API paga durante fase ao vivo.
-                    'status' => $resolvedStatus,
+                    'status' => $lockFinishedSnapshot ? (string) $existing->status : $resolvedStatus,
                     'matchday' => $matchPayload['matchday'] ?? null,
                     'stage' => $matchPayload['stage'] ?? null,
                     'group_name' => $matchPayload['group'] ?? null,
                     'score_winner' => $score['winner'] ?? null,
                     'score_duration' => $score['duration'] ?? null,
-                    'home_score_full_time' => $keepPaidFinalScore
+                    'home_score_full_time' => ($lockFinishedSnapshot || $keepPaidFinalScore)
                         ? $existing?->home_score_full_time
                         : $this->coalescePayloadValue($existing, $score, 'fullTime.home', 'home_score_full_time'),
-                    'away_score_full_time' => $keepPaidFinalScore
+                    'away_score_full_time' => ($lockFinishedSnapshot || $keepPaidFinalScore)
                         ? $existing?->away_score_full_time
                         : $this->coalescePayloadValue($existing, $score, 'fullTime.away', 'away_score_full_time'),
-                    'home_score_half_time' => $this->coalescePayloadValue($existing, $score, 'halfTime.home', 'home_score_half_time'),
-                    'away_score_half_time' => $this->coalescePayloadValue($existing, $score, 'halfTime.away', 'away_score_half_time'),
-                    'home_score_extra_time' => $this->coalescePayloadValue($existing, $score, 'extraTime.home', 'home_score_extra_time'),
-                    'away_score_extra_time' => $this->coalescePayloadValue($existing, $score, 'extraTime.away', 'away_score_extra_time'),
-                    'home_score_penalties' => $this->coalescePayloadValue($existing, $score, 'penalties.home', 'home_score_penalties'),
-                    'away_score_penalties' => $this->coalescePayloadValue($existing, $score, 'penalties.away', 'away_score_penalties'),
+                    'home_score_half_time' => $lockFinishedSnapshot ? $existing?->home_score_half_time : $this->coalescePayloadValue($existing, $score, 'halfTime.home', 'home_score_half_time'),
+                    'away_score_half_time' => $lockFinishedSnapshot ? $existing?->away_score_half_time : $this->coalescePayloadValue($existing, $score, 'halfTime.away', 'away_score_half_time'),
+                    'home_score_extra_time' => $lockFinishedSnapshot ? $existing?->home_score_extra_time : $this->coalescePayloadValue($existing, $score, 'extraTime.home', 'home_score_extra_time'),
+                    'away_score_extra_time' => $lockFinishedSnapshot ? $existing?->away_score_extra_time : $this->coalescePayloadValue($existing, $score, 'extraTime.away', 'away_score_extra_time'),
+                    'home_score_penalties' => $lockFinishedSnapshot ? $existing?->home_score_penalties : $this->coalescePayloadValue($existing, $score, 'penalties.home', 'home_score_penalties'),
+                    'away_score_penalties' => $lockFinishedSnapshot ? $existing?->away_score_penalties : $this->coalescePayloadValue($existing, $score, 'penalties.away', 'away_score_penalties'),
                     'last_updated_by_provider_at' => isset($matchPayload['lastUpdated']) ? Carbon::parse($matchPayload['lastUpdated']) : null,
                     'raw_payload' => $this->mergeBaseRawPayload($existing, $matchPayload),
                 ];
