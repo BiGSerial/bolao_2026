@@ -67,11 +67,24 @@ class ConsolidateDailySportsResults extends Command
         $dayStartUtc = $dayStartLocal->copy()->utc();
         $dayEndUtc = $dayEndLocal->copy()->utc();
 
-        $finishedMatchIds = FootballMatch::query()
+        $finishedMatchIdsForDay = FootballMatch::query()
             ->where('status', 'FINISHED')
             ->whereBetween('utc_date', [$dayStartUtc, $dayEndUtc])
             ->pluck('id')
             ->all();
+
+        $pendingFinishedMatchIds = Prediction::query()
+            ->join('football_matches', 'football_matches.id', '=', 'predictions.football_match_id')
+            ->where('football_matches.status', 'FINISHED')
+            ->whereNull('predictions.calculated_at')
+            ->distinct()
+            ->pluck('predictions.football_match_id')
+            ->all();
+
+        $finishedMatchIds = array_values(array_unique(array_merge(
+            $finishedMatchIdsForDay,
+            $pendingFinishedMatchIds
+        )));
 
         if ($finishedMatchIds === []) {
             $this->info('Nenhuma partida finalizada no período para consolidar.');
@@ -82,7 +95,6 @@ class ConsolidateDailySportsResults extends Command
         $scoredPredictions = 0;
         Prediction::query()
             ->whereIn('football_match_id', $finishedMatchIds)
-            ->where('eligible', true)
             ->chunkById(300, function ($predictions) use ($scoringService, &$scoredPredictions): void {
                 foreach ($predictions as $prediction) {
                     $scoringService->calculate($prediction);
@@ -170,4 +182,3 @@ class ConsolidateDailySportsResults extends Command
         ]);
     }
 }
-
