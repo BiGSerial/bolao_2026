@@ -3,10 +3,8 @@
 namespace App\Livewire\Admin;
 
 use App\Jobs\CalculatePredictionsForMatchJob;
-use App\Jobs\RecalculatePoolRankingsJob;
 use App\Models\ApiSyncLog;
 use App\Models\FootballMatch;
-use App\Models\Pool;
 use App\Services\FootballData\FootballDataClient;
 use App\Services\FootballData\SyncWorldCupMatchDetailsService;
 use App\Services\FootballData\SyncWorldCupMatchesService;
@@ -158,10 +156,6 @@ class ApiSyncDashboard extends Component
                 }
             }
 
-            if ($successfulCompetitions > 0) {
-                Pool::query()->pluck('id')->each(fn (int $id) => RecalculatePoolRankingsJob::dispatch($id));
-            }
-
             $this->syncSuccess = $successfulCompetitions > 0 && $failedParts === [];
             $statusLabel = $failedParts === [] ? 'Sync concluído (todas as competições ativas).' : 'Sync concluído com falhas parciais.';
             $this->syncMessage = $statusLabel.' '
@@ -220,12 +214,13 @@ class ApiSyncDashboard extends Component
             ->orderByDesc('synced_at')
             ->first();
 
-        $apiRequestChart = $this->buildApiRequestChartFromRequests(
-            (clone $requestLogsQuery)->where('synced_at', '>=', now()->subDay())->get()
-        );
-        $apiHourlyVolume = $this->buildApiHourlyVolume(
-            (clone $requestLogsQuery)->where('synced_at', '>=', now()->subDay())->get()
-        );
+        $requestLogsLast24h = (clone $requestLogsQuery)
+            ->where('synced_at', '>=', now()->subDay())
+            ->select(['provider', 'success', 'synced_at'])
+            ->get();
+
+        $apiRequestChart = $this->buildApiRequestChartFromRequests($requestLogsLast24h);
+        $apiHourlyVolume = $this->buildApiHourlyVolume($requestLogsLast24h);
         $apiUsageSummary = $this->buildApiUsageSummary($requestLogsQuery);
 
         $totalMatches = FootballMatch::count();

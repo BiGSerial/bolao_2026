@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Jobs\CalculatePredictionsForMatchJob;
 use App\Models\ApiSyncLog;
 use App\Services\FootballData\FootballDataClient;
 use App\Services\FootballData\SyncWorldCupMatchDetailsService;
@@ -39,6 +40,11 @@ class SyncWorldCupMatchDetails extends Command
         }
 
         $result = $service->syncBatch($limit, $ctx['code'], $ctx['season'], $ctx['stage'], $requestedSyncType);
+        collect((array) ($result['finished_changed_match_ids'] ?? []))
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->each(fn (int $matchId) => CalculatePredictionsForMatchJob::dispatch($matchId));
         $standingsInfo = $this->syncStandingsIfDue($client, $standingsSyncService, $ctx['code'], $ctx['season'], $ctx['stage']);
         $apiFootballRequests = (int) ($result['api_football_requests'] ?? 0);
         $apiFootballFailures = (int) ($result['api_football_failures'] ?? 0);

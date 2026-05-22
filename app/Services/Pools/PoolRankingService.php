@@ -22,9 +22,7 @@ class PoolRankingService
 
     public function recalculate(Pool $pool): void
     {
-        DB::table('pool_rankings')->where('pool_id', $pool->id)->delete();
-
-        $rows = DB::table('predictions')
+        $rowsQuery = DB::table('predictions')
             ->join('football_matches', 'predictions.football_match_id', '=', 'football_matches.id')
             ->join('pool_members', function ($join): void {
                 $join->on('predictions.pool_id', '=', 'pool_members.pool_id')
@@ -52,16 +50,22 @@ class PoolRankingService
             ->orderByDesc('points_total');
 
         foreach ($this->resolveTieBreakers($pool->tie_breakers ?? null, $pool) as $criterion) {
-            $rows->orderByDesc($criterion);
+            $rowsQuery->orderByDesc($criterion);
         }
 
-        $rows = $rows->orderBy('predictions.user_id')
+        $rows = $rowsQuery->orderBy('predictions.user_id')
             ->get();
+
+        if ($rows->isEmpty()) {
+            return;
+        }
 
         $position = 1;
         $index = 0;
         $previousKey = null;
         $activeTieBreakers = $this->resolveTieBreakers($pool->tie_breakers ?? null, $pool);
+
+        $rankingRows = [];
 
         foreach ($rows as $row) {
             $index++;
@@ -76,7 +80,7 @@ class PoolRankingService
                 $position = $index;
             }
 
-            DB::table('pool_rankings')->insert([
+            $rankingRows[] = [
                 'pool_id' => $pool->id,
                 'user_id' => $row->user_id,
                 'points_total' => $row->points_total,
@@ -89,10 +93,15 @@ class PoolRankingService
                 'last_calculated_at' => now(),
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ];
 
             $previousKey = $currentKey;
         }
+
+        DB::transaction(function () use ($pool, $rankingRows): void {
+            DB::table('pool_rankings')->where('pool_id', $pool->id)->delete();
+            DB::table('pool_rankings')->insert($rankingRows);
+        });
     }
 
     /**

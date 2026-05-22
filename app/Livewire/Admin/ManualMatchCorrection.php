@@ -3,9 +3,7 @@
 namespace App\Livewire\Admin;
 
 use App\Jobs\CalculatePredictionsForMatchJob;
-use App\Jobs\RecalculatePoolRankingsJob;
 use App\Models\FootballMatch;
-use App\Models\Pool;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
@@ -70,7 +68,6 @@ class ManualMatchCorrection extends Component
 
         if ($status === 'FINISHED') {
             CalculatePredictionsForMatchJob::dispatch($match->id);
-            Pool::query()->pluck('id')->each(fn (int $id) => RecalculatePoolRankingsJob::dispatch($id));
         }
 
         unset($this->editing[$matchId]);

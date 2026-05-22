@@ -3,10 +3,8 @@
 namespace App\Console\Commands;
 
 use App\Jobs\CalculatePredictionsForMatchJob;
-use App\Jobs\RecalculatePoolRankingsJob;
 use App\Models\ApiSyncLog;
 use App\Models\FootballMatch;
-use App\Models\Pool;
 use App\Services\FootballData\FootballDataClient;
 use App\Services\FootballData\SyncWorldCupMatchesService;
 use App\Services\FootballData\SyncWorldCupStandingsService;
@@ -70,10 +68,6 @@ class SyncWorldCupGroupStage extends Command
                 if ($match->status === 'FINISHED') {
                     CalculatePredictionsForMatchJob::dispatch($match->id);
                 }
-            }
-
-            if ($changed->isNotEmpty()) {
-                Pool::query()->pluck('id')->each(fn (int $poolId) => RecalculatePoolRankingsJob::dispatch($poolId));
             }
 
             ApiSyncLog::create([

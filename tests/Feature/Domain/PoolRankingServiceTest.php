@@ -96,6 +96,47 @@ class PoolRankingServiceTest extends TestCase
         $this->assertSame(1, (int) $rows[0]->predictions_counted);
     }
 
+    public function test_ranking_preserves_previous_rows_when_new_base_is_empty(): void
+    {
+        $owner = User::factory()->create();
+        $activeUser = User::factory()->create();
+
+        $pool = Pool::create([
+            'owner_id' => $owner->id,
+            'name' => 'Pool Preserve Ranking',
+            'slug' => 'pool-preserve-ranking-'.uniqid(),
+            'visibility' => 'invite_only',
+            'status' => 'active',
+            'invite_code' => strtoupper(substr(uniqid('GH'), 0, 8)),
+            'allow_prediction_changes' => true,
+            'prediction_lock_minutes' => 120,
+            'allow_pending_member_predictions' => true,
+            'stage' => 'GROUP_STAGE',
+        ]);
+
+        DB::table('pool_rankings')->insert([
+            'pool_id' => $pool->id,
+            'user_id' => $activeUser->id,
+            'points_total' => 9,
+            'exact_scores' => 1,
+            'correct_results' => 2,
+            'correct_home_goals' => 2,
+            'correct_away_goals' => 1,
+            'predictions_counted' => 3,
+            'position' => 1,
+            'last_calculated_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        app(PoolRankingService::class)->recalculate($pool);
+
+        $rows = DB::table('pool_rankings')->where('pool_id', $pool->id)->get();
+        $this->assertCount(1, $rows);
+        $this->assertSame($activeUser->id, $rows[0]->user_id);
+        $this->assertSame(9, (int) $rows[0]->points_total);
+    }
+
     private function makeMatches(): array
     {
         $competition = Competition::create([

@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\FootballMatch;
 use App\Models\Prediction;
+use App\Jobs\RecalculatePoolRankingsJob;
 use App\Services\Predictions\PredictionScoringService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -27,5 +28,12 @@ class CalculatePredictionsForMatchJob implements ShouldQueue
         Prediction::query()
             ->where('football_match_id', $this->footballMatchId)
             ->chunkById(200, fn ($predictions) => $predictions->each(fn (Prediction $prediction) => $service->calculate($prediction)));
+
+        Prediction::query()
+            ->where('football_match_id', $this->footballMatchId)
+            ->whereNotNull('pool_id')
+            ->distinct()
+            ->pluck('pool_id')
+            ->each(fn (int $poolId) => RecalculatePoolRankingsJob::dispatch($poolId));
     }
 }
