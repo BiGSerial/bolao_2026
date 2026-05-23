@@ -1,0 +1,22 @@
+{
+  "name": "BolãoFC",
+  "short_name": "BolãoFC",
+  "description": "Palpites e rankings de bolões de futebol.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b1017",
+  "theme_color": "#0b1017",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

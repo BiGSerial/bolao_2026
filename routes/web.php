@@ -153,6 +153,7 @@ Route::get('/legal/terms', [LegalPageController::class, 'terms'])->name('legal.t
 Route::get('/legal/disclaimer', [LegalPageController::class, 'disclaimer'])->name('legal.disclaimer');
 Route::get('/legal/confidentiality-policy', [LegalPageController::class, 'confidentialityPolicy'])->name('legal.confidentiality-policy');
 Route::get('/sobre', [LegalPageController::class, 'about'])->name('about');
+Route::view('/offline', 'offline')->name('offline');
 
 Route::middleware('guest')->group(function (): void {
     Route::post('/register', [RegisteredUserController::class, 'store']);
