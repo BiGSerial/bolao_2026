@@ -260,7 +260,7 @@ async function save() {
     try {
         const res = await createPool(form.value);
         const poolId = res?.data?.data?.pool?.id;
-        if (poolId) router.replace(`/app/pools/${poolId}?tab=manage`);
+        if (poolId) router.replace(`/pwa/pools/${poolId}?tab=manage`);
     } finally {
         saving.value = false;
     }

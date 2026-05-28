@@ -126,7 +126,7 @@ async function markRead(id) {
 
 async function doLogout() {
     await auth.logoutUser();
-    router.push('/app/login');
+    router.push('/pwa/login');
 }
 
 onMounted(() => {

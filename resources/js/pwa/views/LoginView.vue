@@ -82,7 +82,7 @@ async function submit() {
     try {
         await auth.loginUser(form.value.login, form.value.password);
         await auth.fetchMe();
-        router.push('/app/dashboard');
+        router.push('/pwa/dashboard');
     } catch (err) {
         const code = err.response?.data?.error?.code;
         if (code === 'AUTH_INVALID_CREDENTIALS') {

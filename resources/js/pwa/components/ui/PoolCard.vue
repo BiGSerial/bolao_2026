@@ -1,5 +1,5 @@
 <template>
-    <RouterLink :to="`/app/pools/${pool.id}`"
+    <RouterLink :to="`/pwa/pools/${pool.id}`"
                 class="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-bolao-bg2 px-3 py-2.5 active:bg-bolao-bg3 transition-colors">
         <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-bolao-accent/10">
             <i class="ti ti-trophy text-bolao-accent text-lg"></i>

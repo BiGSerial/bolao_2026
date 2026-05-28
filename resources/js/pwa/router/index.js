@@ -8,17 +8,17 @@ import DashboardView from '../views/DashboardView.vue';
 
 const routes = [
     {
-        path: '/app/login',
+        path: '/pwa/login',
         name: 'login',
         component: LoginView,
         meta: { guest: true },
     },
     {
-        path: '/app',
+        path: '/pwa',
         component: AppShell,
         meta: { requiresAuth: true },
         children: [
-            { path: '', redirect: '/app/dashboard' },
+            { path: '', redirect: '/pwa/dashboard' },
             { path: 'dashboard', name: 'dashboard', component: DashboardView },
             { path: 'pools', name: 'pools', component: () => import('../views/PoolsView.vue') },
             { path: 'pools/create', name: 'pool-create', component: () => import('../views/PoolCreateView.vue') },
@@ -27,7 +27,7 @@ const routes = [
             { path: 'profile', name: 'profile', component: () => import('../views/ProfileView.vue') },
         ],
     },
-    { path: '/:pathMatch(.*)*', redirect: '/app' },
+    { path: '/:pathMatch(.*)*', redirect: '/pwa' },
 ];
 
 const router = createRouter({
@@ -37,8 +37,8 @@ const router = createRouter({
 
 router.beforeEach((to) => {
     const auth = useAuthStore();
-    if (to.meta.requiresAuth && !auth.isAuthenticated) return '/app/login';
-    if (to.meta.guest && auth.isAuthenticated) return '/app/dashboard';
+    if (to.meta.requiresAuth && !auth.isAuthenticated) return '/pwa/login';
+    if (to.meta.guest && auth.isAuthenticated) return '/pwa/dashboard';
 });
 
 export default router;

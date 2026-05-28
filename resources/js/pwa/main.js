@@ -105,7 +105,7 @@ async function checkBuildSignature() {
 // A2HS banner
 (function () {
     const path = window.location.pathname.replace(/\/+$/, '') || '/';
-    if (path !== '/app') return;
+    if (path !== '/pwa') return;
     if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) return;
 
     const DISMISSED_KEY = 'a2hs_dismissed_until';

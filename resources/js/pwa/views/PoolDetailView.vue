@@ -761,7 +761,7 @@ async function destroyPool() {
     deletingPool.value = true;
     try {
         await deletePool(poolId.value);
-        router.replace('/app/pools');
+        router.replace('/pwa/pools');
     } finally {
         deletingPool.value = false;
     }

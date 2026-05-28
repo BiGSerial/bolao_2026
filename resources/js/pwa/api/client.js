@@ -16,7 +16,7 @@ client.interceptors.response.use(
     (err) => {
         if (err.response?.status === 401) {
             sessionStorage.removeItem('pwa_token');
-            window.location.href = '/app/login';
+            window.location.href = '/pwa/login';
         }
         return Promise.reject(err);
     },

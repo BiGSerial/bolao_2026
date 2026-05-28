@@ -32,7 +32,7 @@
             <div class="pwa-header-side justify-end">
                 <div
                     class="bolao-avatar w-8 h-8 text-xs"
-                    @click="router.push('/app/profile')"
+                    @click="router.push('/pwa/profile')"
                 >{{ initials }}</div>
             </div>
         </header>
@@ -81,10 +81,10 @@ const title = ref('');
 const transitionName = ref('fade-page');
 
 const tabs = [
-    { name: 'dashboard', path: '/app/dashboard', label: 'Início',  icon: 'ti-home',          iconFill: 'ti-home' },
-    { name: 'matches',   path: '/app/matches',   label: 'Jogos',   icon: 'ti-ball-football', iconFill: 'ti-ball-football' },
-    { name: 'pools',     path: '/app/pools',     label: 'Bolões',  icon: 'ti-trophy',        iconFill: 'ti-trophy' },
-    { name: 'profile',   path: '/app/profile',   label: 'Perfil',  icon: 'ti-user-circle',   iconFill: 'ti-user-circle' },
+    { name: 'dashboard', path: '/pwa/dashboard', label: 'Início',  icon: 'ti-home',          iconFill: 'ti-home' },
+    { name: 'matches',   path: '/pwa/matches',   label: 'Jogos',   icon: 'ti-ball-football', iconFill: 'ti-ball-football' },
+    { name: 'pools',     path: '/pwa/pools',     label: 'Bolões',  icon: 'ti-trophy',        iconFill: 'ti-trophy' },
+    { name: 'profile',   path: '/pwa/profile',   label: 'Perfil',  icon: 'ti-user-circle',   iconFill: 'ti-user-circle' },
 ];
 
 const TAB_PATHS = tabs.map(t => t.path);
@@ -118,7 +118,7 @@ const showBack = computed(() => route.name === 'pool-detail' || route.name === '
 function setTitle(t) { title.value = t; }
 
 function isTabActive(tab) {
-    if (tab.name === 'pools') return route.path.startsWith('/app/pools');
+    if (tab.name === 'pools') return route.path.startsWith('/pwa/pools');
     return route.path === tab.path;
 }
 

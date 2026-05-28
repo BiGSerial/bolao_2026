@@ -72,7 +72,7 @@
                     <template v-for="group in memberPoolsByComp" :key="group.compName">
                         <p v-if="memberPoolsByComp.length > 1" class="text-[10px] font-bold text-bolao-muted2 uppercase tracking-widest mt-3 mb-1">{{ group.compName }}</p>
                         <div v-for="pool in group.pools" :key="pool.id" class="pool-card-wrap">
-                            <button class="pool-card w-full text-left" @click="router.push(`/app/pools/${pool.id}`)">
+                            <button class="pool-card w-full text-left" @click="router.push(`/pwa/pools/${pool.id}`)">
                                 <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-bolao-accent/10">
                                     <i class="ti ti-trophy text-bolao-accent text-xl"></i>
                                 </div>
@@ -246,7 +246,7 @@ watch(selectedCompetitionCode, (code) => {
 
 function goToCreatePool() {
     const code = selectedCompetitionCode.value || competitionOptions.value[0]?.code || 'WC';
-    router.push(`/app/pools/create?competition=${encodeURIComponent(code)}`);
+    router.push(`/pwa/pools/create?competition=${encodeURIComponent(code)}`);
 }
 
 async function doJoin(pool) {

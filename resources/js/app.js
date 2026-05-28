@@ -49,7 +49,7 @@ window.Chart = Chart;
 
 const isPwaRoute = (() => {
     const path = window.location.pathname.replace(/\/+$/, '') || '/';
-    return path === '/app' || path.startsWith('/app/');
+    return path === '/pwa' || path.startsWith('/pwa/');
 })();
 
 if (isPwaRoute) {
