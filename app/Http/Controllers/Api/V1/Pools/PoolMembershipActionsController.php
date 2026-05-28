@@ -17,6 +17,8 @@ class PoolMembershipActionsController extends Controller
 {
     public function joinRequest(Request $request, Pool $pool): JsonResponse
     {
+        $user = $request->user();
+
         if ((string) $pool->status !== 'active') {
             return ApiResponse::error($request, 'POOL_UNAVAILABLE', 'Este bolão não está ativo.', 409);
         }
@@ -33,8 +35,6 @@ class PoolMembershipActionsController extends Controller
                 'fields' => ['sector' => ['Setor inválido para este bolão.']],
             ]);
         }
-
-        $user = $request->user();
 
         $member = PoolMember::query()
             ->where('pool_id', $pool->id)
@@ -55,6 +55,10 @@ class PoolMembershipActionsController extends Controller
                 'status' => 'already_pending',
                 'message' => 'Sua solicitação já está em análise.',
             ]);
+        }
+
+        if ($user->reachedParticipatingPoolsLimit()) {
+            return ApiResponse::error($request, 'POOL_LIMIT_REACHED', 'Você já atingiu o limite de 5 bolões.', 409);
         }
 
         if ($member) {
@@ -150,6 +154,13 @@ class PoolMembershipActionsController extends Controller
             ->where('user_id', $user->id)
             ->first();
 
+        if (
+            ! $member
+            && $user->reachedParticipatingPoolsLimit()
+        ) {
+            return ApiResponse::error($request, 'POOL_LIMIT_REACHED', 'Você já atingiu o limite de 5 bolões.', 409);
+        }
+
         if (! $member) {
             PoolMember::query()->create([
                 'pool_id' => $invite->pool_id,
@@ -184,6 +195,124 @@ class PoolMembershipActionsController extends Controller
                 'slug' => $invite->pool?->slug,
             ],
             'status' => 'accepted',
+        ]);
+    }
+
+    public function joinByCode(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'invite_code' => ['required', 'string', 'size:8'],
+            'sector' => ['nullable', 'string', 'max:80'],
+        ]);
+
+        $code = strtoupper(trim((string) $data['invite_code']));
+        $pool = Pool::query()
+            ->with('competition:id,code,name')
+            ->where('invite_code', $code)
+            ->where('status', 'active')
+            ->first();
+
+        if (! $pool) {
+            return ApiResponse::error($request, 'INVITE_CODE_INVALID', 'Código de convite inválido.', 404);
+        }
+
+        $allowedSectors = is_array($pool->sectors) ? array_values($pool->sectors) : [];
+        $sector = trim((string) ($data['sector'] ?? ''));
+        if (! empty($allowedSectors) && ! in_array($sector, $allowedSectors, true)) {
+            return ApiResponse::error($request, 'INVALID_SECTOR', 'Setor inválido para este bolão.', 422, [
+                'fields' => ['sector' => ['Setor inválido para este bolão.']],
+            ]);
+        }
+
+        $member = PoolMember::query()
+            ->where('pool_id', $pool->id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if ($member && $member->status === PoolMemberStatus::Active->value) {
+            return ApiResponse::success($request, [
+                'pool_id' => $pool->id,
+                'status' => 'already_active',
+                'message' => 'Você já participa deste bolão.',
+            ]);
+        }
+
+        if ($member && $member->status === PoolMemberStatus::Pending->value) {
+            return ApiResponse::success($request, [
+                'pool_id' => $pool->id,
+                'status' => 'already_pending',
+                'message' => 'Sua solicitação já está em análise.',
+            ]);
+        }
+
+        if ($user->reachedParticipatingPoolsLimit()) {
+            return ApiResponse::error($request, 'POOL_LIMIT_REACHED', 'Você já atingiu o limite de 5 bolões.', 409);
+        }
+
+        if ($member) {
+            $member->update([
+                'role' => PoolMemberRole::Member->value,
+                'sector' => $sector !== '' ? $sector : null,
+                'status' => PoolMemberStatus::Pending->value,
+                'activated_by' => null,
+                'activated_at' => null,
+                'deactivated_by' => null,
+                'deactivated_at' => null,
+            ]);
+        } else {
+            $pool->members()->create([
+                'user_id' => $user->id,
+                'role' => PoolMemberRole::Member->value,
+                'sector' => $sector !== '' ? $sector : null,
+                'status' => PoolMemberStatus::Pending->value,
+            ]);
+        }
+
+        return ApiResponse::success($request, [
+            'pool_id' => $pool->id,
+            'pool' => [
+                'id' => $pool->id,
+                'name' => $pool->name,
+                'slug' => $pool->slug,
+                'competition' => [
+                    'id' => $pool->competition?->id,
+                    'code' => $pool->competition?->code,
+                    'name' => $pool->competition?->name,
+                ],
+            ],
+            'status' => 'pending',
+            'message' => 'Solicitação enviada. Aguarde aprovação do gestor.',
+        ]);
+    }
+
+    public function leave(Request $request, Pool $pool): JsonResponse
+    {
+        $user = $request->user();
+        $member = PoolMember::query()
+            ->where('pool_id', $pool->id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (! $member || ! in_array($member->status, [PoolMemberStatus::Active->value, PoolMemberStatus::Pending->value], true)) {
+            return ApiResponse::error($request, 'POOL_MEMBERSHIP_NOT_FOUND', 'Você não participa deste bolão.', 404);
+        }
+
+        if ($member->role === PoolMemberRole::Owner->value) {
+            return ApiResponse::error($request, 'POOL_OWNER_CANNOT_LEAVE', 'O dono do bolão não pode sair sem transferir a propriedade.', 409);
+        }
+
+        $member->update([
+            'status' => PoolMemberStatus::Removed->value,
+            'deactivated_by' => $user->id,
+            'deactivated_at' => now(),
+        ]);
+
+        return ApiResponse::success($request, [
+            'pool_id' => $pool->id,
+            'status' => 'left',
+            'message' => 'Você saiu do bolão.',
         ]);
     }
 

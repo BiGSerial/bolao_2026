@@ -1,20 +1,27 @@
 import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
+import vue from '@vitejs/plugin-vue';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js'],
+            input: [
+                'resources/css/app.css',
+                'resources/css/pwa.css',
+                'resources/js/app.js',
+                'resources/js/pwa/main.js',
+            ],
             refresh: true,
         }),
+        vue(),
         VitePWA({
             registerType: 'autoUpdate',
             manifest: {
-                name: 'BolãoFC',
-                short_name: 'BolãoFC',
+                name: 'BolãoVF',
+                short_name: 'BolãoVF',
                 description: 'Palpites e rankings de bolões de futebol.',
-                start_url: '/dashboard',
+                start_url: '/app',
                 scope: '/',
                 display: 'standalone',
                 background_color: '#0b1017',

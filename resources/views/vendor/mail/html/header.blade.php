@@ -4,7 +4,7 @@
         <a href="{{ $url }}" style="text-decoration:none; font-family:Arial, Helvetica, sans-serif;">
             <img
                 src="{{ rtrim((string) config('app.url'), '/') . '/img/logo.png' }}"
-                alt="BolãoFC"
+                alt="BolãoVF"
                 width="34"
                 height="34"
                 style="display:inline-block; vertical-align:middle; width:34px; height:34px; object-fit:contain; margin-right:10px;"

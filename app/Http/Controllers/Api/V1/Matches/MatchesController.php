@@ -18,6 +18,7 @@ class MatchesController extends Controller
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date'],
             'competition_id' => ['nullable', 'integer', 'min:1'],
+            'order' => ['nullable', 'in:asc,desc'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
@@ -25,11 +26,23 @@ class MatchesController extends Controller
         $perPage = (int) ($validated['per_page'] ?? 20);
 
         $query = FootballMatch::query()
-            ->with(['competition:id,code,name', 'homeTeam:id,name,canonical_name_br,short_name,tla,crest', 'awayTeam:id,name,canonical_name_br,short_name,tla,crest'])
-            ->orderBy('utc_date');
+            ->with(['competition:id,code,name', 'homeTeam:id,name,canonical_name_br,short_name,tla,crest', 'awayTeam:id,name,canonical_name_br,short_name,tla,crest']);
+
+        $order = strtolower((string) ($validated['order'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
+        $query->orderBy('utc_date', $order);
 
         if (! empty($validated['status'])) {
-            $query->where('status', strtoupper((string) $validated['status']));
+            $status = strtoupper((string) $validated['status']);
+            $statusMap = [
+                'TIMED' => ['TIMED', 'SCHEDULED', 'PRE_MATCH'],
+                'IN_PLAY' => ['IN_PLAY', 'PAUSED', 'HALFTIME', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'],
+                'FINISHED' => ['FINISHED', 'AWARDED'],
+            ];
+            if (isset($statusMap[$status])) {
+                $query->whereIn('status', $statusMap[$status]);
+            } else {
+                $query->where('status', $status);
+            }
         }
 
         if (! empty($validated['competition_id'])) {

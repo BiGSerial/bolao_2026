@@ -8,6 +8,7 @@ use App\Models\Pool;
 use App\Models\Prediction;
 use App\Services\Predictions\PredictionService;
 use App\Support\ApiResponse;
+use Carbon\Carbon;
 use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,6 +35,9 @@ class MyPredictionController extends Controller
             ->where('user_id', $request->user()->id)
             ->first();
 
+        [$poolClosedLocked, $poolClosedLockAt] = $this->closedPredictionsLockState($pool);
+        $matchLocked = $match->isPredictionLockedFor($pool);
+
         return ApiResponse::success($request, [
             'pool_id' => $pool->id,
             'match_id' => $match->id,
@@ -43,9 +47,10 @@ class MyPredictionController extends Controller
                 'last_changed_at' => optional($prediction->last_changed_at)?->toIso8601String(),
             ] : null,
             'lock' => [
-                'is_locked' => $match->isPredictionLockedFor($pool),
-                'lock_at' => $match->predictionLockTimeFor($pool)->toIso8601String(),
+                'is_locked' => $matchLocked || $poolClosedLocked,
+                'lock_at' => ($poolClosedLocked ? $poolClosedLockAt : $match->predictionLockTimeFor($pool))?->toIso8601String(),
                 'allow_prediction_changes' => (bool) $pool->allow_prediction_changes,
+                'closed_predictions' => (bool) $pool->closed_predictions,
             ],
         ]);
     }
@@ -137,7 +142,9 @@ class MyPredictionController extends Controller
             ->get(['football_match_id', 'home_score', 'away_score', 'last_changed_at'])
             ->keyBy('football_match_id');
 
-        $items = $matchesPage->getCollection()->map(function (FootballMatch $match) use ($pool, $predictionsByMatch): array {
+        [$poolClosedLocked, $poolClosedLockAt] = $this->closedPredictionsLockState($pool);
+
+        $items = $matchesPage->getCollection()->map(function (FootballMatch $match) use ($pool, $predictionsByMatch, $poolClosedLocked, $poolClosedLockAt): array {
             $prediction = $predictionsByMatch->get($match->id);
 
             return [
@@ -146,15 +153,23 @@ class MyPredictionController extends Controller
                     'status' => (string) $match->status,
                     'utc_date' => optional($match->utc_date)?->toIso8601String(),
                     'local_date' => optional($match->kickoffAtBrazil())?->toIso8601String(),
+                    'stage' => $match->stage,
+                    'matchday' => $match->matchday,
                     'home_team' => [
                         'id' => $match->homeTeam?->id,
                         'name' => $match->homeTeam?->localized_name,
                         'tla' => $match->homeTeam?->tla,
+                        'crest' => $match->homeTeam?->crest,
                     ],
                     'away_team' => [
                         'id' => $match->awayTeam?->id,
                         'name' => $match->awayTeam?->localized_name,
                         'tla' => $match->awayTeam?->tla,
+                        'crest' => $match->awayTeam?->crest,
+                    ],
+                    'score' => [
+                        'home' => $match->home_score_full_time,
+                        'away' => $match->away_score_full_time,
                     ],
                 ],
                 'prediction' => $prediction ? [
@@ -163,8 +178,9 @@ class MyPredictionController extends Controller
                     'last_changed_at' => optional($prediction->last_changed_at)?->toIso8601String(),
                 ] : null,
                 'lock' => [
-                    'is_locked' => $match->isPredictionLockedFor($pool),
-                    'lock_at' => $match->predictionLockTimeFor($pool)->toIso8601String(),
+                    'is_locked' => $match->isPredictionLockedFor($pool) || $poolClosedLocked,
+                    'lock_at' => ($poolClosedLocked ? $poolClosedLockAt : $match->predictionLockTimeFor($pool))?->toIso8601String(),
+                    'closed_predictions' => (bool) $pool->closed_predictions,
                 ],
             ];
         })->values()->all();
@@ -191,5 +207,29 @@ class MyPredictionController extends Controller
         return $pool->members()
             ->where('user_id', $request->user()->id)
             ->exists();
+    }
+
+    /**
+     * @return array{0: bool, 1: ?Carbon}
+     */
+    private function closedPredictionsLockState(Pool $pool): array
+    {
+        if (! $pool->closed_predictions) {
+            return [false, null];
+        }
+
+        $firstMatch = FootballMatch::query()
+            ->where('competition_id', $pool->competition_id)
+            ->where('competition_season_id', $pool->competition_season_id)
+            ->where('stage', $pool->stage)
+            ->orderBy('utc_date')
+            ->first(['utc_date']);
+
+        $firstKickoff = $firstMatch?->utc_date;
+        if (! $firstKickoff) {
+            return [false, null];
+        }
+
+        return [now()->utc()->greaterThanOrEqualTo($firstKickoff), $firstKickoff];
     }
 }

@@ -17,34 +17,50 @@ class DashboardController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         $user = $request->user();
+        $validated = $request->validate([
+            'competition_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $competitionId = isset($validated['competition_id']) ? (int) $validated['competition_id'] : null;
 
         $liveStatuses = ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'];
         $upcomingStatuses = ['TIMED', 'SCHEDULED', 'PRE_MATCH'];
 
-        $liveMatches = FootballMatch::query()
-            ->with(['competition:id,code,name', 'homeTeam:id,name,canonical_name_br,short_name,tla,crest', 'awayTeam:id,name,canonical_name_br,short_name,tla,crest'])
+        $liveMatchesQuery = FootballMatch::query()
+            ->with([
+                'competition:id,code,name',
+                'homeTeam:id,name,canonical_name_br,short_name,tla,crest',
+                'awayTeam:id,name,canonical_name_br,short_name,tla,crest',
+                'detail:id,football_match_id,payload',
+            ])
             ->whereIn('status', $liveStatuses)
-            ->orderByDesc('utc_date')
-            ->limit(5)
-            ->get();
+            ->orderByDesc('utc_date');
+        if ($competitionId) {
+            $liveMatchesQuery->where('competition_id', $competitionId);
+        }
+        $liveMatches = $liveMatchesQuery->limit(5)->get();
 
-        $upcomingMatches = FootballMatch::query()
+        $upcomingMatchesQuery = FootballMatch::query()
             ->with(['competition:id,code,name', 'homeTeam:id,name,canonical_name_br,short_name,tla,crest', 'awayTeam:id,name,canonical_name_br,short_name,tla,crest'])
             ->whereIn('status', $upcomingStatuses)
             ->where('utc_date', '>=', now()->utc())
-            ->orderBy('utc_date')
-            ->limit(10)
-            ->get();
+            ->orderBy('utc_date');
+        if ($competitionId) {
+            $upcomingMatchesQuery->where('competition_id', $competitionId);
+        }
+        $upcomingMatches = $upcomingMatchesQuery->limit(10)->get();
 
-        $pools = Pool::query()
+        $poolsQuery = Pool::query()
             ->with('competition:id,code,name')
             ->where('status', 'active')
             ->whereHas('members', function ($query) use ($user): void {
                 $query->where('user_id', $user->id)
                     ->whereIn('status', [PoolMemberStatus::Active->value, PoolMemberStatus::Pending->value]);
             })
-            ->orderBy('name')
-            ->get();
+            ->orderBy('name');
+        if ($competitionId) {
+            $poolsQuery->where('competition_id', $competitionId);
+        }
+        $pools = $poolsQuery->get();
 
         $pendingPredictionsCount = $this->pendingPredictionsCount((int) $user->id);
 

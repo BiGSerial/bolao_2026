@@ -2,7 +2,7 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full">
 <head>
     @include('layouts.partials.base-head', [
-        'title' => config('app.name', 'BolaoFC').(isset($title) ? ' — '.$title : ''),
+        'title' => config('app.name', 'BolãoVF').(isset($title) ? ' — '.$title : ''),
         'csrf' => true,
         'includeSweetalert' => true,
         'includeMarked' => true,
@@ -140,7 +140,7 @@
             <x-application-logo class="h-8 w-8 shrink-0" />
             <div class="sb-label min-w-0">
                 <div class="font-bc font-extrabold text-[19px] leading-none text-white">
-                    Bolão<span class="text-bolao-accent">FC</span>
+                    Bolão<span class="text-bolao-accent">VF</span>
                 </div>
                 @if($canSwitchCompetition)
                 <div class="relative mt-1 w-[170px]">

@@ -1,8 +1,8 @@
 {
-  "name": "BolãoFC",
-  "short_name": "BolãoFC",
+  "name": "BolãoVF",
+  "short_name": "BolãoVF",
   "description": "Palpites e rankings de bolões de futebol.",
-  "start_url": "/dashboard",
+  "start_url": "/app",
   "scope": "/",
   "display": "standalone",
   "background_color": "#0b1017",

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<title>BolãoFC — Dispute com seus amigos · Copa do Mundo 2026</title>
+<title>BolãoVF — Dispute com seus amigos · Copa do Mundo 2026</title>
 <meta name="description" content="Palpites esportivos recreativos entre amigos. Sem apostas, sem dinheiro e sem prêmios em dinheiro. Não somos BET nem casa de apostas.">
 <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon.png') }}">
 <link rel="shortcut icon" href="{{ asset('favicon.png') }}">
@@ -515,8 +515,8 @@ body.landing-page::before {
 
 {{-- NAVBAR --}}
 <nav class="lp-nav" id="lp-navbar">
-  <a href="{{ url('/') }}" class="lp-logo" aria-label="BolãoFC">
-    <img src="{{ asset('img/logo.webp') }}" alt="BolãoFC" class="lp-logo-img" onerror="this.onerror=null;this.src='{{ asset('img/logo.png') }}';">
+  <a href="{{ url('/') }}" class="lp-logo" aria-label="BolãoVF">
+    <img src="{{ asset('img/logo.webp') }}" alt="BolãoVF" class="lp-logo-img" onerror="this.onerror=null;this.src='{{ asset('img/logo.png') }}';">
     <span class="lp-logo-text">Bolão<span>FC</span></span>
   </a>
   <div class="lp-nav-links">
@@ -885,7 +885,7 @@ body.landing-page::before {
     <div class="lp-footer-top">
       <div>
         <div class="lp-footer-logo">
-          <img src="{{ asset('img/logo.webp') }}" alt="BolãoFC" onerror="this.onerror=null;this.src='{{ asset('img/logo.png') }}';">
+          <img src="{{ asset('img/logo.webp') }}" alt="BolãoVF" onerror="this.onerror=null;this.src='{{ asset('img/logo.png') }}';">
           <div class="lp-logo-text">Bolão<span>FC</span></div>
         </div>
         <p class="lp-footer-desc">Plataforma de bolão esportivo recreativo para amigos e grupos. Não realizamos apostas, não somos BET/casa de apostas e não operamos jogos de azar.</p>

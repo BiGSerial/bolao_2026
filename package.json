@@ -24,10 +24,14 @@
         "@fontsource/barlow-condensed": "^5.2.7",
         "@fontsource/instrument-sans": "^5.2.7",
         "@tabler/icons-webfont": "^3.35.0",
+        "@vitejs/plugin-vue": "^5.2.4",
         "chart.js": "^4.5.1",
         "laravel-echo": "^2.3.4",
         "marked": "^17.0.1",
+        "pinia": "^2.3.1",
         "pusher-js": "^8.5.0",
-        "sweetalert2": "^11.26.3"
+        "sweetalert2": "^11.26.3",
+        "vue": "^3.5.34",
+        "vue-router": "^4.6.4"
     }
 }

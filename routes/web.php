@@ -201,4 +201,7 @@ Route::middleware(['auth', 'user.active', 'password.changed', 'legal.accepted'])
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
+// PWA SPA — catches all /app/* for Vue Router (history mode)
+Route::get('/app/{any?}', fn () => view('pwa'))->where('any', '.*')->name('pwa');
+
 require __DIR__.'/auth.php';
