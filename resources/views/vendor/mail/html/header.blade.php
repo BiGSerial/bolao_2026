@@ -10,7 +10,7 @@
                 style="display:inline-block; vertical-align:middle; width:34px; height:34px; object-fit:contain; margin-right:10px;"
             >
             <span style="vertical-align:middle; color:#f8fafc; font-size:20px; font-weight:800; letter-spacing:-0.3px;">
-                Bolão<span style="color:#f5a623;">FC</span>
+                Bolão<span style="color:#f5a623;">VF</span>
             </span>
         </a>
     </td>

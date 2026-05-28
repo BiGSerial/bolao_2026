@@ -517,7 +517,7 @@ body.landing-page::before {
 <nav class="lp-nav" id="lp-navbar">
   <a href="{{ url('/') }}" class="lp-logo" aria-label="BolãoVF">
     <img src="{{ asset('img/logo.webp') }}" alt="BolãoVF" class="lp-logo-img" onerror="this.onerror=null;this.src='{{ asset('img/logo.png') }}';">
-    <span class="lp-logo-text">Bolão<span>FC</span></span>
+    <span class="lp-logo-text">Bolão<span>VF</span></span>
   </a>
   <div class="lp-nav-links">
     <a href="#como-funciona" class="lp-nav-link">Como funciona</a>
@@ -556,7 +556,7 @@ body.landing-page::before {
 
     <div class="hero-actions">
       <a href="{{ route('login') }}" class="lp-btn-primary">
-        Entrar no bolãoFC
+        Entrar no BolãoVF
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
       </a>
       <button class="lp-btn-ghost" onclick="document.querySelector('#como-funciona').scrollIntoView({behavior:'smooth'})">
@@ -886,7 +886,7 @@ body.landing-page::before {
       <div>
         <div class="lp-footer-logo">
           <img src="{{ asset('img/logo.webp') }}" alt="BolãoVF" onerror="this.onerror=null;this.src='{{ asset('img/logo.png') }}';">
-          <div class="lp-logo-text">Bolão<span>FC</span></div>
+          <div class="lp-logo-text">Bolão<span>VF</span></div>
         </div>
         <p class="lp-footer-desc">Plataforma de bolão esportivo recreativo para amigos e grupos. Não realizamos apostas, não somos BET/casa de apostas e não operamos jogos de azar.</p>
         <div class="lp-no-bet-badge">

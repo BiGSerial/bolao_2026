@@ -27,7 +27,7 @@ class CustomVerifyEmailNotification extends VerifyEmail implements ShouldQueue
                 'id' => $notifiable->getKey(),
                 'hash' => sha1($notifiable->getEmailForVerification()),
             ],
-            absolute: false
+            absolute: true
         );
     }
 

@@ -263,6 +263,11 @@
                 <i class="ti ti-refresh text-xl shrink-0"></i>
                 <span class="sb-label text-sm">Sync API</span>
             </a>
+            <a href="{{ route('admin.emails.index') }}"
+               class="{{ $sbAdmin(request()->routeIs('admin.emails.*')) }}">
+                <i class="ti ti-mail text-xl shrink-0"></i>
+                <span class="sb-label text-sm">E-mails</span>
+            </a>
             <a href="{{ route('admin.matches.manual-correction') }}"
                class="{{ $sbAdmin(request()->routeIs('admin.matches.*')) }}">
                 <i class="ti ti-pencil text-xl shrink-0"></i>
@@ -605,6 +610,12 @@
                            class="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-bolao-bg px-3 py-2.5 text-sm text-slate-300 transition-colors hover:bg-bolao-bg3/60 hover:text-slate-100">
                             <i class="ti ti-refresh text-base"></i>
                             <span>Sync API</span>
+                        </a>
+                        <a href="{{ route('admin.emails.index') }}"
+                           @click="managementMobileMenu = false"
+                           class="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-bolao-bg px-3 py-2.5 text-sm text-slate-300 transition-colors hover:bg-bolao-bg3/60 hover:text-slate-100">
+                            <i class="ti ti-mail text-base"></i>
+                            <span>E-mails</span>
                         </a>
 
                         <a href="{{ route('admin.matches.manual-correction') }}"

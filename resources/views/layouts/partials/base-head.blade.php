@@ -3,7 +3,7 @@
 @isset($csrf)
 <meta name="csrf-token" content="{{ csrf_token() }}">
 @endisset
-<title>{{ $title ?? config('app.name', 'Bolão Copa') }}</title>
+<title>{{ $title ?? config('app.name', 'BolãoVF') }}</title>
 <meta name="theme-color" content="#0b1017">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">

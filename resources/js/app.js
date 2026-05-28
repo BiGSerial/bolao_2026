@@ -51,6 +51,7 @@ registerSW({ immediate: true });
 
 const updateConnectionBanner = () => {
     let banner = document.getElementById('connection-status-banner');
+    const isOnline = navigator.onLine;
 
     if (!banner) {
         banner = document.createElement('div');
@@ -65,13 +66,22 @@ const updateConnectionBanner = () => {
         banner.style.fontWeight = '600';
         banner.style.zIndex = '9999';
         banner.style.transition = 'opacity 0.2s ease';
+        banner.dataset.lastStatus = isOnline ? 'online' : 'offline';
         document.body.appendChild(banner);
     }
 
-    if (navigator.onLine) {
+    const previousStatus = banner.dataset.lastStatus || '';
+
+    if (isOnline) {
+        // Evita toast de "Online" ao trocar de aba/foco sem mudança real de estado.
+        if (previousStatus === 'online') {
+            return;
+        }
         banner.textContent = 'Online';
         banner.style.background = '#166534';
         banner.style.color = '#dcfce7';
+        banner.style.opacity = '1';
+        banner.dataset.lastStatus = 'online';
         setTimeout(() => {
             if (banner) {
                 banner.style.opacity = '0';
@@ -82,6 +92,7 @@ const updateConnectionBanner = () => {
         banner.style.background = '#991b1b';
         banner.style.color = '#fee2e2';
         banner.style.opacity = '1';
+        banner.dataset.lastStatus = 'offline';
     }
 };
 

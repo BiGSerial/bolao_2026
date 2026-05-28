@@ -2,7 +2,7 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     @include('layouts.partials.base-head', [
-        'title' => config('app.name', 'Bolão Copa').' · Aceite obrigatório',
+        'title' => config('app.name', 'BolãoVF').' · Aceite obrigatório',
         'includeMarked' => true,
         'includeLivewireStyles' => true,
     ])
@@ -40,7 +40,7 @@
                 </div>
                 <div>
                     <h1 class="text-sm font-bold text-white leading-tight">Aceite de Termos Obrigatório</h1>
-                    <p class="text-xs text-slate-500 leading-tight">Leia e aceite para continuar no Bolão Copa 2026</p>
+                    <p class="text-xs text-slate-500 leading-tight">Leia e aceite para continuar no BolãoVF</p>
                 </div>
                 <span class="ml-auto shrink-0 text-xs font-medium text-emerald-400 bg-emerald-900/30 border border-emerald-700/40 px-2 py-0.5 rounded-full">
                     Obrigatório

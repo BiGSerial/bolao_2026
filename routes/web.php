@@ -12,6 +12,7 @@ use App\Livewire\Admin\LegalDocumentsManager;
 use App\Livewire\Admin\ManualMatchCorrection;
 use App\Livewire\Admin\PoolsControl;
 use App\Livewire\Admin\TeamsCanonicalManager;
+use App\Livewire\Admin\TransactionalMailDashboard;
 use App\Livewire\Admin\UsersApproval;
 use App\Livewire\Dashboard\Home;
 use App\Livewire\Auth\ForcePasswordChange;
@@ -190,6 +191,7 @@ Route::middleware(['auth', 'user.active', 'password.changed', 'legal.accepted', 
     Route::post('/usuarios/{user}/rejeitar', [UserModerationController::class, 'reject'])->name('users.reject');
     Route::post('/usuarios/{user}/suspender', [UserModerationController::class, 'suspend'])->name('users.suspend');
     Route::get('/api-sync', ApiSyncDashboard::class)->name('api.sync');
+    Route::get('/emails', TransactionalMailDashboard::class)->name('emails.index');
     Route::get('/jogos/correcao-manual', ManualMatchCorrection::class)->name('matches.manual-correction');
     Route::get('/legal', LegalDocumentsManager::class)->name('legal.index');
     Route::get('/legal/exports/download', [LegalAuditExportController::class, 'download'])->name('legal.exports.download');

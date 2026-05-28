@@ -35,4 +35,15 @@ return [
         ],
     ],
 
+    'kinghost_smtp' => [
+        'base_url' => env('KINGHOST_SMTP_API_URL', 'https://api.smtplw.com.br/v1'),
+        'token' => env('KINGHOST_SMTP_API_TOKEN'),
+        'from_address' => env('KINGHOST_SMTP_FROM_ADDRESS', env('MAIL_FROM_ADDRESS')),
+        'from_name' => env('KINGHOST_SMTP_FROM_NAME', env('MAIL_FROM_NAME', env('APP_NAME'))),
+        'timeout' => (int) env('KINGHOST_SMTP_TIMEOUT', 15),
+        'retry_times' => (int) env('KINGHOST_SMTP_RETRY_TIMES', 3),
+        'retry_sleep' => (int) env('KINGHOST_SMTP_RETRY_SLEEP', 500),
+        'monthly_limit' => (int) env('KINGHOST_SMTP_MONTHLY_LIMIT', 0),
+    ],
+
 ];

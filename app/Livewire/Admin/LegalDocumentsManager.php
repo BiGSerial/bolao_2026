@@ -24,6 +24,7 @@ class LegalDocumentsManager extends Component
     public string $type = LegalDocumentType::Eula->value;
     public string $title = '';
     public string $content = '';
+    public string $templateEmail = '';
     public bool $publishNow = false;
 
     public string $acceptanceSearch = '';
@@ -34,6 +35,7 @@ class LegalDocumentsManager extends Component
     public function mount(): void
     {
         $this->assertAdmin();
+        $this->templateEmail = (string) config('app.privacy_contact_email', '');
     }
 
     public function updatingSearch(): void
@@ -59,13 +61,18 @@ class LegalDocumentsManager extends Component
             'type'       => ['required', 'in:'.collect(LegalDocumentType::cases())->pluck('value')->implode(',')],
             'title'      => ['required', 'string', 'min:5', 'max:255'],
             'content'    => ['required', 'string', 'min:20'],
+            'templateEmail' => ['required', 'email:rfc,dns', 'max:255'],
             'publishNow' => ['boolean'],
         ]);
 
         try {
             $autoVersion = $this->nextVersionForType($validated['type']);
 
-            $resolvedContent = $this->resolveVariables(trim($validated['content']), $autoVersion);
+            $resolvedContent = $this->resolveVariables(
+                trim($validated['content']),
+                $autoVersion,
+                trim((string) $validated['templateEmail'])
+            );
 
             $document = LegalDocument::create([
                 'type'       => $validated['type'],
@@ -212,7 +219,7 @@ class LegalDocumentsManager extends Component
         return sprintf('%d.%d', (int) $matches[1], (int) $matches[2] + 1);
     }
 
-    private function resolveVariables(string $content, string $version): string
+    private function resolveVariables(string $content, string $version, string $templateEmail): string
     {
         $now = now();
 
@@ -225,10 +232,12 @@ class LegalDocumentsManager extends Component
             '{{time}}'      => $now->format('H:i'),
             '{{data_hora}}' => $now->format('d/m/Y \à\s H:i'),
             '{{datetime}}'  => $now->format('d/m/Y H:i'),
-            '{{app}}'       => config('app.name', 'Bolão Copa'),
-            '{{app_name}}'  => config('app.name', 'Bolão Copa'),
+            '{{app}}'       => config('app.name', 'BolãoVF'),
+            '{{app_name}}'  => config('app.name', 'BolãoVF'),
             '{{ano}}'       => $now->format('Y'),
             '{{year}}'      => $now->format('Y'),
+            '{{email}}'     => $templateEmail,
+            '{{emai}}'      => $templateEmail,
         ];
 
         return str_replace(array_keys($map), array_values($map), $content);
