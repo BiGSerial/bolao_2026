@@ -19,7 +19,7 @@
                 Nova versão
             </h2>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
                     <label class="label">Tipo</label>
                     <select wire:model.live="type" class="input-field mt-1">
@@ -43,6 +43,11 @@
                         <span class="font-semibold text-emerald-400">{{ $nextVersion }}</span>
                         <span class="text-xs text-slate-600">(automática)</span>
                     </div>
+                </div>
+                <div>
+                    <label class="label">E-mail para tag</label>
+                    <input type="email" wire:model="templateEmail" class="input-field mt-1" placeholder="email@dominio.com">
+                    @error('templateEmail') <p class="text-xs text-red-400 mt-1">{{ $message }}</p> @enderror
                 </div>
             </div>
 
@@ -70,13 +75,14 @@
                     <button type="button" @click="insertVar('@{{data_hora}}')" class="{{ $chipClass }}">@{{data_hora}}</button>
                     <button type="button" @click="insertVar('@{{ano}}')" class="{{ $chipClass }}">@{{ano}}</button>
                     <button type="button" @click="insertVar('@{{app}}')" class="{{ $chipClass }}">@{{app}}</button>
+                    <button type="button" @click="insertVar('@{{email}}')" class="{{ $chipClass }}">@{{email}}</button>
                 </div>
 
                 <textarea x-ref="contentTA"
                           wire:model="content"
                           rows="10"
                           class="input-field font-mono text-sm"
-                          placeholder="Cole aqui o texto jurídico. Use @{{versao}}, @{{data}}, @{{app}} como variáveis — serão substituídas ao salvar."></textarea>
+                          placeholder="Cole aqui o texto jurídico. Use @{{versao}}, @{{data}}, @{{app}} e @{{email}} como variáveis — serão substituídas ao salvar."></textarea>
                 @error('content') <p class="text-xs text-red-400 mt-1">{{ $message }}</p> @enderror
             </div>
 
@@ -401,7 +407,7 @@
 
             {{-- Footer --}}
             <div class="shrink-0 flex items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-700/40">
-                <p class="text-xs text-slate-600">Bolão Copa 2026</p>
+                <p class="text-xs text-slate-600">BolãoVF</p>
                 <button onclick="closeDocModal()"
                         class="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white border-0 cursor-pointer transition-colors"
                         style="background:#059669" onmouseover="this.style.background='#10b981'" onmouseout="this.style.background='#059669'">

@@ -4,7 +4,7 @@ use Illuminate\Support\Str;
 
 return [
 
-    'name' => env('HORIZON_NAME', 'Bolão Copa'),
+    'name' => env('HORIZON_NAME', 'BolãoVF'),
 
     'domain' => env('HORIZON_DOMAIN'),
 

@@ -2,7 +2,7 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     @include('layouts.partials.base-head', [
-        'title' => config('app.name', 'Bolão Copa'),
+        'title' => config('app.name', 'BolãoVF'),
         'csrf' => true,
         'includeSweetalert' => true,
         'includeMarked' => true,
@@ -60,7 +60,7 @@
             <x-application-logo class="h-16 w-16 drop-shadow-[0_8px_22px_rgba(245,166,35,0.35)]" />
             <div class="text-center">
                 <h1 class="font-bc font-extrabold text-[28px] leading-none text-white">
-                    Bolão<span class="text-bolao-accent">FC</span>
+                    Bolão<span class="text-bolao-accent">VF</span>
                 </h1>
                 <p class="text-sm text-bolao-muted mt-1">Copa do Mundo 2026 · USA · Canada · México</p>
             </div>
@@ -140,7 +140,7 @@
 
             {{-- Footer --}}
             <div class="shrink-0 flex items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-700/40">
-                <p class="text-xs text-slate-600">Bolão Copa 2026</p>
+                <p class="text-xs text-slate-600">BolãoVF</p>
                 <button @click="closeLegal()"
                         class="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white border-0 cursor-pointer transition-colors"
                         style="background:#059669;box-shadow:0 1px 3px rgba(5,150,105,0.4)"

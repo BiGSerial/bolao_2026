@@ -2,7 +2,7 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full">
 <head>
     @include('layouts.partials.base-head', [
-        'title' => config('app.name', 'BolaoFC').(isset($title) ? ' — '.$title : ''),
+        'title' => config('app.name', 'BolãoVF').(isset($title) ? ' — '.$title : ''),
         'csrf' => true,
         'includeSweetalert' => true,
         'includeMarked' => true,
@@ -140,7 +140,7 @@
             <x-application-logo class="h-8 w-8 shrink-0" />
             <div class="sb-label min-w-0">
                 <div class="font-bc font-extrabold text-[19px] leading-none text-white">
-                    Bolão<span class="text-bolao-accent">FC</span>
+                    Bolão<span class="text-bolao-accent">VF</span>
                 </div>
                 @if($canSwitchCompetition)
                 <div class="relative mt-1 w-[170px]">
@@ -262,6 +262,11 @@
                class="{{ $sbAdmin(request()->routeIs('admin.api.*')) }}">
                 <i class="ti ti-refresh text-xl shrink-0"></i>
                 <span class="sb-label text-sm">Sync API</span>
+            </a>
+            <a href="{{ route('admin.emails.index') }}"
+               class="{{ $sbAdmin(request()->routeIs('admin.emails.*')) }}">
+                <i class="ti ti-mail text-xl shrink-0"></i>
+                <span class="sb-label text-sm">E-mails</span>
             </a>
             <a href="{{ route('admin.matches.manual-correction') }}"
                class="{{ $sbAdmin(request()->routeIs('admin.matches.*')) }}">
@@ -605,6 +610,12 @@
                            class="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-bolao-bg px-3 py-2.5 text-sm text-slate-300 transition-colors hover:bg-bolao-bg3/60 hover:text-slate-100">
                             <i class="ti ti-refresh text-base"></i>
                             <span>Sync API</span>
+                        </a>
+                        <a href="{{ route('admin.emails.index') }}"
+                           @click="managementMobileMenu = false"
+                           class="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-bolao-bg px-3 py-2.5 text-sm text-slate-300 transition-colors hover:bg-bolao-bg3/60 hover:text-slate-100">
+                            <i class="ti ti-mail text-base"></i>
+                            <span>E-mails</span>
                         </a>
 
                         <a href="{{ route('admin.matches.manual-correction') }}"

@@ -2,7 +2,7 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     @include('layouts.partials.base-head', [
-        'title' => config('app.name', 'Bolão Copa').' · Sobre',
+        'title' => config('app.name', 'BolãoVF').' · Sobre',
         'includeMarked' => true,
         'includeLivewireStyles' => true,
     ])
@@ -55,7 +55,7 @@
                 </div>
                 <div class="min-w-0">
                     <p class="text-sm font-semibold text-white truncate">Sobre a Plataforma</p>
-                    <p class="text-xs text-slate-500 leading-tight">Bolão Copa 2026</p>
+                    <p class="text-xs text-slate-500 leading-tight">BolãoVF</p>
                 </div>
             </div>
             <a href="javascript:history.back()"
@@ -71,9 +71,9 @@
 
             <div>
                 <p class="text-xs uppercase tracking-widest text-emerald-400 font-medium mb-1">Institucional</p>
-                <h2 class="text-sm font-semibold text-white mb-2">O que é o Bolão Copa 2026</h2>
+                <h2 class="text-sm font-semibold text-white mb-2">O que é o BolãoVF</h2>
                 <div class="space-y-1.5 text-xs text-slate-400 leading-relaxed">
-                    <p>O Bolão Copa 2026 é uma plataforma recreativa e social destinada à organização de palpites esportivos entre usuários, amigos, familiares e grupos privados.</p>
+                    <p>O BolãoVF é uma plataforma recreativa e social destinada à organização de palpites esportivos entre usuários, amigos, familiares e grupos privados.</p>
                     <p>A plataforma <strong class="text-slate-200 font-medium">não realiza apostas</strong>, não intermedeia pagamentos, não arrecada valores, não administra prêmios e não garante repasses financeiros entre participantes.</p>
                     <p>Qualquer acordo, contribuição ou premiação combinada entre participantes ocorre fora da plataforma e sob responsabilidade exclusiva dos próprios usuários.</p>
                 </div>
@@ -189,7 +189,7 @@
             </div>
 
             <div class="shrink-0 flex items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-700/40">
-                <p class="text-xs text-slate-600">Bolão Copa 2026</p>
+                <p class="text-xs text-slate-600">BolãoVF</p>
                 <button @click="closeLegal()"
                         class="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white border-0 cursor-pointer transition-colors"
                         style="background:#059669" onmouseover="this.style.background='#10b981'" onmouseout="this.style.background='#059669'">

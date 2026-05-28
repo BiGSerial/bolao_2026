@@ -10,10 +10,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
     public const MAX_MANAGED_POOLS = 5;
 
@@ -136,11 +137,40 @@ class User extends Authenticatable implements MustVerifyEmail
         return (int) $this->poolMemberships()
             ->where('status', 'active')
             ->whereIn('role', ['owner', 'manager'])
+            ->whereHas('pool', fn ($q) => $q->whereNull('deleted_at'))
             ->count();
     }
 
     public function reachedManagedPoolsLimit(): bool
     {
         return $this->managedPoolsCount() >= self::MAX_MANAGED_POOLS;
+    }
+
+    public function participatingPoolsCount(): int
+    {
+        return (int) $this->poolMemberships()
+            ->whereIn('status', ['active', 'pending'])
+            ->whereHas('pool', fn ($q) => $q->whereNull('deleted_at'))
+            ->count();
+    }
+
+    public function reachedParticipatingPoolsLimit(): bool
+    {
+        return $this->participatingPoolsCount() >= self::MAX_MANAGED_POOLS;
+    }
+
+    public function participatingPoolsCountByCompetition(int $competitionId): int
+    {
+        return (int) $this->poolMemberships()
+            ->whereIn('status', ['active', 'pending'])
+            ->whereHas('pool', fn ($q) => $q
+                ->whereNull('deleted_at')
+                ->where('competition_id', $competitionId))
+            ->count();
+    }
+
+    public function reachedParticipatingPoolsLimitByCompetition(int $competitionId): bool
+    {
+        return $this->participatingPoolsCountByCompetition($competitionId) >= self::MAX_MANAGED_POOLS;
     }
 }

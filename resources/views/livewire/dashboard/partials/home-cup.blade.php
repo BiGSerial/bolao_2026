@@ -769,11 +769,11 @@
 <div class="rp-widget">
     @php
         $inviteLandingUrl = route('pools.index', ['competition' => $currentCompetitionCode]);
-        $inviteShareText = "Participe do meu bolao no BolaoFC!\n\n";
+        $inviteShareText = "Participe do meu bolao no BolaoVF!\n\n";
         $inviteShareText .= "Bolao: {$selectedPool->name}\n";
         $inviteShareText .= "Codigo de convite: {$selectedPool->invite_code}\n\n";
         $inviteShareText .= "Acesse e entre agora: {$inviteLandingUrl}\n\n";
-        $inviteShareText .= "BolaoFC - palpites ao vivo, ranking em tempo real e disputa entre amigos.";
+        $inviteShareText .= "BolaoVF - palpites ao vivo, ranking em tempo real e disputa entre amigos.";
     @endphp
     <div class="rp-widget-body text-center py-4" x-data="{ copied: false, inviteText: @js($inviteShareText) }">
         <div class="text-3xl mb-2">🎉</div>

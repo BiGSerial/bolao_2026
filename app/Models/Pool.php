@@ -13,7 +13,7 @@ class Pool extends Model
 
     protected $fillable = [
         'owner_id','competition_id','competition_season_id','name','slug','description','instructions','sectors','tie_breakers','visibility','status','invite_code',
-        'allow_prediction_changes','prediction_lock_minutes','allow_pending_member_predictions','stage',
+        'allow_prediction_changes','closed_predictions','prediction_lock_minutes','allow_pending_member_predictions','stage',
         'points_exact_score', 'points_correct_result', 'points_correct_goals', 'correct_goals_mode',
     ];
 
@@ -21,6 +21,7 @@ class Pool extends Model
     {
         return [
             'allow_prediction_changes' => 'boolean',
+            'closed_predictions' => 'boolean',
             'allow_pending_member_predictions' => 'boolean',
             'points_exact_score' => 'integer',
             'points_correct_result' => 'integer',

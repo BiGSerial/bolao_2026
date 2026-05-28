@@ -2,7 +2,7 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     @include('layouts.partials.base-head', [
-        'title' => config('app.name', 'Bolão Copa').' · '.$documentType->label(),
+        'title' => config('app.name', 'BolãoVF').' · '.$documentType->label(),
         'includeMarked' => true,
         'includeLivewireStyles' => true,
     ])
@@ -75,7 +75,7 @@
                         <div class="min-w-0">
                             <a href="{{ url('/') }}" class="mb-2 inline-flex items-center gap-2">
                                 <x-application-logo class="h-7 w-7 shrink-0" />
-                                <span class="text-sm font-extrabold tracking-tight text-white">Bolão<span class="text-amber-400">FC</span></span>
+                                <span class="text-sm font-extrabold tracking-tight text-white">Bolão<span class="text-amber-400">VF</span></span>
                             </a>
                             <p class="text-[11px] uppercase tracking-[0.16em] text-amber-400 font-medium mb-1">
                                 {{ $documentType->label() }}

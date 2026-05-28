@@ -12,6 +12,7 @@ use App\Livewire\Admin\LegalDocumentsManager;
 use App\Livewire\Admin\ManualMatchCorrection;
 use App\Livewire\Admin\PoolsControl;
 use App\Livewire\Admin\TeamsCanonicalManager;
+use App\Livewire\Admin\TransactionalMailDashboard;
 use App\Livewire\Admin\UsersApproval;
 use App\Livewire\Dashboard\Home;
 use App\Livewire\Auth\ForcePasswordChange;
@@ -153,6 +154,7 @@ Route::get('/legal/terms', [LegalPageController::class, 'terms'])->name('legal.t
 Route::get('/legal/disclaimer', [LegalPageController::class, 'disclaimer'])->name('legal.disclaimer');
 Route::get('/legal/confidentiality-policy', [LegalPageController::class, 'confidentialityPolicy'])->name('legal.confidentiality-policy');
 Route::get('/sobre', [LegalPageController::class, 'about'])->name('about');
+Route::view('/offline', 'offline')->name('offline');
 
 Route::middleware('guest')->group(function (): void {
     Route::post('/register', [RegisteredUserController::class, 'store']);
@@ -189,6 +191,7 @@ Route::middleware(['auth', 'user.active', 'password.changed', 'legal.accepted', 
     Route::post('/usuarios/{user}/rejeitar', [UserModerationController::class, 'reject'])->name('users.reject');
     Route::post('/usuarios/{user}/suspender', [UserModerationController::class, 'suspend'])->name('users.suspend');
     Route::get('/api-sync', ApiSyncDashboard::class)->name('api.sync');
+    Route::get('/emails', TransactionalMailDashboard::class)->name('emails.index');
     Route::get('/jogos/correcao-manual', ManualMatchCorrection::class)->name('matches.manual-correction');
     Route::get('/legal', LegalDocumentsManager::class)->name('legal.index');
     Route::get('/legal/exports/download', [LegalAuditExportController::class, 'download'])->name('legal.exports.download');
@@ -199,5 +202,8 @@ Route::middleware(['auth', 'user.active', 'password.changed', 'legal.accepted'])
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
+
+// PWA SPA — catches all /app/* for Vue Router (history mode)
+Route::get('/app/{any?}', fn () => view('pwa'))->where('any', '.*')->name('pwa');
 
 require __DIR__.'/auth.php';
