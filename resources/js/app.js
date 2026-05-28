@@ -47,7 +47,14 @@ window.Swal = Swal;
 window.marked = marked;
 window.Chart = Chart;
 
-registerSW({ immediate: true });
+const isPwaRoute = (() => {
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
+    return path === '/app' || path.startsWith('/app/');
+})();
+
+if (isPwaRoute) {
+    registerSW({ immediate: true });
+}
 
 const updateConnectionBanner = () => {
     let banner = document.getElementById('connection-status-banner');
@@ -101,6 +108,7 @@ window.addEventListener('offline', updateConnectionBanner);
 window.addEventListener('load', updateConnectionBanner);
 
 (function () {
+    if (!isPwaRoute) return;
     if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) return;
 
     const DISMISSED_KEY = 'a2hs_dismissed_until';

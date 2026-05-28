@@ -11,7 +11,9 @@
 <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon.png') }}">
 <link rel="shortcut icon" href="{{ asset('favicon.png') }}">
 <link rel="apple-touch-icon" href="{{ asset('favicon.png') }}">
+@if (request()->is('app') || request()->is('app/*'))
 <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
+@endif
 <script>
     (() => {
         const hasConsent = document.cookie.split('; ').some((cookie) => cookie.startsWith('cookie_consent=accepted'));

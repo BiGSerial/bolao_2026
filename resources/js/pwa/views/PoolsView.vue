@@ -9,7 +9,7 @@
 
         <template v-else-if="data">
             <div class="pwa-section pt-4 space-y-3">
-                <div class="dash-comp-picker">
+                <div v-if="competitionOptions.length > 1" class="dash-comp-picker">
                     <label class="comp-select-label">Competição</label>
                     <div class="dash-comp-select-wrap">
                         <i class="ti ti-trophy dash-comp-icon"></i>
