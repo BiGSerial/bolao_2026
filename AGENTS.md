@@ -1,4 +1,39 @@
-<!-- ai-memory:start -->
+# Regra obrigatória de memória do projeto
+
+Antes de responder perguntas como:
+- "onde paramos?"
+- "qual o estado atual?"
+- "continue de onde parou"
+- "o que foi feito?"
+- "o que falta?"
+- "retome a sessão anterior"
+
+o agente DEVE consultar o servidor MCP `ai-memory` antes de responder.
+
+Não responder apenas com base neste arquivo.
+
+Este arquivo contém apenas instruções de roteamento. A memória real fica no `ai-memory`.
+
+Ao consultar o estado do projeto, usar no mínimo:
+- memória recente;
+- handoff mais recente;
+- páginas relevantes do projeto;
+- busca por branch atual;
+- busca por arquivos citados;
+- validação local com `git status`, `git branch --show-current` e `git log -1 --oneline`.
+
+Ao encerrar uma sessão relevante, o agente DEVE salvar handoff completo contendo:
+- branch;
+- status do git;
+- arquivos criados/modificados;
+- objetivo da sessão;
+- implementação realizada;
+- testes executados;
+- pendências;
+- próximo passo técnico.<!-- ai-memory:start -->
+
+
+
 ## Long-term memory (ai-memory)
 
 This project uses [ai-memory](https://github.com/akitaonrails/ai-memory)

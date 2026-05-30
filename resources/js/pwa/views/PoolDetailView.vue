@@ -42,7 +42,7 @@
         </div>
 
         <!-- ─── PALPITES tab ─── -->
-        <div v-if="activeTab === 'predictions'">
+        <div v-show="activeTab === 'predictions'">
             <div v-if="predictionDays.length" class="px-4 pt-3 pb-1">
                 <div
                     ref="dateStripEl"
@@ -72,6 +72,18 @@
 
             <!-- Prediction list -->
             <div v-else-if="selectedDayItems.length" class="pwa-section space-y-3 pt-2">
+                <!-- Action toolbar -->
+                <div class="flex gap-2 justify-end">
+                    <button class="bulk-action-btn" :disabled="savingBulk" @click="openBulkModal">
+                        <i class="ti ti-layout-grid-add text-[13px]"></i>
+                        {{ savingBulk ? 'Aplicando...' : 'Palpite em massa' }}
+                    </button>
+                    <button class="bulk-action-btn" :disabled="savingApplyAll" @click="openApplyAllModal">
+                        <i class="ti ti-copy text-[13px]"></i>
+                        {{ savingApplyAll ? 'Replicando...' : 'Replicar' }}
+                    </button>
+                </div>
+
                 <div v-if="pool?.closed_predictions" class="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-[11px] text-amber-200">
                     Palpite fechado ativo: preencha os jogos e use "Salvar palpites" para enviar tudo de uma vez.
                 </div>
@@ -105,7 +117,7 @@
         </div>
 
         <!-- ─── RANKING tab ─── -->
-        <div v-if="activeTab === 'ranking'">
+        <div v-show="activeTab === 'ranking'">
             <div v-if="loadingRanking" class="pwa-section space-y-2 pt-4">
                 <SkeletonCard v-for="i in 5" :key="i" />
             </div>
@@ -142,7 +154,7 @@
         </div>
 
         <!-- ─── GESTÃO tab ─── -->
-        <div v-if="activeTab === 'manage'">
+        <div v-show="activeTab === 'manage'">
             <div v-if="!canManage" class="pwa-section text-center py-14">
                 <i class="ti ti-lock text-4xl text-bolao-muted2 mb-3 block"></i>
                 <p class="text-sm text-bolao-muted">Você não tem permissão de gestão neste bolão.</p>
@@ -213,7 +225,7 @@
         </div>
 
         <!-- ─── CONFIGURAÇÕES tab ─── -->
-        <div v-if="activeTab === 'settings'">
+        <div v-show="activeTab === 'settings'">
             <div v-if="!canManage" class="pwa-section text-center py-14">
                 <i class="ti ti-lock text-4xl text-bolao-muted2 mb-3 block"></i>
                 <p class="text-sm text-bolao-muted">Você não tem permissão para configurar este bolão.</p>
@@ -395,7 +407,7 @@ import { ref, watch, onMounted, onBeforeUnmount, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router';
 import Swal from 'sweetalert2';
 import { useAuthStore } from '../store/auth';
-import { getPool, updatePool, deletePool } from '../api/pools';
+import { getPools, getPool, updatePool, deletePool } from '../api/pools';
 import { getPoolPredictions, savePrediction } from '../api/predictions';
 import { getRanking } from '../api/rankings';
 import { getPoolMembers, updatePoolMember, removePoolMember, inviteToPool } from '../api/pool-members';
@@ -437,6 +449,8 @@ const predictionsTotalPages = ref(1);
 const loadingMorePredictions = ref(false);
 const predictionDrafts = ref({});
 const savingBatchPredictions = ref(false);
+const savingBulk     = ref(false);
+const savingApplyAll = ref(false);
 const ranking       = ref([]);
 const loadingRanking = ref(true);
 const rankingCalcAt = ref('');
@@ -1072,6 +1086,102 @@ watch(selectedDayKey, async () => {
     centerSelectedDayChip();
 });
 
+async function openBulkModal() {
+    const { value, isConfirmed } = await Swal.fire({
+        title: 'Palpite em massa',
+        html: `
+            <p style="font-size:13px;color:#94a3b8;margin-bottom:16px">Aplica o mesmo placar a todos os jogos válidos do dia.</p>
+            <div style="display:flex;align-items:center;justify-content:center;gap:14px">
+                <input id="bulk-home" type="number" min="0" max="99" value="0"
+                    style="width:60px;text-align:center;background:#1b2230;border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:#fff;font-size:30px;font-weight:800;padding:6px 0;font-family:'Barlow Condensed',sans-serif">
+                <span style="color:#4a5568;font-size:26px;font-weight:800">×</span>
+                <input id="bulk-away" type="number" min="0" max="99" value="0"
+                    style="width:60px;text-align:center;background:#1b2230;border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:#fff;font-size:30px;font-weight:800;padding:6px 0;font-family:'Barlow Condensed',sans-serif">
+            </div>`,
+        background: '#0f172a',
+        color: '#e2e8f0',
+        confirmButtonText: 'Aplicar a todos',
+        cancelButtonText: 'Cancelar',
+        showCancelButton: true,
+        reverseButtons: true,
+        confirmButtonColor: '#f59e0b',
+        cancelButtonColor: '#334155',
+        preConfirm: () => ({
+            home: Math.max(0, Math.min(99, Number(document.getElementById('bulk-home')?.value ?? 0))),
+            away: Math.max(0, Math.min(99, Number(document.getElementById('bulk-away')?.value ?? 0))),
+        }),
+    });
+    if (!isConfirmed || !value) return;
+
+    const editable = predictions.value.filter(
+        (i) => ['TIMED', 'SCHEDULED', 'PRE_MATCH'].includes(i.match?.status) && !i.lock?.is_locked,
+    );
+    if (!editable.length) {
+        await Swal.fire({ icon: 'info', title: 'Sem jogos disponíveis', text: 'Nenhum jogo aberto para palpite.', background: '#0f172a', color: '#e2e8f0', confirmButtonColor: '#f59e0b' });
+        return;
+    }
+
+    savingBulk.value = true;
+    try {
+        await Promise.all(editable.map((i) => savePrediction(poolId.value, i.match.id, value.home, value.away)));
+        await loadPredictions();
+    } finally {
+        savingBulk.value = false;
+    }
+}
+
+async function openApplyAllModal() {
+    const competitionId = pool.value?.competition?.id;
+    if (!competitionId) return;
+
+    const saved = predictions.value.filter(
+        (i) => ['TIMED', 'SCHEDULED', 'PRE_MATCH'].includes(i.match?.status) && i.prediction != null,
+    );
+    if (!saved.length) {
+        await Swal.fire({ icon: 'info', title: 'Nenhum palpite salvo', text: 'Salve palpites neste bolão antes de replicar.', background: '#0f172a', color: '#e2e8f0', confirmButtonColor: '#f59e0b' });
+        return;
+    }
+
+    const res = await getPools();
+    const otherPools = (res.data.data?.member_pools ?? []).filter(
+        (p) => Number(p.id) !== Number(poolId.value) && Number(p.competition?.id) === Number(competitionId),
+    );
+    if (!otherPools.length) {
+        await Swal.fire({ icon: 'info', title: 'Nenhum outro bolão', text: 'Você não participa de outros bolões nesta competição.', background: '#0f172a', color: '#e2e8f0', confirmButtonColor: '#f59e0b' });
+        return;
+    }
+
+    const poolList = otherPools.map((p) => `• ${p.name}`).join('<br>');
+    const { isConfirmed } = await Swal.fire({
+        icon: 'question',
+        title: 'Replicar palpites?',
+        html: `Serão replicados <strong>${saved.length} palpite(s)</strong> para:<br><br><span style="color:#94a3b8;font-size:13px">${poolList}</span>`,
+        background: '#0f172a',
+        color: '#e2e8f0',
+        confirmButtonText: 'Replicar',
+        cancelButtonText: 'Cancelar',
+        showCancelButton: true,
+        reverseButtons: true,
+        confirmButtonColor: '#f59e0b',
+        cancelButtonColor: '#334155',
+    });
+    if (!isConfirmed) return;
+
+    savingApplyAll.value = true;
+    try {
+        await Promise.all(
+            otherPools.flatMap((targetPool) =>
+                saved.map((i) => savePrediction(targetPool.id, i.match.id, i.prediction.home_score, i.prediction.away_score)),
+            ),
+        );
+        await Swal.fire({ icon: 'success', title: 'Replicado!', text: `Palpites aplicados em ${otherPools.length} bolão(ões).`, background: '#0f172a', color: '#e2e8f0', confirmButtonColor: '#f59e0b', timer: 2500, showConfirmButton: false });
+    } catch {
+        await Swal.fire({ icon: 'error', title: 'Erro ao replicar', text: 'Alguns palpites podem não ter sido salvos.', background: '#0f172a', color: '#e2e8f0', confirmButtonColor: '#f59e0b' });
+    } finally {
+        savingApplyAll.value = false;
+    }
+}
+
 onMounted(() => {
     loadPool();
     loadPredictions();
@@ -1084,6 +1194,22 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.bulk-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.04);
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 10px;
+    transition: border-color .15s, color .15s;
+}
+.bulk-action-btn:not(:disabled):active { opacity: .7; }
+.bulk-action-btn:disabled { opacity: .4; }
+
 /* Sticky tab bar */
 .pwa-tabs-bar {
     display: flex;

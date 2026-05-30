@@ -124,7 +124,8 @@
                             </div>
 
                             <div class="space-y-2">
-                                <div v-for="m in filteredLiveMatches" :key="m.id" class="live-card">
+                                <div v-for="m in filteredLiveMatches" :key="m.id" class="live-card cursor-pointer"
+                                     @click="router.push({ name: 'match-detail', params: { matchId: m.id } })">
                                     <div class="flex items-center justify-between text-[10px] text-bolao-muted2 mb-2">
                                         <span class="truncate max-w-[60%]">{{ m.competition?.name }}<span v-if="m.matchday"> · R{{ m.matchday }}</span></span>
                                         <span class="text-bolao-red font-bold flex items-center gap-1">
@@ -160,7 +161,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="live-toggle mt-2">
+                                    <div class="live-toggle mt-2" @click.stop>
                                         <button class="live-toggle-btn" :class="{ active: liveTab === 'mine' }" @click="liveTab = 'mine'">Meus pontos</button>
                                         <button class="live-toggle-btn" :class="{ active: liveTab === 'ranking' }" @click="liveTab = 'ranking'">Ranking</button>
                                     </div>
@@ -197,7 +198,8 @@
                                 <div class="next-card next-card-slider">
                                     <div class="next-track" :style="nextTrackStyle">
                                         <div v-for="m in todayOpenMatches" :key="m.id" class="next-slide">
-                                            <div class="next-slide-inner">
+                                            <div class="next-slide-inner cursor-pointer"
+                                                 @click="router.push({ name: 'match-detail', params: { matchId: m.id } })">
                                                 <div class="next-slide-meta">
                                                     <p class="text-[11px] text-bolao-muted2 truncate">
                                                         {{ m.competition?.name }}<span v-if="m.matchday"> · Rodada {{ m.matchday }}</span>
@@ -318,7 +320,8 @@
                     <div class="pwa-section pt-3 pb-6">
                         <h3 class="panel-title text-[28px] mb-2">Resultados recentes</h3>
                         <div class="space-y-2">
-                            <div v-for="item in recentResults" :key="item.match.id" class="recent-card p-3">
+                            <div v-for="item in recentResults" :key="item.match.id" class="recent-card p-3 cursor-pointer"
+                                 @click="router.push({ name: 'match-detail', params: { matchId: item.match.id } })">
                                 <div class="flex items-center justify-between gap-2">
                                     <div class="flex items-center gap-2 min-w-0 flex-1">
                                         <img v-if="item.match.home_team?.crest" :src="item.match.home_team.crest" class="team-crest" alt="">
@@ -347,6 +350,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from '../store/auth';
 import { useAppStore } from '../store/app';
 import { getDashboard } from '../api/dashboard';
@@ -360,6 +364,7 @@ import { createHorizontalSwipeTracker } from '../utils/horizontalSwipe';
 import SkeletonBlock from '../components/ui/SkeletonBlock.vue';
 import SkeletonCard from '../components/ui/SkeletonCard.vue';
 
+const router = useRouter();
 const auth = useAuthStore();
 const appStore = useAppStore();
 const emit = defineEmits(['set-title']);

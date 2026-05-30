@@ -27,26 +27,11 @@
                     :class="activeStatus === f.value ? 'active' : 'inactive'"
                     @click="setStatus(f.value)"
                 >
-                    <span v-if="f.value === 'IN_PLAY'" class="live-dot mr-1.5" style="width:5px;height:5px;"></span>
+                    <span v-if="f.value === 'IN_PLAY' && hasLiveMatches" class="live-dot mr-1.5" style="width:5px;height:5px;"></span>
                     {{ f.label }}
                 </button>
             </div>
 
-            <!-- Competition filter — appears once data loaded -->
-            <div v-if="competitions.length > 1" class="flex gap-1.5 px-4 overflow-x-auto no-scrollbar pb-1">
-                <button
-                    class="comp-chip shrink-0"
-                    :class="activeComp === null ? 'active' : 'inactive'"
-                    @click="activeComp = null"
-                >Todas</button>
-                <button
-                    v-for="comp in competitions"
-                    :key="comp.id"
-                    class="comp-chip shrink-0"
-                    :class="activeComp === comp.id ? 'active' : 'inactive'"
-                    @click="activeComp = comp.id"
-                >{{ comp.name }}</button>
-            </div>
         </div>
 
         <!-- Loading -->
@@ -64,7 +49,8 @@
                     <div
                         v-for="m in group.matches"
                         :key="m.id"
-                        class="match-row"
+                        class="match-row cursor-pointer"
+                        @click="router.push({ name: 'match-detail', params: { matchId: m.id } })"
                     >
                         <!-- Top bar: competition + stage + status -->
                         <div class="flex items-center justify-between px-3 pt-2.5 pb-1">
@@ -140,7 +126,7 @@
                             </div>
                         </div>
 
-                        <div v-if="selectedPoolId" class="px-3 pb-3">
+                        <div v-if="selectedPoolId" class="px-3 pb-3" @click.stop>
                             <div class="rounded-lg border border-white/10 bg-white/[0.03] p-2">
                                 <div v-if="isMatchPredictionEditable(m)" class="flex items-center gap-2">
                                     <input
@@ -164,16 +150,16 @@
                                     >
                                     <button
                                         class="mini-save-btn"
-                                        :disabled="predictionState[m.id]?.saving || predictionState[m.id]?.is_locked"
+                                        :class="predBtnClass(predictionState[m.id])"
+                                        :disabled="predictionState[m.id]?.saving || predictionState[m.id]?.is_locked || (!predictionState[m.id]?.has_prediction && predBtnLabel(predictionState[m.id]) === 'Salvo ✓')"
                                         @click="saveMatchPrediction(m)"
                                     >
-                                        {{ predictionState[m.id]?.saving ? 'Salvando...' : 'Palpitar' }}
+                                        {{ predBtnLabel(predictionState[m.id]) }}
                                     </button>
                                 </div>
                                 <div v-else class="text-[11px] text-bolao-muted2">
                                     Jogo indisponível para palpite agora.
                                 </div>
-                                <p v-if="predictionState[m.id]?.saved" class="text-[11px] text-emerald-400 mt-1">Palpite salvo.</p>
                                 <p v-if="predictionState[m.id]?.is_locked" class="text-[11px] text-bolao-muted2 mt-1">Palpite bloqueado para este jogo.</p>
                                 <p v-if="predictionState[m.id]?.error" class="text-[11px] text-red-400 mt-1">{{ predictionState[m.id].error }}</p>
                             </div>
@@ -198,11 +184,15 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 import { getMatches } from '../api/matches';
 import { getPools } from '../api/pools';
 import { getPrediction, savePrediction } from '../api/predictions';
+import { useAppStore } from '../store/app';
 import SkeletonCard from '../components/ui/SkeletonCard.vue';
 
+const router = useRouter();
+const appStore = useAppStore();
 const emit = defineEmits(['set-title']);
 
 const statusFilters = [
@@ -213,11 +203,9 @@ const statusFilters = [
 ];
 
 const activeStatus = ref('TIMED');
-const activeComp   = ref(null);
+const activeComp   = computed(() => appStore.selectedCompetitionId ?? null);
 const MATCHES_STATUS_KEY = 'pwa_matches_status';
-const MATCHES_COMP_KEY = 'pwa_matches_competition_id';
 const DASHBOARD_POOL_ID_KEY = 'pwa_dashboard_pool_id';
-const DASHBOARD_COMPETITION_ID_KEY = 'pwa_dashboard_competition_id';
 const matches      = ref([]);
 const userPools    = ref([]);
 const loading      = ref(true);
@@ -231,31 +219,19 @@ const pageRoot = ref(null);
 let infiniteObserver = null;
 let scrollContainer = null;
 
-// Unique competitions extracted from loaded data
-const competitions = computed(() => {
-    const map = new Map();
-    for (const m of matches.value) {
-        if (m.competition?.id) map.set(m.competition.id, m.competition);
-    }
-    return Array.from(map.values());
-});
+const LIVE_STATUSES = ['IN_PLAY', 'PAUSED', 'HALFTIME', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'];
+const hasLiveMatches = computed(() => matches.value.some(m => LIVE_STATUSES.includes(m.status)));
 
-const selectedCompetition = computed(() =>
-    competitions.value.find((c) => Number(c.id) === Number(activeComp.value)) ?? null,
+const selectedCompetitionName = computed(() =>
+    appStore.competitions.find(c => c.id === appStore.selectedCompetitionId)?.name ?? 'Todas',
 );
-const selectedCompetitionName = computed(() => selectedCompetition.value?.name ?? 'Todas');
 const selectedPool = computed(() =>
     userPools.value.find((p) => Number(p.id) === Number(selectedPoolId.value)) ?? null,
 );
 const selectedPoolName = computed(() => selectedPool.value?.name ?? 'Nenhum bolão selecionado');
 
-// Apply competition filter client-side
 const filteredMatches = computed(() => {
-    const source = !activeComp.value
-        ? [...matches.value]
-        : matches.value.filter((m) => m.competition?.id === activeComp.value);
-
-    return source.sort((a, b) => {
+    return [...matches.value].sort((a, b) => {
         const ta = a.local_date ? new Date(a.local_date).getTime() : (a.utc_date ? new Date(a.utc_date).getTime() : 0);
         const tb = b.local_date ? new Date(b.local_date).getTime() : (b.utc_date ? new Date(b.utc_date).getTime() : 0);
         return activeStatus.value === 'TIMED' ? (ta - tb) : (tb - ta);
@@ -379,14 +355,29 @@ function ensurePredictionState(matchId) {
         predictionState.value[matchId] = {
             home_score: 0,
             away_score: 0,
+            initial_home: null,
+            initial_away: null,
+            has_prediction: false,
             saving: false,
-            saved: false,
             is_locked: false,
             error: '',
             loaded: false,
         };
     }
     return predictionState.value[matchId];
+}
+
+function predBtnLabel(state) {
+    if (!state || state.saving) return 'Salvando...';
+    if (!state.has_prediction) return 'Palpitar';
+    const dirty = state.home_score !== state.initial_home || state.away_score !== state.initial_away;
+    return dirty ? 'Salvar' : 'Salvo ✓';
+}
+
+function predBtnClass(state) {
+    if (!state || !state.has_prediction) return '';
+    const dirty = state.home_score !== state.initial_home || state.away_score !== state.initial_away;
+    return dirty ? 'mini-save-btn--dirty' : 'mini-save-btn--saved';
 }
 
 async function preloadPredictions(items) {
@@ -400,12 +391,17 @@ async function preloadPredictions(items) {
         try {
             const res = await getPrediction(selectedPoolId.value, m.id);
             const payload = res.data.data ?? {};
-            state.home_score = Number(payload?.prediction?.home_score ?? 0);
-            state.away_score = Number(payload?.prediction?.away_score ?? 0);
+            const pred = payload?.prediction;
+            if (pred != null) {
+                state.home_score    = Number(pred.home_score ?? 0);
+                state.away_score    = Number(pred.away_score ?? 0);
+                state.initial_home  = state.home_score;
+                state.initial_away  = state.away_score;
+                state.has_prediction = true;
+            }
             state.is_locked = Boolean(payload?.lock?.is_locked);
             state.loaded = true;
         } catch {
-            // jogo fora do escopo do bolão ou sem acesso: só não habilita lock info
             state.loaded = true;
         }
     }));
@@ -424,12 +420,12 @@ async function saveMatchPrediction(match) {
     const state = ensurePredictionState(match.id);
     if (state.is_locked) return;
     state.saving = true;
-    state.saved = false;
     state.error = '';
     try {
         await savePrediction(selectedPoolId.value, match.id, state.home_score, state.away_score);
-        state.saved = true;
-        setTimeout(() => { state.saved = false; }, 2000);
+        state.has_prediction = true;
+        state.initial_home   = state.home_score;
+        state.initial_away   = state.away_score;
     } catch (err) {
         const msg = err?.response?.data?.error?.message ?? err?.response?.data?.message ?? 'Não foi possível salvar o palpite.';
         state.error = String(msg);
@@ -447,10 +443,6 @@ onMounted(() => {
     if (statusFilters.some((f) => f.value === persistedStatus)) {
         activeStatus.value = persistedStatus;
     }
-    const persistedCompByMatches = Number(localStorage.getItem(MATCHES_COMP_KEY) ?? 0) || null;
-    const persistedCompByDashboard = Number(localStorage.getItem(DASHBOARD_COMPETITION_ID_KEY) ?? 0) || null;
-    activeComp.value = persistedCompByMatches ?? persistedCompByDashboard;
-
     const persistedPool = Number(localStorage.getItem(DASHBOARD_POOL_ID_KEY) ?? 0) || null;
     selectedPoolId.value = persistedPool;
 
@@ -486,24 +478,11 @@ watch(activeStatus, (value) => {
     localStorage.setItem(MATCHES_STATUS_KEY, String(value ?? ''));
 });
 
-watch(activeComp, (value) => {
-    const normalized = Number(value ?? 0) || 0;
-    if (normalized > 0) {
-        localStorage.setItem(MATCHES_COMP_KEY, String(normalized));
-        const poolForComp = userPools.value.find((p) => Number(p.competition?.id) === normalized);
-        selectedPoolId.value = poolForComp?.id ?? null;
-    } else {
-        localStorage.removeItem(MATCHES_COMP_KEY);
-        selectedPoolId.value = null;
-    }
+watch(() => appStore.selectedCompetitionId, (value) => {
+    const poolForComp = userPools.value.find((p) => Number(p.competition?.id) === Number(value ?? 0));
+    selectedPoolId.value = poolForComp?.id ?? null;
     predictionState.value = {};
     load(1);
-});
-
-watch(competitions, (items) => {
-    if (!activeComp.value) return;
-    const exists = items.some((c) => Number(c.id) === Number(activeComp.value));
-    if (!exists) activeComp.value = null;
 });
 </script>
 
@@ -540,8 +519,18 @@ watch(competitions, (items) => {
     font-size: 11px;
     font-weight: 700;
     padding: 6px 10px;
+    transition: background .15s, border-color .15s, color .15s;
 }
-
+.mini-save-btn--saved {
+    border-color: rgba(52,211,153,.4);
+    color: #34d399;
+    background: rgba(52,211,153,.08);
+}
+.mini-save-btn--dirty {
+    border-color: rgba(245,166,35,.6);
+    color: #f5a623;
+    background: rgba(245,166,35,.1);
+}
 .mini-save-btn:disabled {
     opacity: .45;
 }

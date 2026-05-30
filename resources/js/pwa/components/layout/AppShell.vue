@@ -144,7 +144,7 @@ onMounted(async () => {
     appStore.fetchCompetitions();
 });
 
-const showBack = computed(() => route.name === 'pool-detail' || route.name === 'pool-create' || route.path.includes('/admin/') || route.path.includes('/management/'));
+const showBack = computed(() => ['pool-detail', 'pool-create', 'pool-match-detail', 'match-detail'].includes(route.name) || route.path.includes('/admin/') || route.path.includes('/management/'));
 
 function setTitle(t) { title.value = t; }
 
@@ -274,6 +274,14 @@ function onShellTouchEnd(e) {
     height: 100%;
     cursor: pointer;
     z-index: 2;
+    background: #1e293b;
+    color: #f1f5f9;
+}
+
+.comp-select-native option {
+    background: #1e293b;
+    color: #f1f5f9;
+    font-weight: 600;
 }
 
 .comp-display {

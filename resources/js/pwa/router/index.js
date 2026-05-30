@@ -25,6 +25,7 @@ const routes = [
             { path: 'pools/:id', name: 'pool-detail', component: () => import('../views/PoolDetailView.vue') },
             { path: 'pools/:poolId/matches/:matchId', name: 'pool-match-detail', component: () => import('../views/PoolMatchDetailView.vue') },
             { path: 'matches', name: 'matches', component: () => import('../views/MatchesView.vue') },
+            { path: 'matches/:matchId', name: 'match-detail', component: () => import('../views/PoolMatchDetailView.vue') },
             { path: 'management', name: 'management', component: () => import('../views/ManagementView.vue') },
             { path: 'admin', name: 'admin', component: () => import('../views/AdminView.vue') },
             { path: 'admin/users', name: 'admin-users', component: () => import('../views/admin/AdminUsersView.vue') },

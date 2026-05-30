@@ -48,6 +48,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/dashboard', DashboardController::class);
         Route::get('/matches', [MatchesController::class, 'index']);
         Route::get('/matches/{match}', [MatchesController::class, 'show']);
+        Route::get('/matches/{match}/detail', App\Http\Controllers\Api\V1\Matches\MatchDetailController::class);
         Route::get('/pools', [PoolsController::class, 'index']);
         Route::post('/pools', [PoolsController::class, 'store']);
         Route::get('/pools/{pool}', [PoolsController::class, 'show']);
