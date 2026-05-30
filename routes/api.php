@@ -31,10 +31,16 @@ Route::prefix('v1')->group(function (): void {
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/me', function (Request $request) {
+            $user = $request->user();
             return ApiResponse::success($request, [
-                'id' => $request->user()->id,
-                'name' => $request->user()->name,
-                'email' => $request->user()->email,
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'is_admin' => (bool) $user->is_admin,
+                'is_manager' => $user->poolMemberships()
+                    ->whereIn('role', ['owner', 'manager'])
+                    ->where('status', 'active')
+                    ->exists(),
             ]);
         });
 
@@ -56,6 +62,7 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('/pools/{pool}/members/{member}', [PoolMembersController::class, 'update']);
         Route::delete('/pools/{pool}/members/{member}', [PoolMembersController::class, 'destroy']);
         Route::get('/pools/{pool}/predictions/me', [MyPredictionController::class, 'indexByPool']);
+        Route::get('/pools/{pool}/matches/{match}/predictions', App\Http\Controllers\Api\V1\Pools\PoolMatchPredictionsController::class);
         Route::get('/pools/{pool}/matches/{match}/predictions/me', [MyPredictionController::class, 'show']);
         Route::put('/pools/{pool}/matches/{match}/predictions/me', [MyPredictionController::class, 'update']);
         Route::get('/pools/{pool}/rankings', [PoolRankingsController::class, 'index']);
@@ -63,5 +70,19 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/standings', [StandingsController::class, 'index']);
         Route::get('/notifications', [NotificationsController::class, 'index']);
         Route::patch('/notifications/{id}/read', [NotificationsController::class, 'markAsRead']);
+        Route::post('/notifications/subscriptions', [App\Http\Controllers\Api\V1\Notifications\PushSubscriptionController::class, 'store']);
+        Route::delete('/notifications/subscriptions', [App\Http\Controllers\Api\V1\Notifications\PushSubscriptionController::class, 'destroy']);
+
+        // Admin
+        Route::middleware('can:admin')->prefix('admin')->group(function (): void {
+            Route::get('/users', [App\Http\Controllers\Api\V1\Admin\AdminUserModerationController::class, 'index']);
+            Route::patch('/users/{user}/status', [App\Http\Controllers\Api\V1\Admin\AdminUserModerationController::class, 'updateStatus']);
+            Route::post('/users/{user}/reset-password', [App\Http\Controllers\Api\V1\Admin\AdminUserModerationController::class, 'resetPassword']);
+            Route::delete('/users/{user}', [App\Http\Controllers\Api\V1\Admin\AdminUserModerationController::class, 'destroy']);
+
+            Route::get('/pools', [App\Http\Controllers\Api\V1\Admin\AdminPoolController::class, 'index']);
+            Route::get('/pools/{pool}', [App\Http\Controllers\Api\V1\Admin\AdminPoolController::class, 'show']);
+            Route::patch('/pools/{pool}/status', [App\Http\Controllers\Api\V1\Admin\AdminPoolController::class, 'updateStatus']);
+        });
     });
 });

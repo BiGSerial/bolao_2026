@@ -1,5 +1,5 @@
 <template>
-    <div class="pwa-shell">
+    <div class="pwa-shell" @touchstart="onShellTouchStart" @touchmove="onShellTouchMove" @touchend="onShellTouchEnd">
 
         <!-- Header -->
         <header class="pwa-header">
@@ -15,15 +15,30 @@
                 </button>
                 <template v-else>
                     <img :src="'/favicon.png'" class="h-7 w-7 rounded-lg shrink-0 object-cover" alt="">
-                    <span class="font-bc font-extrabold text-[17px] leading-none text-white">
+                    <span class="font-bc font-extrabold text-[17px] leading-none text-white ml-2 hidden sm:inline">
                         Bolão<span class="text-bolao-accent">VF</span>
                     </span>
                 </template>
             </div>
 
-            <!-- Center: title -->
+            <!-- Center: Competition Switcher (Native feel) -->
             <div class="flex-1 flex justify-center px-2 min-w-0">
-                <p v-if="title" class="font-bold text-sm text-slate-100 truncate text-center leading-snug">
+                <div v-if="!showBack && appStore.competitions.length" class="comp-switcher">
+                    <select 
+                        :value="appStore.selectedCompetitionId" 
+                        @change="appStore.setCompetition(Number($event.target.value))"
+                        class="comp-select-native"
+                    >
+                        <option v-for="c in appStore.competitions" :key="c.id" :value="c.id">
+                            {{ c.name }}
+                        </option>
+                    </select>
+                    <div class="comp-display">
+                        <span class="comp-name truncate">{{ currentCompetitionName }}</span>
+                        <i class="ti ti-chevron-down text-[10px] ml-1 opacity-70"></i>
+                    </div>
+                </div>
+                <p v-else-if="title" class="font-bold text-sm text-slate-100 truncate text-center leading-snug">
                     {{ title }}
                 </p>
             </div>
@@ -31,13 +46,13 @@
             <!-- Right: avatar -->
             <div class="pwa-header-side justify-end">
                 <div
-                    class="bolao-avatar w-8 h-8 text-xs"
+                    class="bolao-avatar w-8 h-8 text-xs cursor-pointer active:scale-95 transition-transform"
                     @click="router.push('/pwa/profile')"
                 >{{ initials }}</div>
             </div>
         </header>
 
-        <!-- Main scrollable area with swipe gesture -->
+        <!-- Main scrollable area -->
         <main
             class="pwa-main"
             ref="mainEl"
@@ -52,7 +67,7 @@
         <!-- Tab bar -->
         <nav class="pwa-tabbar">
             <button
-                v-for="tab in tabs"
+                v-for="tab in visibleTabs"
                 :key="tab.name"
                 class="pwa-tab"
                 :class="{ active: isTabActive(tab) }"
@@ -72,10 +87,12 @@
 import { ref, computed, onMounted } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../../store/auth';
+import { useAppStore } from '../../store/app';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const appStore = useAppStore();
 
 const title = ref('');
 const transitionName = ref('fade-page');
@@ -84,10 +101,23 @@ const tabs = [
     { name: 'dashboard', path: '/pwa/dashboard', label: 'Início',  icon: 'ti-home',          iconFill: 'ti-home' },
     { name: 'matches',   path: '/pwa/matches',   label: 'Jogos',   icon: 'ti-ball-football', iconFill: 'ti-ball-football' },
     { name: 'pools',     path: '/pwa/pools',     label: 'Bolões',  icon: 'ti-trophy',        iconFill: 'ti-trophy' },
+    { name: 'management', path: '/pwa/management', label: 'Gestão', icon: 'ti-layout-dashboard', iconFill: 'ti-layout-dashboard', requiresManager: true },
+    { name: 'admin',      path: '/pwa/admin',      label: 'Admin',  icon: 'ti-shield',        iconFill: 'ti-shield',           requiresAdmin: true },
     { name: 'profile',   path: '/pwa/profile',   label: 'Perfil',  icon: 'ti-user-circle',   iconFill: 'ti-user-circle' },
 ];
 
-const TAB_PATHS = tabs.map(t => t.path);
+const visibleTabs = computed(() => {
+    return tabs.filter(tab => {
+        if (tab.requiresAdmin && !auth.isAdmin) return false;
+        if (tab.requiresManager && !auth.isManager && !auth.isAdmin) return false;
+        return true;
+    });
+});
+
+const currentCompetitionName = computed(() => {
+    const comp = appStore.competitions.find(c => c.id === appStore.selectedCompetitionId);
+    return comp ? comp.name : 'Selecione';
+});
 
 const initials = computed(() => {
     const base =
@@ -108,30 +138,33 @@ onMounted(async () => {
         try {
             await auth.fetchMe();
         } catch {
-            // Ignore: avatar can keep fallback initials when user API is temporarily unavailable.
+            // Ignore
         }
     }
+    appStore.fetchCompetitions();
 });
 
-const showBack = computed(() => route.name === 'pool-detail' || route.name === 'pool-create');
+const showBack = computed(() => route.name === 'pool-detail' || route.name === 'pool-create' || route.path.includes('/admin/') || route.path.includes('/management/'));
 
 function setTitle(t) { title.value = t; }
 
 function isTabActive(tab) {
     if (tab.name === 'pools') return route.path.startsWith('/pwa/pools');
+    if (tab.name === 'management') return route.path.startsWith('/pwa/management');
+    if (tab.name === 'admin') return route.path.startsWith('/pwa/admin');
     return route.path === tab.path;
 }
 
 function currentTabIndex() {
-    for (let i = 0; i < tabs.length; i++) {
-        if (isTabActive(tabs[i])) return i;
+    for (let i = 0; i < visibleTabs.value.length; i++) {
+        if (isTabActive(visibleTabs.value[i])) return i;
     }
     return -1;
 }
 
 function navigateTo(tab) {
     const currIdx = currentTabIndex();
-    const nextIdx = tabs.indexOf(tab);
+    const nextIdx = visibleTabs.value.indexOf(tab);
     if (currIdx !== -1 && nextIdx !== -1) {
         transitionName.value = nextIdx > currIdx ? 'slide-left' : 'slide-right';
     } else {
@@ -145,6 +178,43 @@ function goBack() {
     router.back();
 }
 
+// ── Gesture handling (Swipe to go back/forward or tab switch) ──
+let touchStartX = 0;
+let touchStartY = 0;
+
+function onShellTouchStart(e) {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+}
+
+function onShellTouchMove(e) {
+    // Basic swipe detection could go here if needed for visual feedback
+}
+
+function onShellTouchEnd(e) {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+
+    // Horizontal swipe must be significantly larger than vertical
+    if (Math.abs(dx) > 100 && Math.abs(dy) < 60) {
+        if (dx > 0) {
+            // Swipe right: Go back or previous tab
+            if (showBack.value) {
+                goBack();
+            } else {
+                const currIdx = currentTabIndex();
+                if (currIdx > 0) navigateTo(visibleTabs.value[currIdx - 1]);
+            }
+        } else {
+            // Swipe left: Next tab
+            const currIdx = currentTabIndex();
+            if (currIdx !== -1 && currIdx < visibleTabs.value.length - 1) {
+                navigateTo(visibleTabs.value[currIdx + 1]);
+            }
+        }
+    }
+}
+
 </script>
 
 <style scoped>
@@ -154,6 +224,7 @@ function goBack() {
     height: 100dvh;
     background: #0d0f12;
     overflow: hidden;
+    user-select: none;
 }
 
 .pwa-header {
@@ -172,7 +243,7 @@ function goBack() {
     display: flex;
     align-items: center;
     gap: 6px;
-    min-width: 80px;
+    min-width: 60px;
     flex-shrink: 0;
 }
 
@@ -183,6 +254,43 @@ function goBack() {
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
+    background: #0d0f12;
+}
+
+/* ── Competition Switcher ── */
+.comp-switcher {
+    position: relative;
+    max-width: 180px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.comp-select-native {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    z-index: 2;
+}
+
+.comp-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.05);
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.1);
+    max-width: 100%;
+}
+
+.comp-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #f1f5f9;
 }
 
 /* ── Tab bar ── */
@@ -193,7 +301,7 @@ function goBack() {
     height: calc(68px + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px);
     background: #13161b;
-    border-top: 1px solid rgba(245,166,35,0.45);
+    border-top: 1px solid rgba(245,166,35,0.3);
     flex-shrink: 0;
     z-index: 20;
 }
@@ -204,14 +312,18 @@ function goBack() {
     flex-direction: column;
     align-items: center;
     gap: 4px;
-    padding: 4px 4px 0;
+    padding: 4px 2px 0;
     background: none;
     border: none;
-    color: #4a5568;
+    color: #64748b;
     text-decoration: none;
     cursor: pointer;
-    transition: color 0.15s;
+    transition: color 0.15s, transform 0.1s;
     -webkit-tap-highlight-color: transparent;
+}
+
+.pwa-tab:active {
+    transform: scale(0.92);
 }
 
 .pwa-tab.active { color: #f5a623; }
@@ -228,10 +340,10 @@ function goBack() {
 }
 
 .pwa-tab-label {
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.03em;
     line-height: 1;
 }
 
@@ -246,10 +358,10 @@ function goBack() {
 .slide-left-leave-active,
 .slide-right-enter-active,
 .slide-right-leave-active {
-    transition: opacity 0.22s ease, transform 0.22s ease;
+    transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.slide-left-enter-from  { opacity: 0; transform: translateX(22px); }
-.slide-left-leave-to    { opacity: 0; transform: translateX(-22px); }
-.slide-right-enter-from { opacity: 0; transform: translateX(-22px); }
-.slide-right-leave-to   { opacity: 0; transform: translateX(22px); }
+.slide-left-enter-from  { opacity: 0; transform: translateX(30px); }
+.slide-left-leave-to    { opacity: 0; transform: translateX(-30px); }
+.slide-right-enter-from { opacity: 0; transform: translateX(-30px); }
+.slide-right-leave-to   { opacity: 0; transform: translateX(30px); }
 </style>

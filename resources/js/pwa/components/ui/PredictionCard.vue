@@ -71,19 +71,29 @@
             <!-- LOCKED or FINISHED: read-only -->
             <template v-if="isReadOnly">
                 <div class="pred-readonly">
-                    <div class="flex items-center gap-2">
-                        <i class="ti ti-lock text-xs text-bolao-muted2"></i>
-                        <span class="text-xs text-bolao-muted">Seu palpite:</span>
-                        <template v-if="item.prediction">
-                            <span class="text-sm font-bold text-slate-100">
-                                {{ item.prediction.home_score }} – {{ item.prediction.away_score }}
-                            </span>
-                            <!-- Result chip -->
-                            <span v-if="isFinished && resultClass" :class="resultClass" class="ml-1">
-                                {{ resultLabel }}
-                            </span>
-                        </template>
-                        <span v-else class="text-xs italic text-bolao-muted2">não palpitou</span>
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <i class="ti ti-lock text-xs text-bolao-muted2"></i>
+                            <span class="text-xs text-bolao-muted">Seu palpite:</span>
+                            <template v-if="item.prediction">
+                                <span class="text-sm font-bold text-slate-100">
+                                    {{ item.prediction.home_score }} – {{ item.prediction.away_score }}
+                                </span>
+                                <!-- Result chip -->
+                                <span v-if="isFinished && resultClass" :class="resultClass" class="ml-1">
+                                    {{ resultLabel }}
+                                </span>
+                            </template>
+                            <span v-else class="text-xs italic text-bolao-muted2">não palpitou</span>
+                        </div>
+                        
+                        <router-link 
+                            v-if="isLocked || isFinished || isLive"
+                            :to="`/pwa/pools/${poolId}/matches/${item.match.id}`"
+                            class="text-[10px] font-bold text-bolao-accent uppercase tracking-wider flex items-center gap-1 active:opacity-60"
+                        >
+                            Ver todos <i class="ti ti-chevron-right"></i>
+                        </router-link>
                     </div>
                 </div>
             </template>

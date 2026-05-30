@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../store/auth';
 
-// Eager imports — CSS carrega junto com o bundle principal
+// Eager imports
 import LoginView from '../views/LoginView.vue';
 import AppShell from '../components/layout/AppShell.vue';
 import DashboardView from '../views/DashboardView.vue';
@@ -23,7 +23,13 @@ const routes = [
             { path: 'pools', name: 'pools', component: () => import('../views/PoolsView.vue') },
             { path: 'pools/create', name: 'pool-create', component: () => import('../views/PoolCreateView.vue') },
             { path: 'pools/:id', name: 'pool-detail', component: () => import('../views/PoolDetailView.vue') },
+            { path: 'pools/:poolId/matches/:matchId', name: 'pool-match-detail', component: () => import('../views/PoolMatchDetailView.vue') },
             { path: 'matches', name: 'matches', component: () => import('../views/MatchesView.vue') },
+            { path: 'management', name: 'management', component: () => import('../views/ManagementView.vue') },
+            { path: 'admin', name: 'admin', component: () => import('../views/AdminView.vue') },
+            { path: 'admin/users', name: 'admin-users', component: () => import('../views/admin/AdminUsersView.vue') },
+            { path: 'admin/pools', name: 'admin-pools', component: () => import('../views/admin/AdminPoolsView.vue') },
+            { path: 'admin/sync', name: 'admin-sync', component: () => import('../views/AdminView.vue') }, // Placeholder
             { path: 'profile', name: 'profile', component: () => import('../views/ProfileView.vue') },
         ],
     },

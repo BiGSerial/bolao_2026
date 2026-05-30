@@ -12,7 +12,29 @@
             </div>
         </div>
 
-        <!-- Notifications -->
+        <!-- Push Notifications Setting -->
+        <div class="pwa-section" v-if="push.isSupported">
+            <p class="pwa-section-label">Preferências</p>
+            <div class="flex items-center justify-between pwa-card p-4">
+                <div>
+                    <h3 class="font-bold text-white text-sm">Notificações Push</h3>
+                    <p class="text-xs text-bolao-muted mt-0.5">Receba alertas de jogos e resultados</p>
+                </div>
+                <button 
+                    @click="togglePush" 
+                    :disabled="push.loading.value"
+                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                    :class="push.isSubscribed.value ? 'bg-bolao-accent' : 'bg-bolao-bg4'"
+                >
+                    <span 
+                        class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                        :class="push.isSubscribed.value ? 'translate-x-5' : 'translate-x-0'"
+                    ></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Notifications List -->
         <div class="pwa-section">
             <div class="flex items-center justify-between mb-3">
                 <p class="pwa-section-label mb-0">
@@ -80,12 +102,14 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../store/auth';
+import { usePushNotifications } from '../composables/usePushNotifications';
 import { getNotifications, markAsRead } from '../api/notifications';
 import SkeletonCard from '../components/ui/SkeletonCard.vue';
 import NotificationItem from '../components/ui/NotificationItem.vue';
 
 const emit = defineEmits(['set-title']);
 const auth = useAuthStore();
+const push = usePushNotifications();
 const router = useRouter();
 
 const notifications = ref([]);
@@ -93,6 +117,14 @@ const loadingNotifications = ref(true);
 const loadingMoreNotifs = ref(false);
 const notifPage = ref(1);
 const notifTotalPages = ref(1);
+
+async function togglePush() {
+    if (push.isSubscribed.value) {
+        await push.unsubscribe();
+    } else {
+        await push.subscribe();
+    }
+}
 
 const initials = computed(() => {
     if (!auth.user?.name) return '?';

@@ -19,6 +19,10 @@ class AppServiceProvider extends ServiceProvider
             return new KingHostApiTransport();
         });
 
+        Gate::define('admin', function ($user) {
+            return (bool) $user->is_admin;
+        });
+
         Gate::define('viewHorizon', function ($user) {
             return (bool) $user->is_admin;
         });

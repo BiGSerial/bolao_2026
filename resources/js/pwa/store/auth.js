@@ -8,6 +8,8 @@ export const useAuthStore = defineStore('auth', () => {
     const legalPending = ref(false);
 
     const isAuthenticated = computed(() => !!token.value);
+    const isAdmin = computed(() => !!user.value?.is_admin);
+    const isManager = computed(() => !!user.value?.is_manager);
 
     async function loginUser(loginField, password) {
         const { data: res } = await authApi.login(loginField, password);
@@ -29,5 +31,5 @@ export const useAuthStore = defineStore('auth', () => {
         sessionStorage.removeItem('pwa_token');
     }
 
-    return { token, user, legalPending, isAuthenticated, loginUser, fetchMe, logoutUser };
+    return { token, user, legalPending, isAuthenticated, isAdmin, isManager, loginUser, fetchMe, logoutUser };
 });
