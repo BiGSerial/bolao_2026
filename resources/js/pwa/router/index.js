@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/auth';
 import LoginView from '../views/LoginView.vue';
 import AppShell from '../components/layout/AppShell.vue';
 import DashboardView from '../views/DashboardView.vue';
+import LegalAcceptanceView from '../views/LegalAcceptanceView.vue';
 
 const routes = [
     {
@@ -12,6 +13,12 @@ const routes = [
         name: 'login',
         component: LoginView,
         meta: { guest: true },
+    },
+    {
+        path: '/pwa/legal',
+        name: 'legal-acceptance',
+        component: LegalAcceptanceView,
+        meta: { requiresAuth: true },
     },
     {
         path: '/pwa',
@@ -44,8 +51,14 @@ const router = createRouter({
 
 router.beforeEach((to) => {
     const auth = useAuthStore();
+
     if (to.meta.requiresAuth && !auth.isAuthenticated) return '/pwa/login';
     if (to.meta.guest && auth.isAuthenticated) return '/pwa/dashboard';
+
+    // Gate de aceite legal — bloqueia acesso ao app enquanto houver docs pendentes
+    if (to.meta.requiresAuth && auth.isAuthenticated && auth.legalPending) {
+        if (to.name !== 'legal-acceptance') return '/pwa/legal';
+    }
 });
 
 export default router;

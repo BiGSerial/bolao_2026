@@ -36,6 +36,21 @@ Thumbs.db
 .env.*
 !.env.example
 
+# Override local do Docker Compose (nunca sobe — contém customizações locais)
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# Certificados e chaves SSL
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Artefatos do supervisord em execução
+supervisord.log
+supervisord.pid
+
 # Cache e artefatos de execução
 /bootstrap/cache/*.php
 /storage/logs/*.log

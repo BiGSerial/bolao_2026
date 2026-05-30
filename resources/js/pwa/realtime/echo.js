@@ -19,7 +19,7 @@ export function getPwaEcho() {
         wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
         forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',
         enabledTransports: ['ws', 'wss'],
-        authEndpoint: '/broadcasting/auth',
+        authEndpoint: '/api/broadcasting/auth',
         auth: {
             headers: {
                 Authorization: `Bearer ${token}`,

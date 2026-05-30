@@ -3,6 +3,9 @@
 use App\Models\PoolMember;
 use Illuminate\Support\Facades\Broadcast;
 
+// Aceita autenticação via sessão web (Livewire) e Bearer token (PWA/API).
+Broadcast::routes(['middleware' => ['auth:sanctum']]);
+
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
     return (int) $user->id === (int) $id;
 });

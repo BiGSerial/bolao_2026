@@ -14,7 +14,15 @@ use App\Http\Controllers\Api\V1\Rankings\PoolRankingsController;
 use App\Http\Controllers\Api\V1\Standings\StandingsController;
 use App\Support\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
+
+// Broadcast auth para o PWA (Bearer token, sem CSRF).
+// O Echo do PWA usa authEndpoint: '/broadcasting/auth'.
+// Como o route group de API não tem CSRF, auth:sanctum funciona com Bearer token.
+Route::post('/broadcasting/auth', function () {
+    return Broadcast::auth(request());
+})->middleware('auth:sanctum');
 
 Route::prefix('v1')->group(function (): void {
     Route::get('/health', function () {
@@ -32,19 +40,45 @@ Route::prefix('v1')->group(function (): void {
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/me', function (Request $request) {
             $user = $request->user();
+
+            // Verifica documentos legais pendentes inline para evitar request extra no frontend.
+            $legalPending = false;
+            if (! $user->is_admin) {
+                $required = \App\Models\LegalDocument::query()
+                    ->active()
+                    ->whereIn('type', [\App\Enums\LegalDocumentType::Eula->value, \App\Enums\LegalDocumentType::PrivacyPolicy->value])
+                    ->orderByDesc('published_at')
+                    ->get(['id', 'type'])
+                    ->unique('type');
+
+                if ($required->count() >= 2) {
+                    $acceptedCount = \App\Models\UserLegalAcceptance::query()
+                        ->where('user_id', $user->id)
+                        ->whereIn('legal_document_id', $required->pluck('id'))
+                        ->count();
+                    $legalPending = $acceptedCount < 2;
+                }
+            }
+
             return ApiResponse::success($request, [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'is_admin' => (bool) $user->is_admin,
-                'is_manager' => $user->poolMemberships()
+                'id'                => $user->id,
+                'name'              => $user->name,
+                'email'             => $user->email,
+                'email_verified_at' => $user->email_verified_at?->toIso8601String(),
+                'is_admin'          => (bool) $user->is_admin,
+                'is_manager'        => $user->poolMemberships()
                     ->whereIn('role', ['owner', 'manager'])
                     ->where('status', 'active')
                     ->exists(),
+                'legal_pending'     => $legalPending,
             ]);
         });
 
+        Route::patch('/me', App\Http\Controllers\Api\V1\Me\UpdateProfileController::class);
         Route::get('/me/legal/pending', LegalPendingController::class);
+        Route::post('/me/legal/accept', App\Http\Controllers\Api\V1\Me\AcceptLegalController::class);
+        Route::get('/legal/{type}', App\Http\Controllers\Api\V1\Legal\LegalDocumentApiController::class . '@show');
+        Route::post('/feedback', App\Http\Controllers\Api\V1\Feedback\FeedbackController::class);
         Route::get('/dashboard', DashboardController::class);
         Route::get('/matches', [MatchesController::class, 'index']);
         Route::get('/matches/{match}', [MatchesController::class, 'show']);
