@@ -62,7 +62,14 @@
                 @click="doLogout"
             >
                 <i class="ti ti-logout text-base"></i>
-                Sair da conta
+                Deslogar da conta
+            </button>
+            <button
+                class="flex w-full items-center gap-3 rounded-xl border border-white/[0.10] bg-bolao-bg2 px-4 py-3 text-sm font-semibold text-slate-200 active:bg-bolao-bg3 transition-colors"
+                @click="exitApp"
+            >
+                <i class="ti ti-door-exit text-base"></i>
+                Sair do aplicativo
             </button>
         </div>
 
@@ -127,6 +134,15 @@ async function markRead(id) {
 async function doLogout() {
     await auth.logoutUser();
     router.push('/pwa/login');
+}
+
+async function exitApp() {
+    await auth.logoutUser();
+    if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
+        window.location.replace('/');
+        return;
+    }
+    window.location.href = '/';
 }
 
 onMounted(() => {

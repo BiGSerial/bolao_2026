@@ -3,6 +3,7 @@
 namespace App\Services\Mail;
 
 use App\Models\TransactionalMailLog;
+use App\Models\TransactionalMailMetricSnapshot;
 use Illuminate\Support\Carbon;
 
 class TransactionalMailStatsService
@@ -47,8 +48,45 @@ class TransactionalMailStatsService
             ->whereBetween('created_at', [$todayStart, $todayEnd])
             ->count();
 
+        $todaySnapshot = TransactionalMailMetricSnapshot::query()
+            ->where('provider', $provider)
+            ->where('period_type', 'daily')
+            ->whereDate('reference_date', $todayStart->toDateString())
+            ->latest('synced_at')
+            ->first();
+
+        if ($todaySnapshot) {
+            $sentToday = (int) ($todaySnapshot->messages ?? 0);
+        }
+
+        $monthSnapshots = TransactionalMailMetricSnapshot::query()
+            ->where('provider', $provider)
+            ->where('period_type', 'daily')
+            ->whereBetween('reference_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
+            ->get();
+
+        if ($monthSnapshots->isNotEmpty()) {
+            $sentThisMonth = (int) $monthSnapshots->sum('messages');
+        }
+
         $monthlyLimit = (int) config('services.kinghost_smtp.monthly_limit', 0);
-        $remaining = $monthlyLimit > 0 ? max(0, $monthlyLimit - $sentThisMonth) : null;
+        $latestBalance = TransactionalMailMetricSnapshot::query()
+            ->where('provider', $provider)
+            ->where('period_type', 'monthly_balance')
+            ->latest('reference_date')
+            ->latest('synced_at')
+            ->first();
+
+        if ($latestBalance && is_numeric($latestBalance->total_hired)) {
+            $monthlyLimit = (int) ($latestBalance->total_hired ?? 0);
+        }
+
+        $remaining = null;
+        if ($latestBalance && is_numeric($latestBalance->total_available)) {
+            $remaining = max(0, (int) ($latestBalance->total_available ?? 0));
+        } elseif ($monthlyLimit > 0) {
+            $remaining = max(0, $monthlyLimit - $sentThisMonth);
+        }
 
         return [
             'provider' => $provider,
@@ -61,4 +99,3 @@ class TransactionalMailStatsService
         ];
     }
 }
-

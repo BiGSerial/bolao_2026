@@ -480,33 +480,34 @@
                 <span class="text-xs text-slate-400">Direita: <span class="font-semibold text-slate-200">Rodada {{ $displayRightRound }}</span></span>
                 @endif
 
-                @if(($displayRightCandidates ?? collect())->isNotEmpty() || ($canMoveDisplayPrev ?? false) || ($canMoveDisplayNext ?? false))
-                <div class="flex items-center gap-1.5">
-                    <button type="button"
-                            wire:click="previousDisplayRound"
-                            @disabled(!($canMoveDisplayPrev ?? false))
-                            class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
-                        <i class="ti ti-chevron-left text-sm"></i>
-                    </button>
-                    <button type="button"
-                            wire:click="nextDisplayRound"
-                            @disabled(!($canMoveDisplayNext ?? false))
-                            class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
-                        <i class="ti ti-chevron-right text-sm"></i>
-                    </button>
-                </div>
-                @endif
-
                 <span class="text-xs text-slate-500">{{ $predictedCount }} preenchido(s)</span>
             </div>
         </div>
 
         @forelse($groupedMatches as $group => $matches)
         <div>
-            <div class="flex items-center gap-3 mb-3">
-                <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">{{ $group }}</h2>
-                <div class="flex-1 h-px bg-slate-800"></div>
-                <span class="text-xs text-slate-600">{{ $matches->count() }} jogo{{ $matches->count() > 1 ? 's' : '' }}</span>
+            <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex items-center gap-3 min-w-0">
+                    <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">{{ $group }}</h2>
+                    <div class="flex-1 h-px bg-slate-800"></div>
+                    <span class="text-xs text-slate-600 whitespace-nowrap">{{ $matches->count() }} jogo{{ $matches->count() > 1 ? 's' : '' }}</span>
+                </div>
+                @if(($displayRightCandidates ?? collect())->isNotEmpty() || ($canMoveDisplayPrev ?? false) || ($canMoveDisplayNext ?? false))
+                <div class="flex items-center justify-end gap-1.5">
+                    <button type="button"
+                            wire:click="previousDisplayRound"
+                            @disabled(!($canMoveDisplayPrev ?? false))
+                            class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
+                        <i class="ti ti-chevron-left text-sm"></i>
+                    </button>
+                    <button type="button"
+                            wire:click="nextDisplayRound"
+                            @disabled(!($canMoveDisplayNext ?? false))
+                            class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 hover:text-slate-100">
+                        <i class="ti ti-chevron-right text-sm"></i>
+                    </button>
+                </div>
+                @endif
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -823,6 +824,7 @@
             <p class="text-slate-500">Nenhum jogo disponível para esta fase.</p>
         </div>
         @endforelse
+
     </div>
     </div>
     @endif

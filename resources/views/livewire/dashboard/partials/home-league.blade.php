@@ -229,9 +229,11 @@
             <div x-data="{
                     h: {{ (int) ($heroPrediction?->home_score ?? 0) }},
                     a: {{ (int) ($heroPrediction?->away_score ?? 0) }},
-                    saved: {{ $heroPrediction ? 'true' : 'false' }},
+                    lastSavedH: {{ (int) ($heroPrediction?->home_score ?? 0) }},
+                    lastSavedA: {{ (int) ($heroPrediction?->away_score ?? 0) }},
                     saving: false,
                     errorMsg: '',
+                    get saved() { return this.h === this.lastSavedH && this.a === this.lastSavedA; },
                     async save() {
                         this.saving = true;
                         this.errorMsg = '';
@@ -250,7 +252,8 @@
                         try {
                             const r = await this.$wire.saveHeroPrediction({{ $heroMatch->id }}, home, away);
                             if (r?.ok) {
-                                this.saved = true;
+                                this.lastSavedH = home;
+                                this.lastSavedA = away;
                             } else {
                                 this.errorMsg = r?.msg || 'Erro ao salvar.';
                             }
@@ -270,10 +273,10 @@
                     <p x-show="errorMsg" class="text-[10px] text-bolao-red mt-0.5" x-text="errorMsg"></p>
                 </div>
                 <div class="flex items-center gap-2">
-                    <input x-model.number="h" @input="saved=false" type="number" min="0" max="20"
+                    <input x-model.number="h" type="number" min="0" max="20"
                            class="w-11 h-11 bg-bolao-bg4 border border-white/[0.07] rounded-lg text-center font-bc font-bold text-xl text-white focus:border-bolao-accent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
                     <span class="font-bc font-bold text-lg text-bolao-muted2">×</span>
-                    <input x-model.number="a" @input="saved=false" type="number" min="0" max="20"
+                    <input x-model.number="a" type="number" min="0" max="20"
                            class="w-11 h-11 bg-bolao-bg4 border border-white/[0.07] rounded-lg text-center font-bc font-bold text-xl text-white focus:border-bolao-accent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
                 </div>
                 <button @click="save()" :disabled="saving"

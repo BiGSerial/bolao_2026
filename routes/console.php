@@ -8,6 +8,11 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('horizon:snapshot')->everyFiveMinutes();
+Schedule::command('mail:stats:sync')
+    ->timezone('America/Sao_Paulo')
+    ->hourly()
+    ->name('mail:stats:hourly-sync')
+    ->withoutOverlapping(55);
 Schedule::command('sports:consolidate-daily-results --timezone=America/Sao_Paulo')
     ->timezone('America/Sao_Paulo')
     ->dailyAt('23:59')

@@ -76,6 +76,7 @@ class PoolShow extends Component
 
         try {
             $service->save($this->pool, $match, Auth::user(), $home, $away);
+            $this->scores[$matchId] = ['home' => $home, 'away' => $away];
             $this->dispatch('prediction-saved', matchId: $matchId);
         } catch (DomainException $e) {
             $this->addError('scores.'.$matchId, $e->getMessage());
@@ -133,19 +134,20 @@ class PoolShow extends Component
         $viewer = Auth::user();
         $this->assertMember();
 
+        $sourceMatchIds = $this->resolveReplicationSourceMatchIds();
+        if (empty($sourceMatchIds)) {
+            session()->flash('status', 'Nenhum jogo da tabela atual está disponível para replicação.');
+            return;
+        }
+
         $sourcePredictions = Prediction::query()
             ->where('pool_id', $this->pool->id)
             ->where('user_id', (int) $viewer->id)
-            ->where('eligible', true)
+            ->whereIn('football_match_id', $sourceMatchIds)
             ->get();
 
-        $bulkMatchIds = $this->resolveBulkMatchIds();
-        if ($bulkMatchIds !== null) {
-            $sourcePredictions = $sourcePredictions->whereIn('football_match_id', $bulkMatchIds)->values();
-        }
-
         if ($sourcePredictions->isEmpty()) {
-            session()->flash('status', 'Nenhum palpite elegível encontrado para replicar neste bolão.');
+            session()->flash('status', 'Nenhum palpite preenchido foi encontrado na tabela atual para replicação.');
             return;
         }
 
@@ -199,8 +201,8 @@ class PoolShow extends Component
             return;
         }
 
-        $scopeLabel = $this->bulkDelimiterLabel();
-        $scopeLabel = $scopeLabel ? " ({$scopeLabel})" : '';
+        $scopeLabel = $this->replicationSourceLabel();
+        $scopeLabel = $scopeLabel !== '' ? " ({$scopeLabel})" : '';
         session()->flash('status', "Replicação concluída{$scopeLabel}: {$replicated} palpite(s) replicado(s) e {$skipped} ignorado(s) por regra de bolão.");
     }
 
@@ -905,6 +907,55 @@ class PoolShow extends Component
         $this->applyBulkDelimiterToMatchQuery($query);
 
         return $query->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+    }
+
+    private function resolveReplicationSourceMatchIds(): array
+    {
+        $matches = FootballMatch::query()
+            ->where('competition_id', $this->pool->competition_id)
+            ->where('competition_season_id', $this->pool->competition_season_id)
+            ->where('stage', $this->pool->stage)
+            ->orderBy('utc_date')
+            ->get();
+
+        $displayRounds = $this->resolveDisplayRounds($matches);
+        $leftRound = $this->ensureFixedLeftRound($displayRounds, $this->resolveCurrentMatchday($matches));
+        $rightRound = $this->resolveRightRound($displayRounds, $leftRound);
+        $roundWindow = collect([$leftRound, $rightRound])->filter(fn ($round) => $round !== null)->values();
+
+        $filtered = $matches->filter(function (FootballMatch $match) use ($roundWindow) {
+            if ($roundWindow->isEmpty()) {
+                return true;
+            }
+
+            return $match->matchday !== null && $roundWindow->contains((int) $match->matchday);
+        });
+
+        return $filtered->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+    }
+
+    private function replicationSourceLabel(): string
+    {
+        $matches = FootballMatch::query()
+            ->where('competition_id', $this->pool->competition_id)
+            ->where('competition_season_id', $this->pool->competition_season_id)
+            ->where('stage', $this->pool->stage)
+            ->orderBy('utc_date')
+            ->get();
+
+        $displayRounds = $this->resolveDisplayRounds($matches);
+        $leftRound = $this->ensureFixedLeftRound($displayRounds, $this->resolveCurrentMatchday($matches));
+        $rightRound = $this->resolveRightRound($displayRounds, $leftRound);
+
+        if ($leftRound === null) {
+            return '';
+        }
+
+        if ($rightRound === null) {
+            return 'rodada '.$leftRound;
+        }
+
+        return 'rodadas '.$leftRound.' e '.$rightRound;
     }
 
     private function bulkDelimiterLabel(): ?string
