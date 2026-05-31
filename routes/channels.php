@@ -18,3 +18,11 @@ Broadcast::channel('pool.{poolId}', function ($user, $poolId) {
         ->where('status', 'active')
         ->exists();
 });
+
+Broadcast::channel('pool-chat.{poolId}', function ($user, $poolId) {
+    return PoolMember::query()
+        ->where('pool_id', $poolId)
+        ->where('user_id', $user->id)
+        ->whereIn('status', ['active', 'pending'])
+        ->exists();
+});

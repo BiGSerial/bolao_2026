@@ -78,7 +78,8 @@ class AdminUserModerationController extends Controller
         return ApiResponse::success($request, [
             'id' => $user->id,
             'status' => $user->status,
-        ], "Status do usuário {$user->name} atualizado para {$user->status}.");
+            'message' => "Status do usuário {$user->name} atualizado para {$user->status}.",
+        ]);
     }
 
     public function resetPassword(Request $request, User $user): JsonResponse
@@ -93,7 +94,8 @@ class AdminUserModerationController extends Controller
 
         return ApiResponse::success($request, [
             'temp_password' => $tempPassword,
-        ], "Nova senha temporária gerada para {$user->name}.");
+            'message' => "Nova senha temporária gerada para {$user->name}.",
+        ]);
     }
 
     public function destroy(Request $request, User $user): JsonResponse
@@ -104,6 +106,9 @@ class AdminUserModerationController extends Controller
         $name = $user->name;
         $user->delete();
 
-        return ApiResponse::success($request, null, "Usuário {$name} removido permanentemente.");
+        return ApiResponse::success($request, [
+            'deleted' => true,
+            'message' => "Usuário {$name} removido permanentemente.",
+        ]);
     }
 }

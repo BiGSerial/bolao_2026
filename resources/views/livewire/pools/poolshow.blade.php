@@ -6,7 +6,7 @@
          swipe() {
              const diff = this.touchStartX - this.touchEndX;
              if (Math.abs(diff) < 50) return;
-             const tabs = ['jogos', 'ranking', 'resumo'];
+             const tabs = ['jogos', 'ranking', 'chat', 'resumo'];
              const i = tabs.indexOf($wire.activeTab);
              if (diff > 0 && i < tabs.length - 1) $wire.setTab(tabs[i + 1]);
              else if (diff < 0 && i > 0) $wire.setTab(tabs[i - 1]);
@@ -29,6 +29,7 @@
         $competitionCode = strtoupper((string) request()->query('competition', session('competition', config('football-data.default_competition_code', 'WC'))));
         $tabLabel = match($activeTab) {
             'ranking' => 'Ranking',
+            'chat' => 'Chat',
             'resumo' => 'Resumo',
             default => 'Jogos',
         };
@@ -56,6 +57,11 @@
                     wire:click="setTab('ranking')"
                     class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'ranking' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
                 Ranking
+            </button>
+            <button type="button"
+                    wire:click="setTab('chat')"
+                    class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'chat' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
+                Chat
             </button>
             <button type="button"
                     wire:click="setTab('resumo')"
@@ -1110,4 +1116,309 @@
     </div>
     @endif
 
+    {{-- Tab: Chat --}}
+    @if($activeTab === 'chat')
+    <div class="p-4 sm:p-6 lg:p-8">
+        <div class="mx-auto w-full max-w-4xl"
+             x-data="poolChatWidget({
+                poolId: {{ (int) $pool->id }},
+                userId: {{ (int) auth()->id() }},
+                userName: @js(auth()->user()?->public_name ?? 'Você')
+             })"
+             x-init="init()">
+            <div class="card p-4">
+                <div class="mb-3 flex items-center justify-between gap-2">
+                    <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Chat do bolão</h2>
+                    <button type="button" class="text-xs text-amber-300 hover:text-amber-200" @click="loadMessages()">Atualizar</button>
+                </div>
+
+                <div class="rounded-xl border border-white/10 bg-slate-950/40 h-[52vh] overflow-y-auto p-3 space-y-2" x-ref="list">
+                    <template x-if="loading">
+                        <p class="text-xs text-slate-500">Carregando mensagens...</p>
+                    </template>
+
+                    <template x-if="!loading && messages.length === 0">
+                        <p class="text-xs text-slate-500">Sem mensagens ainda. Inicie a conversa.</p>
+                    </template>
+
+                    <template x-for="item in messages" :key="item.id">
+                        <div class="flex" :class="item.user?.id === userId ? 'justify-end' : 'justify-start'">
+                            <div class="max-w-[80%] rounded-2xl px-3 py-2 border"
+                                 :class="item.user?.id === userId ? 'bg-amber-500/12 border-amber-500/25' : 'bg-slate-900/70 border-white/10'">
+                                <p class="text-[10px] mb-1 text-slate-400" x-text="item.user?.name || '—'"></p>
+
+                                <template x-if="item.reply_to">
+                                    <div class="rounded-lg border border-white/10 bg-black/20 px-2 py-1 mb-1.5">
+                                        <p class="text-[10px] text-slate-500" x-text="'Respondendo ' + (item.reply_to.user_name || '—')"></p>
+                                        <p class="text-[11px] text-slate-300 truncate" x-text="item.reply_to.body"></p>
+                                    </div>
+                                </template>
+
+                                <p class="text-sm text-slate-100 whitespace-pre-wrap break-words" x-text="item.body"></p>
+                                <div class="mt-1 flex items-center justify-between gap-2">
+                                    <p class="text-[10px] text-slate-500" x-text="formatTime(item.created_at)"></p>
+                                    <div class="flex items-center gap-2">
+                                        <span x-show="item.user?.id === userId"
+                                              class="text-[10px]"
+                                              :class="readState(item.id) === 'Lido' ? 'text-emerald-300' : 'text-slate-500'"
+                                              x-text="readState(item.id)"></span>
+                                        <button type="button" class="text-[11px] text-slate-400 hover:text-slate-200" @click="replyTo = item">Responder</button>
+                                    </div>
+                                </div>
+
+                                <div class="mt-1 flex flex-wrap gap-1">
+                                    <template x-for="reaction in (item.reactions || [])" :key="`${item.id}-${reaction.emoji}`">
+                                        <button type="button"
+                                                class="text-[11px] rounded-full px-2 py-0.5 border"
+                                                :class="(reaction.user_ids || []).includes(userId) ? 'border-amber-400/40 text-amber-300' : 'border-white/15 text-slate-300'"
+                                                @click="toggleReaction(item.id, reaction.emoji)"
+                                                x-text="reaction.emoji + ' ' + reaction.count">
+                                        </button>
+                                    </template>
+                                    <button type="button" class="text-[11px] text-slate-400 hover:text-slate-200" @click="toggleReaction(item.id, '👍')">👍</button>
+                                    <button type="button" class="text-[11px] text-slate-400 hover:text-slate-200" @click="toggleReaction(item.id, '🔥')">🔥</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <template x-if="typingNames.length">
+                    <p class="mt-2 text-xs text-slate-500" x-text="typingNames.join(', ') + ' digitando...'"></p>
+                </template>
+
+                <template x-if="replyTo">
+                    <div class="mt-3 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2">
+                        <p class="text-[10px] text-slate-500" x-text="'Respondendo ' + (replyTo.user?.name || '—')"></p>
+                        <p class="text-[11px] text-slate-300 truncate" x-text="replyTo.body"></p>
+                        <button type="button" class="mt-1 text-[11px] text-slate-400 hover:text-slate-200" @click="replyTo = null">Cancelar</button>
+                    </div>
+                </template>
+
+                <template x-if="mentionSuggestions().length">
+                    <div class="mt-3 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2">
+                        <p class="text-[10px] text-slate-500 mb-1">Mencionar</p>
+                        <div class="flex flex-wrap gap-1.5">
+                            <template x-for="user in mentionSuggestions()" :key="user.id">
+                                <button type="button"
+                                        class="text-[11px] rounded-full border border-white/15 px-2 py-0.5 text-slate-200"
+                                        @click="applyMention(user)"
+                                        x-text="'@' + user.name"></button>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <div class="mt-3 flex items-center gap-2">
+                    <input
+                        x-model="draft"
+                        type="text"
+                        maxlength="2000"
+                        class="chat-input-web flex-1"
+                        placeholder="Digite uma mensagem"
+                        @input="touchTyping()"
+                        @keydown.enter.prevent="sendMessage()"
+                    >
+                    <button type="button" class="btn-primary !px-4 !py-2" :disabled="sending || !draft.trim()" @click="sendMessage()">
+                        Enviar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
 </div>
+
+@once
+<script>
+    function poolChatWidget({ poolId, userId, userName }) {
+        return {
+            poolId,
+            userId,
+            userName,
+            loading: true,
+            sending: false,
+            draft: '',
+            replyTo: null,
+            messages: [],
+            typingUsers: {},
+            participants: [],
+            readsMap: {},
+            typingTimeout: null,
+            channel: null,
+
+            get typingNames() {
+                return Object.values(this.typingUsers);
+            },
+
+            async init() {
+                await Promise.all([this.loadMessages(), this.loadParticipants()]);
+                this.bindRealtime();
+            },
+
+            async loadMessages() {
+                this.loading = true;
+                try {
+                    const res = await window.axios.get(`/api/v1/pools/${this.poolId}/chat/messages`);
+                    this.messages = Array.isArray(res?.data?.data?.items) ? res.data.data.items : [];
+                    this.readsMap = (res?.data?.data?.reads_map && typeof res.data.data.reads_map === 'object')
+                        ? res.data.data.reads_map
+                        : {};
+                    this.$nextTick(() => this.scrollBottom());
+                    await this.markRead();
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async loadParticipants() {
+                try {
+                    const res = await window.axios.get(`/api/v1/pools/${this.poolId}/chat/participants`);
+                    this.participants = Array.isArray(res?.data?.data?.items) ? res.data.data.items : [];
+                } catch (_) {
+                    this.participants = [];
+                }
+            },
+
+            bindRealtime() {
+                if (!window.Echo) return;
+                this.channel = window.Echo.private(`pool-chat.${this.poolId}`)
+                    .listen('.PoolChatMessageCreated', async (payload) => {
+                        const msg = payload?.message;
+                        if (!msg) return;
+                        if (!this.messages.some((m) => Number(m.id) === Number(msg.id))) {
+                            this.messages.push(msg);
+                        }
+                        this.$nextTick(() => this.scrollBottom());
+                        await this.markRead();
+                    })
+                    .listen('.PoolChatReactionChanged', (payload) => {
+                        const id = Number(payload?.message_id || 0);
+                        const idx = this.messages.findIndex((m) => Number(m.id) === id);
+                        if (idx >= 0) this.messages[idx].reactions = Array.isArray(payload?.reactions) ? payload.reactions : [];
+                    })
+                    .listen('.PoolChatTypingChanged', (payload) => {
+                        const uid = Number(payload?.user_id || 0);
+                        if (!uid || uid === this.userId) return;
+                        if (payload?.typing) {
+                            this.typingUsers[uid] = payload?.user_name || 'Alguém';
+                            setTimeout(() => {
+                                delete this.typingUsers[uid];
+                            }, 5000);
+                        } else {
+                            delete this.typingUsers[uid];
+                        }
+                    })
+                    .listen('.PoolChatReadUpdated', (payload) => {
+                        const uid = Number(payload?.user_id || 0);
+                        const last = Number(payload?.last_read_message_id || 0);
+                        if (!uid || !last) return;
+                        this.readsMap[uid] = last;
+                    });
+            },
+
+            async sendMessage() {
+                const body = String(this.draft || '').trim();
+                if (!body || this.sending) return;
+                this.sending = true;
+                try {
+                    const payload = { body };
+                    if (this.replyTo?.id) payload.reply_to_message_id = this.replyTo.id;
+                    const res = await window.axios.post(`/api/v1/pools/${this.poolId}/chat/messages`, payload);
+                    const created = res?.data?.data?.message;
+                    if (created?.id && !this.messages.some((m) => Number(m.id) === Number(created.id))) {
+                        this.messages.push(created);
+                        this.$nextTick(() => this.scrollBottom());
+                    }
+                    this.draft = '';
+                    this.replyTo = null;
+                    await this.setTyping(false);
+                } finally {
+                    this.sending = false;
+                }
+            },
+
+            async toggleReaction(messageId, emoji) {
+                await window.axios.post(`/api/v1/pools/${this.poolId}/chat/messages/${messageId}/reactions`, { emoji });
+            },
+
+            touchTyping() {
+                this.setTyping(true);
+                if (this.typingTimeout) clearTimeout(this.typingTimeout);
+                this.typingTimeout = setTimeout(() => this.setTyping(false), 1500);
+            },
+
+            mentionSuggestions() {
+                const match = String(this.draft || '').match(/(?:^|\\s)@([\\p{L}0-9_\\-.]{1,40})$/u);
+                if (!match) return [];
+                const term = String(match[1] || '').toLowerCase();
+                if (!term) return [];
+                return (this.participants || [])
+                    .filter((p) => Number(p.id) !== Number(this.userId))
+                    .filter((p) => String(p.name || '').toLowerCase().includes(term))
+                    .slice(0, 6);
+            },
+
+            applyMention(user) {
+                const mention = `@${user.name}`;
+                this.draft = String(this.draft || '').replace(/(?:^|\\s)@[\\p{L}0-9_\\-.]{1,40}$/u, (m) => `${m.startsWith(' ') ? ' ' : ''}${mention} `);
+            },
+
+            readState(messageId) {
+                const ownId = Number(this.userId || 0);
+                const readValues = Object.entries(this.readsMap || {})
+                    .filter(([uid]) => Number(uid) !== ownId)
+                    .map(([, last]) => Number(last || 0));
+                const anyRead = readValues.some((last) => last >= Number(messageId || 0));
+                return anyRead ? 'Lido' : 'Enviado';
+            },
+
+            async setTyping(typing) {
+                try {
+                    await window.axios.post(`/api/v1/pools/${this.poolId}/chat/typing`, { typing: !!typing });
+                } catch (_) {}
+            },
+
+            async markRead() {
+                const lastId = this.messages.length ? this.messages[this.messages.length - 1].id : null;
+                if (!lastId) return;
+                try {
+                    await window.axios.post(`/api/v1/pools/${this.poolId}/chat/read`, { last_read_message_id: lastId });
+                } catch (_) {}
+            },
+
+            formatTime(iso) {
+                if (!iso) return '—';
+                const d = new Date(iso);
+                if (Number.isNaN(d.getTime())) return '—';
+                return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            },
+
+            scrollBottom() {
+                const el = this.$refs.list;
+                if (!el) return;
+                el.scrollTop = el.scrollHeight;
+            },
+        };
+    }
+</script>
+<style>
+    .chat-input-web {
+        width: 100%;
+        min-height: 44px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: #0f172a;
+        color: #e5e7eb;
+        padding: 0 12px;
+        font-size: 14px;
+    }
+    .chat-input-web::placeholder { color: #8fa0b8; }
+    .chat-input-web:focus {
+        outline: none;
+        border-color: rgba(245, 166, 35, 0.55);
+        box-shadow: 0 0 0 2px rgba(245, 166, 35, 0.18);
+    }
+</style>
+@endonce

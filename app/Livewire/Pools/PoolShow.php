@@ -37,7 +37,7 @@ class PoolShow extends Component
         $this->pool->loadMissing(['competition:id,code', 'season:id,current_matchday']);
         $this->countryNamesByTla = config('country_names.by_tla', []);
         $tab = strtolower((string) request()->query('tab', ''));
-        if (in_array($tab, ['jogos', 'ranking', 'resumo'], true)) {
+        if (in_array($tab, ['jogos', 'ranking', 'chat', 'resumo'], true)) {
             $this->activeTab = $tab;
         }
         $currentMember = $this->assertMember();
