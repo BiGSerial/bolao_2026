@@ -126,8 +126,7 @@ Schedule::call(function (): void {
                 default      => [30, 45, 2, 'scheduled_auto'],
             };
 
-            $shouldUsePaidApi = $hasPreMatch || $hasSoon || $hasLikelyInProgressByKickoffWindow;
-            if ($shouldUsePaidApi && shouldDispatchForWindow("scheduler:af:$code:$season:$stage", $afMin, $afMax)) {
+            if (shouldDispatchForWindow("scheduler:af:$code:$season:$stage", $afMin, $afMax)) {
                 if ($hasLikelyInProgressByKickoffWindow && ! $hasPreMatch && ! $hasSoon) {
                     $syncType = 'kickoff_window_priority';
                     $afLimit  = $detailsLimit;
