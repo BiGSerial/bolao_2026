@@ -65,7 +65,13 @@ class FootballMatch extends Model
 
     public function predictionLockTimeFor(Pool $pool): Carbon
     {
-        return $this->utc_date->copy()->subMinutes($pool->predictionLockMinutes());
+        $utcKickoff = $this->utcDateAsUtc() ?? $this->utc_date?->copy()->utc();
+
+        if (! $utcKickoff) {
+            return now()->utc();
+        }
+
+        return $utcKickoff->subMinutes($pool->predictionLockMinutes());
     }
 
     public function isPredictionLockedFor(Pool $pool): bool
@@ -75,8 +81,8 @@ class FootballMatch extends Model
 
     public function kickoffAtBrazil(): ?Carbon
     {
-        if ($this->utc_date) {
-            return $this->utc_date->copy()->timezone('America/Sao_Paulo');
+        if ($utcKickoff = $this->utcDateAsUtc()) {
+            return $utcKickoff->copy()->timezone('America/Sao_Paulo');
         }
 
         if ($this->local_date) {
@@ -85,5 +91,17 @@ class FootballMatch extends Model
         }
 
         return null;
+    }
+
+    private function utcDateAsUtc(): ?Carbon
+    {
+        $rawUtcDate = $this->getRawOriginal('utc_date');
+        if (! $rawUtcDate) {
+            return null;
+        }
+
+        // utc_date é salvo sem timezone no banco; aqui forçamos interpretação UTC
+        // para evitar deslocamento duplo ao converter para America/Sao_Paulo.
+        return Carbon::parse((string) $rawUtcDate, 'UTC');
     }
 }
