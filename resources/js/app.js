@@ -13,7 +13,6 @@ import '@tabler/icons-webfont/dist/tabler-icons.css';
 import Swal from 'sweetalert2';
 import { marked } from 'marked';
 import Chart from 'chart.js/auto';
-import { registerSW } from 'virtual:pwa-register';
 
 const bolaoSwalDefaults = {
     background: '#13161b',
@@ -51,10 +50,6 @@ const isPwaRoute = (() => {
     const path = window.location.pathname.replace(/\/+$/, '') || '/';
     return path === '/pwa' || path.startsWith('/pwa/');
 })();
-
-if (isPwaRoute) {
-    registerSW({ immediate: true });
-}
 
 const updateConnectionBanner = () => {
     let banner = document.getElementById('connection-status-banner');

@@ -53,10 +53,7 @@
         </header>
 
         <!-- Main scrollable area -->
-        <main
-            class="pwa-main"
-            ref="mainEl"
-        >
+        <main ref="mainEl" class="pwa-main">
             <RouterView v-slot="{ Component }">
                 <Transition :name="transitionName" mode="out-in">
                     <component :is="Component" @set-title="setTitle" />
@@ -84,7 +81,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../../store/auth';
 import { useAppStore } from '../../store/app';
@@ -94,8 +91,14 @@ const router = useRouter();
 const auth = useAuthStore();
 const appStore = useAppStore();
 
-const title = ref('');
+const title        = ref('');
 const transitionName = ref('fade-page');
+const mainEl       = ref(null);
+
+// Reset scroll ao topo em cada troca de rota (evita manter posição antiga)
+watch(() => route.path, () => {
+    if (mainEl.value) mainEl.value.scrollTop = 0;
+});
 
 const tabs = [
     { name: 'dashboard', path: '/pwa/dashboard', label: 'Início',  icon: 'ti-home',          iconFill: 'ti-home' },

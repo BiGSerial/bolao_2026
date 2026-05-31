@@ -31,36 +31,49 @@
                     </span>
                 </p>
 
-                <div v-if="filteredMemberPools.length" class="space-y-2">
+                <div v-if="filteredMemberPools.length" class="space-y-3">
                     <template v-for="group in memberPoolsByComp" :key="group.compName">
                         <p v-if="memberPoolsByComp.length > 1" class="text-[10px] font-bold text-bolao-muted2 uppercase tracking-widest mt-3 mb-1">{{ group.compName }}</p>
-                        <div v-for="pool in group.pools" :key="pool.id" class="pool-card-wrap">
-                            <button class="pool-card w-full text-left" @click="router.push(`/pwa/pools/${pool.id}`)">
-                                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-bolao-accent/10">
-                                    <i class="ti ti-trophy text-bolao-accent text-xl"></i>
+
+                        <div v-for="pool in group.pools" :key="pool.id" class="pool-card-v2">
+
+                            <!-- Main clickable area -->
+                            <button class="pool-card-main" @click="router.push(`/pwa/pools/${pool.id}`)">
+                                <div class="pool-card-icon">
+                                    <i class="ti ti-trophy text-bolao-accent text-2xl"></i>
                                 </div>
                                 <div class="flex-1 min-w-0">
-                                    <p class="text-sm font-bold text-slate-100 truncate">{{ pool.name }}</p>
-                                    <p class="text-[11px] text-bolao-muted truncate mt-0.5">{{ pool.competition?.name }}</p>
+                                    <p class="text-base font-extrabold text-slate-100 truncate leading-tight">{{ pool.name }}</p>
+                                    <p class="text-[12px] text-bolao-muted truncate mt-0.5">{{ pool.competition?.name }}</p>
+                                    <div class="flex items-center gap-2 mt-1.5">
+                                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                              :class="pool.membership?.role === 'owner' ? 'bg-bolao-accent/15 text-bolao-accent' : 'bg-white/[0.07] text-bolao-muted2'">
+                                            {{ roleLabel(pool.membership?.role) }}
+                                        </span>
+                                        <span v-if="pool.membership?.status === 'pending'" class="text-[10px] font-bold text-amber-400 flex items-center gap-0.5">
+                                            <i class="ti ti-clock text-[10px]"></i> pendente
+                                        </span>
+                                    </div>
                                 </div>
-                                <div class="flex flex-col items-end gap-1.5 shrink-0">
-                                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full" :class="pool.membership?.role === 'owner' ? 'bg-bolao-accent/15 text-bolao-accent' : 'bg-white/[0.07] text-bolao-muted2'">
-                                        {{ roleLabel(pool.membership?.role) }}
-                                    </span>
-                                    <span v-if="pool.membership?.status === 'pending'" class="text-[10px] font-bold text-amber-400 flex items-center gap-0.5">
-                                        <i class="ti ti-clock text-[10px]"></i> pendente
-                                    </span>
-                                </div>
-                                <i class="ti ti-chevron-right text-bolao-muted2 text-sm shrink-0"></i>
+                                <i class="ti ti-chevron-right text-bolao-accent/70 text-lg shrink-0"></i>
                             </button>
-                            <button
-                                v-if="canLeave(pool)"
-                                class="leave-btn"
-                                :disabled="leaving === pool.id"
-                                @click="doLeave(pool)"
-                            >
-                                {{ leaving === pool.id ? 'Saindo...' : 'Sair do bolão' }}
-                            </button>
+
+                            <!-- Actions row inside the card -->
+                            <div class="pool-card-actions">
+                                <button v-if="pool.invite_code"
+                                        class="pool-action-btn"
+                                        @click.stop="copyCode(pool)">
+                                    <i class="ti text-[13px]" :class="copiedId === pool.id ? 'ti-check text-emerald-400' : 'ti-copy'"></i>
+                                    <span>{{ copiedId === pool.id ? 'Copiado!' : pool.invite_code }}</span>
+                                </button>
+                                <button v-if="canLeave(pool)"
+                                        class="pool-action-btn pool-action-danger"
+                                        :disabled="leaving === pool.id"
+                                        @click.stop="doLeave(pool)">
+                                    <i class="ti ti-door-exit text-[13px]"></i>
+                                    <span>{{ leaving === pool.id ? 'Saindo...' : 'Sair' }}</span>
+                                </button>
+                            </div>
                         </div>
                     </template>
                 </div>
@@ -70,10 +83,10 @@
                     <p class="text-sm text-bolao-muted">Você não participa de nenhum bolão ainda.</p>
                 </div>
 
-                <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center justify-between gap-2 mt-2">
                     <p class="pwa-section-label m-0">
-                        <i class="ti ti-settings text-bolao-accent"></i>
-                        Configurações
+                        <i class="ti ti-plus-circle text-bolao-accent"></i>
+                        Criar ou entrar
                     </p>
                     <span class="text-[10px] font-bold px-2 py-1 rounded-full border border-bolao-accent/30 text-bolao-accent bg-bolao-accent/10">
                         {{ joinedPools }}/{{ maxPools }} bolões
@@ -159,8 +172,21 @@ const selectedCompetitionCode = ref('');
 const LAST_COMPETITION_CODE_KEY = 'pwa_last_competition_code';
 
 const joinCode = ref('');
+const copiedId = ref(null);
 
 const roleLabel = (role) => ({ owner: 'Dono', manager: 'Gestor', member: 'Membro' }[role] ?? role ?? '');
+
+async function copyCode(pool) {
+    const code = pool.invite_code;
+    if (!code) return;
+    try {
+        await navigator.clipboard.writeText(code);
+    } catch {
+        // fallback: select text
+    }
+    copiedId.value = pool.id;
+    setTimeout(() => { copiedId.value = null; }, 2000);
+}
 
 const memberPoolsByComp = computed(() => {
     if (!filteredMemberPools.value.length) return [];
@@ -296,21 +322,68 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.pool-card-wrap { display: grid; gap: 6px; }
+/* ── Pool card v2 ─────────────────────────────────────── */
+.pool-card-v2 {
+    border-radius: 16px;
+    border: 1px solid rgba(245,166,35,0.18);
+    background: #13161b;
+    overflow: hidden;
+    transition: border-color 0.15s;
+}
+.pool-card-v2:active { border-color: rgba(245,166,35,0.35); }
 
-.pool-card {
+.pool-card-main {
     display: flex;
     align-items: center;
-    gap: 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(255,255,255,0.07);
-    background: #13161b;
-    padding: 12px;
+    gap: 14px;
+    width: 100%;
+    text-align: left;
+    padding: 16px 14px 14px;
+    background: none;
+    border: none;
     cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.12s;
+}
+.pool-card-main:active { background: rgba(255,255,255,0.04); }
+
+.pool-card-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: rgba(245,166,35,0.12);
+    flex-shrink: 0;
+}
+
+.pool-card-actions {
+    display: flex;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.pool-action-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #94a3b8;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
     -webkit-tap-highlight-color: transparent;
 }
-.pool-card:active { background: #1c2029; border-color: rgba(255,255,255,0.12); }
+.pool-action-btn:active { background: rgba(255,255,255,0.04); color: #f1f5f9; }
+.pool-action-btn + .pool-action-btn { border-left: 1px solid rgba(255,255,255,0.06); }
+
+.pool-action-danger { color: #f87171; }
+.pool-action-danger:active { color: #fca5a5; }
 
 .pool-empty {
     border-radius: 12px;

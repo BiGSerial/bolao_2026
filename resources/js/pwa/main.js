@@ -1,6 +1,5 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
-import { registerSW } from 'virtual:pwa-register';
 import App from './App.vue';
 import router from './router';
 
@@ -14,6 +13,7 @@ import './pwa.css';
 
 let appUpdateInProgress = false;
 const BUILD_ID_KEY = 'pwa_build_id';
+let pwaSwRegistration = null;
 
 function showUpdatingBanner() {
     let banner = document.getElementById('pwa-updating-banner');
@@ -39,43 +39,31 @@ function showUpdatingBanner() {
     banner.textContent = 'Atualizando aplicativo...';
 }
 
-async function clearAllCaches() {
-    if (!('caches' in window)) return;
-    const keys = await caches.keys();
-    await Promise.all(keys.map((k) => caches.delete(k)));
+function registerPwaServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    window.addEventListener('load', async () => {
+        try {
+            pwaSwRegistration = await navigator.serviceWorker.register('/sw.js', {
+                scope: '/pwa/',
+            });
+            setInterval(() => {
+                pwaSwRegistration?.update().catch(() => {});
+            }, 60_000);
+        } catch (error) {
+            console.error('[PWA] Erro ao registrar Service Worker:', error);
+        }
+    });
 }
-
-const updateSW = registerSW({
-    immediate: true,
-    onNeedRefresh() {
-        forceAppUpdate();
-    },
-    onRegisteredSW(_, registration) {
-        if (!registration) return;
-        setInterval(() => {
-            registration.update().catch(() => {});
-        }, 60_000);
-    },
-});
 
 async function forceAppUpdate() {
     if (appUpdateInProgress) return;
     appUpdateInProgress = true;
     showUpdatingBanner();
 
-    // Deixa o SW gerenciar o próprio cache (ele apaga versões antigas no activate).
-    // NÃO limpamos manualmente — apagar o precache do novo SW força tudo a vir da
-    // rede e qualquer falha de chunk derruba o app inteiro (incluindo o tabbar).
-    //
-    // updateSW(true) posta SKIP_WAITING e faz reload via controllerchange.
-    // NÃO chamamos window.location.reload() depois — causaria duplo reload
-    // e interromperia o Vue no meio do mount.
     try {
-        await updateSW(true);
-    } catch {
-        // updateSW falhou (ex: sem SW esperando); recarrega como fallback.
-        window.location.reload();
-    }
+        await pwaSwRegistration?.update?.();
+    } catch {}
+    window.location.reload();
 }
 
 async function checkBuildSignature() {
@@ -240,6 +228,7 @@ setInterval(() => {
     checkBuildSignature();
 }, 120_000);
 checkBuildSignature();
+registerPwaServiceWorker();
 
 // Vue app
 const app = createApp(App);

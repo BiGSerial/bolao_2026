@@ -3,7 +3,7 @@
   "short_name": "BolãoVF",
   "description": "Palpites e rankings de bolões de futebol.",
   "start_url": "/pwa/",
-  "scope": "/",
+  "scope": "/pwa/",
   "display": "standalone",
   "background_color": "#0b1017",
   "theme_color": "#0b1017",
