@@ -408,6 +408,11 @@ function bindRealtime() {
             const last = Number(payload?.last_read_message_id || 0);
             if (uid && last) readsMap.value = { ...readsMap.value, [uid]: last };
         });
+
+    // Evita loop ruidoso no console quando backend nega autorização do canal.
+    if (typeof echoChannel?.error === 'function') {
+        echoChannel.error(() => {});
+    }
 }
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────

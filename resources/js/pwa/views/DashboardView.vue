@@ -861,7 +861,9 @@ function startRealtime() {
         .listen('.MatchDetailUpdated', manualRefresh);
 
     const poolId = normalizePoolId(selectedPoolId.value);
-    if (poolId) {
+    const membershipStatus = String(selectedPoolDetail.value?.membership?.status ?? '').toLowerCase();
+    const canSubscribePoolChannel = membershipStatus === 'active';
+    if (poolId && canSubscribePoolChannel) {
         poolChannelKey = `private-pool.${poolId}`;
         echo.private(`pool.${poolId}`).listen('.RankingUpdated', loadPoolData);
     }
