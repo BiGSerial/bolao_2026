@@ -232,6 +232,17 @@ function scrollToBottom() {
     el.scrollTop = el.scrollHeight;
 }
 
+function upsertMessage(message) {
+    const id = Number(message?.id || 0);
+    if (!id) return;
+    const idx = messages.value.findIndex((m) => Number(m?.id || 0) === id);
+    if (idx >= 0) {
+        messages.value[idx] = { ...messages.value[idx], ...message };
+        return;
+    }
+    messages.value.push(message);
+}
+
 // Auto-scroll quando novas mensagens chegam e usuário está no fim
 watch(() => messages.value.length, async () => {
     if (atBottom.value) {
@@ -247,9 +258,21 @@ function updateChatHeight() {
     const el = chatRootEl.value;
     if (!el) return;
     const rect        = el.getBoundingClientRect();
-    const vvHeight    = window.visualViewport?.height ?? window.innerHeight;
-    const tabbarH     = 68;
-    const available   = vvHeight - rect.top - tabbarH;
+    const vv          = window.visualViewport;
+    const viewportH   = vv?.height ?? window.innerHeight;
+    const viewportTop = vv?.offsetTop ?? 0;
+    const keyboardOpen = !!vv && (window.innerHeight - vv.height) > 120;
+
+    const tabbarEl = document.querySelector('.pwa-tabbar');
+    let tabbarH = 0;
+    if (tabbarEl instanceof HTMLElement && !keyboardOpen) {
+        const tabRect = tabbarEl.getBoundingClientRect();
+        if (tabRect.height > 0 && tabRect.top < (viewportTop + viewportH)) {
+            tabbarH = tabRect.height;
+        }
+    }
+
+    const available = (viewportTop + viewportH) - rect.top - tabbarH;
     chatHeight.value  = Math.max(200, available);
 }
 
@@ -278,11 +301,12 @@ async function loadParticipants() {
 async function submit() {
     if (!canSend.value || sending.value) return;
     sending.value = true;
+    let tempId = null;
     try {
         const payload = { body: draft.value.trim() };
         if (replyTo.value?.id) payload.reply_to_message_id = replyTo.value.id;
 
-        const tempId = `tmp_${Date.now()}`;
+        tempId = `tmp_${Date.now()}`;
         messages.value.push({ id: tempId, body: payload.body, created_at: new Date().toISOString(),
             user: { id: Number(props.userId || 0), name: 'Você' },
             reply_to: replyTo.value ? { id: replyTo.value.id, body: replyTo.value.body, user_name: replyTo.value.user?.name } : null,
@@ -296,7 +320,7 @@ async function submit() {
         messages.value = messages.value.filter((m) => m.id !== tempId);
         delete localMessageStates.value[String(tempId)];
         if (created?.id) {
-            messages.value.push(created);
+            upsertMessage(created);
             localMessageStates.value[String(created.id)] = 'sent';
         }
         await nextTick(); scrollToBottom();
@@ -305,7 +329,10 @@ async function submit() {
         await setChatTyping(props.poolId, false).catch(() => {});
     } catch (err) {
         console.error(err);
-        messages.value = messages.value.filter((m) => !String(m.id).startsWith('tmp_'));
+        if (tempId) {
+            messages.value = messages.value.filter((m) => m.id !== tempId);
+            delete localMessageStates.value[String(tempId)];
+        }
     } finally {
         sending.value = false;
     }
@@ -385,7 +412,7 @@ function bindRealtime() {
         .listen('.PoolChatMessageCreated', async (payload) => {
             const msg = payload?.message;
             if (!msg) return;
-            if (!messages.value.some((m) => Number(m.id) === Number(msg.id))) messages.value.push(msg);
+            upsertMessage(msg);
             localMessageStates.value[String(msg.id)] = 'sent';
             if (msg.id) await markChatRead(props.poolId, msg.id).catch(() => {});
         })
