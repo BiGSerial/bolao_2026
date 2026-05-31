@@ -13,7 +13,18 @@ class PushSubscription extends Model
         'public_key',
         'auth_token',
         'content_encoding',
+        'user_agent',
+        'last_used_at',
+        'revoked_at',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'last_used_at' => 'datetime',
+            'revoked_at' => 'datetime',
+        ];
+    }
 
     public function user(): BelongsTo
     {

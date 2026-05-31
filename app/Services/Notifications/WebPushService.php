@@ -27,6 +27,7 @@ class WebPushService
         /** @var Collection<int, PushSubscription> $subscriptions */
         $subscriptions = PushSubscription::query()
             ->whereIn('user_id', $userIds)
+            ->whereNull('revoked_at')
             ->get();
 
         if ($subscriptions->isEmpty()) {
@@ -74,15 +75,22 @@ class WebPushService
         $deleted = 0;
 
         foreach ($webPush->flush() as $report) {
+            $endpoint = $report->getRequest()?->getUri()?->__toString();
             if ($report->isSuccess()) {
                 $sent++;
+                if ($endpoint) {
+                    PushSubscription::query()
+                        ->where('endpoint', $endpoint)
+                        ->update(['last_used_at' => now(), 'revoked_at' => null]);
+                }
                 continue;
             }
 
             $failed++;
-            $endpoint = $report->getRequest()?->getUri()?->__toString();
             if ($endpoint && $report->isSubscriptionExpired()) {
-                $deleted += PushSubscription::query()->where('endpoint', $endpoint)->delete();
+                $deleted += PushSubscription::query()
+                    ->where('endpoint', $endpoint)
+                    ->update(['revoked_at' => now()]);
             }
         }
 
@@ -105,4 +113,3 @@ class WebPushService
             && (string) config('push-notifications.vapid.subject', '') !== '';
     }
 }
-
