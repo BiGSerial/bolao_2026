@@ -1,5 +1,5 @@
 <template>
-    <div class="pwa-shell" @touchstart="onShellTouchStart" @touchmove="onShellTouchMove" @touchend="onShellTouchEnd">
+    <div class="pwa-shell" :class="{ 'keyboard-open': keyboardOpen }" @touchstart="onShellTouchStart" @touchmove="onShellTouchMove" @touchend="onShellTouchEnd">
 
         <!-- Header -->
         <header class="pwa-header">
@@ -81,7 +81,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../../store/auth';
 import { useAppStore } from '../../store/app';
@@ -94,6 +94,8 @@ const appStore = useAppStore();
 const title        = ref('');
 const transitionName = ref('fade-page');
 const mainEl       = ref(null);
+const keyboardOpen = ref(false);
+let removeKeyboardListeners = null;
 
 // Reset scroll ao topo em cada troca de rota (evita manter posição antiga)
 watch(() => route.path, () => {
@@ -145,6 +147,35 @@ onMounted(async () => {
         }
     }
     appStore.fetchCompetitions();
+
+    const updateKeyboardState = () => {
+        if (!window.visualViewport) {
+            keyboardOpen.value = false;
+            return;
+        }
+        const delta = window.innerHeight - window.visualViewport.height;
+        keyboardOpen.value = delta > 120;
+    };
+
+    updateKeyboardState();
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', updateKeyboardState);
+        window.visualViewport.addEventListener('scroll', updateKeyboardState);
+    }
+    window.addEventListener('resize', updateKeyboardState);
+    removeKeyboardListeners = () => {
+        if (window.visualViewport) {
+            window.visualViewport.removeEventListener('resize', updateKeyboardState);
+            window.visualViewport.removeEventListener('scroll', updateKeyboardState);
+        }
+        window.removeEventListener('resize', updateKeyboardState);
+    };
+});
+
+onBeforeUnmount(() => {
+    if (typeof removeKeyboardListeners === 'function') {
+        removeKeyboardListeners();
+    }
 });
 
 const showBack = computed(() => ['pool-detail', 'pool-create', 'pool-match-detail', 'match-detail'].includes(route.name) || route.path.includes('/admin/') || route.path.includes('/management/'));
@@ -315,6 +346,10 @@ function onShellTouchEnd(e) {
     border-top: 1px solid rgba(245,166,35,0.3);
     flex-shrink: 0;
     z-index: 20;
+}
+
+.pwa-shell.keyboard-open .pwa-tabbar {
+    display: none;
 }
 
 .pwa-tab {

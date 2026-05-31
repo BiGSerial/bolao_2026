@@ -7,7 +7,10 @@ use App\Events\MatchDetailUpdated;
 use App\Models\FootballMatch;
 use App\Models\FootballMatchDetail;
 use App\Models\MatchProviderRef;
+use App\Models\PoolMember;
+use App\Models\Prediction;
 use App\Models\TeamProviderRef;
+use App\Jobs\SendWebPushToUsersJob;
 use App\Services\Api\Connectors\ApiFootballConnector;
 use App\Services\Api\Connectors\FootballDataConnector;
 use App\Services\FootballData\Projections\ApiFootballDetailProjectionService;
@@ -417,6 +420,7 @@ class SyncWorldCupMatchDetailsService
 
         if ($before !== $after) {
             MatchUpdated::dispatch($match);
+            $this->dispatchMatchScorePush($match, $before, $after);
         }
 
         return (string) $match->status === 'FINISHED' && $before !== $after;
@@ -458,6 +462,7 @@ class SyncWorldCupMatchDetailsService
 
         if ($before !== $after) {
             MatchUpdated::dispatch($match);
+            $this->dispatchMatchScorePush($match, $before, $after);
         }
 
         return (string) $match->status === 'FINISHED' && $before !== $after;
@@ -518,6 +523,75 @@ class SyncWorldCupMatchDetailsService
                 ['team_id' => (int) $match->away_team_id]
             );
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $before
+     * @param  array<string, mixed>  $after
+     */
+    private function dispatchMatchScorePush(FootballMatch $match, array $before, array $after): void
+    {
+        if (! config('push-notifications.match_score_enabled', true)) {
+            return;
+        }
+
+        $beforeHome = (int) ($before['home_score_full_time'] ?? 0);
+        $beforeAway = (int) ($before['away_score_full_time'] ?? 0);
+        $afterHome = (int) ($after['home_score_full_time'] ?? 0);
+        $afterAway = (int) ($after['away_score_full_time'] ?? 0);
+        $statusChanged = (string) ($before['status'] ?? '') !== (string) ($after['status'] ?? '');
+        $scoreChanged = $beforeHome !== $afterHome || $beforeAway !== $afterAway;
+
+        if (! $scoreChanged && ! $statusChanged) {
+            return;
+        }
+
+        $poolIds = Prediction::query()
+            ->where('football_match_id', (int) $match->id)
+            ->distinct()
+            ->pluck('pool_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->values()
+            ->all();
+
+        if ($poolIds === []) {
+            return;
+        }
+
+        $userIds = PoolMember::query()
+            ->whereIn('pool_id', $poolIds)
+            ->where('status', 'active')
+            ->distinct()
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->values()
+            ->all();
+
+        if ($userIds === []) {
+            return;
+        }
+
+        $home = (string) ($match->homeTeam?->short_name ?: $match->homeTeam?->name ?: 'Casa');
+        $away = (string) ($match->awayTeam?->short_name ?: $match->awayTeam?->name ?: 'Visitante');
+        $body = "{$home} {$afterHome} x {$afterAway} {$away}";
+        if ((string) $match->status === 'FINISHED') {
+            $body .= ' (Final)';
+        }
+
+        SendWebPushToUsersJob::dispatch(
+            userIds: $userIds,
+            payload: [
+                'title' => $scoreChanged ? 'Atualizacao de placar' : 'Atualizacao de partida',
+                'body' => $body,
+                'url' => "/pwa/matches/{$match->id}",
+                'tag' => "bolao-gol-{$match->id}",
+                'renotify' => true,
+            ],
+            dedupeKey: "match_score:{$match->id}:{$afterHome}:{$afterAway}:{$match->status}",
+            dedupeSeconds: 30,
+        )->onQueue((string) config('queue.connections.redis.queue', 'default'));
     }
 
     private function mergePayloads(array $footballDataPayload, ?array $apiFootballPayload): array

@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api\V1\Pools;
 
 use App\Enums\PoolMemberRole;
 use App\Enums\PoolMemberStatus;
+use App\Events\PoolJoinRequestCreated;
 use App\Http\Controllers\Controller;
+use App\Jobs\SendWebPushToUsersJob;
 use App\Models\Pool;
 use App\Models\PoolInvite;
 use App\Models\PoolMember;
@@ -79,6 +81,7 @@ class PoolMembershipActionsController extends Controller
                 'status' => PoolMemberStatus::Pending->value,
             ]);
         }
+        $this->notifyManagersAboutJoinRequest($pool, $user->public_name);
 
         return ApiResponse::success($request, [
             'pool_id' => $pool->id,
@@ -269,6 +272,7 @@ class PoolMembershipActionsController extends Controller
                 'status' => PoolMemberStatus::Pending->value,
             ]);
         }
+        $this->notifyManagersAboutJoinRequest($pool, $user->public_name);
 
         return ApiResponse::success($request, [
             'pool_id' => $pool->id,
@@ -326,5 +330,41 @@ class PoolMembershipActionsController extends Controller
             ->where('user_id', $userId)
             ->whereIn('role', [PoolMemberRole::Owner->value, PoolMemberRole::Manager->value])
             ->exists();
+    }
+
+    private function notifyManagersAboutJoinRequest(Pool $pool, string $requesterName): void
+    {
+        $pendingCount = (int) $pool->members()->where('status', PoolMemberStatus::Pending->value)->count();
+
+        $managerIds = $pool->members()
+            ->where('status', PoolMemberStatus::Active->value)
+            ->whereIn('role', [PoolMemberRole::Owner->value, PoolMemberRole::Manager->value])
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        foreach ($managerIds as $managerId) {
+            PoolJoinRequestCreated::dispatch($managerId, (int) $pool->id, $pendingCount);
+        }
+
+        if (! config('push-notifications.pool_join_request_enabled', true) || $managerIds === []) {
+            return;
+        }
+
+        SendWebPushToUsersJob::dispatch(
+            userIds: $managerIds,
+            payload: [
+                'title' => 'Nova solicitacao no bolao',
+                'body' => "{$requesterName} solicitou entrada em {$pool->name}.",
+                'url' => "/pwa/management/pools/{$pool->id}",
+                'tag' => "bolao-pool-{$pool->id}",
+                'renotify' => true,
+            ],
+            dedupeKey: "pool_join_request:{$pool->id}:{$pendingCount}",
+            dedupeSeconds: 45,
+        )->onQueue((string) config('queue.connections.redis.queue', 'default'));
     }
 }

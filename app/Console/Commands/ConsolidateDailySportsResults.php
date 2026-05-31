@@ -3,9 +3,11 @@
 namespace App\Console\Commands;
 
 use App\Events\PoolRankingUpdated;
+use App\Jobs\SendWebPushToUsersJob;
 use App\Models\ApiSyncLog;
 use App\Models\FootballMatch;
 use App\Models\Pool;
+use App\Models\PoolRanking;
 use App\Models\Prediction;
 use App\Services\Pools\PoolRankingService;
 use App\Services\Predictions\PredictionScoringService;
@@ -109,15 +111,19 @@ class ConsolidateDailySportsResults extends Command
             ->all();
 
         $recalculatedPools = 0;
+        $recalculatedPoolIds = [];
         Pool::query()
             ->whereIn('id', $poolIds)
-            ->chunkById(100, function ($pools) use ($rankingService, &$recalculatedPools): void {
+            ->chunkById(100, function ($pools) use ($rankingService, &$recalculatedPools, &$recalculatedPoolIds): void {
                 foreach ($pools as $pool) {
                     $rankingService->recalculate($pool);
                     PoolRankingUpdated::dispatch($pool);
                     $recalculatedPools++;
+                    $recalculatedPoolIds[] = (int) $pool->id;
                 }
             });
+
+        $this->dispatchDailyRankingPushes(array_values(array_unique($recalculatedPoolIds)));
 
         $this->info(sprintf(
             'Consolidação concluída. Partidas: %d | Palpites recalculados: %d | Bolões reclassificados: %d | Syncs: %d',
@@ -139,6 +145,44 @@ class ConsolidateDailySportsResults extends Command
         );
 
         return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int>  $poolIds
+     */
+    private function dispatchDailyRankingPushes(array $poolIds): void
+    {
+        if (! config('push-notifications.daily_ranking_enabled', true) || $poolIds === []) {
+            return;
+        }
+
+        PoolRanking::query()
+            ->with(['pool:id,name', 'user:id,display_name,name'])
+            ->whereIn('pool_id', $poolIds)
+            ->orderBy('pool_id')
+            ->orderBy('position')
+            ->chunkById(200, function ($rows): void {
+                foreach ($rows as $row) {
+                    $poolId = (int) $row->pool_id;
+                    $userId = (int) $row->user_id;
+                    $position = (int) $row->position;
+                    $points = (int) $row->points_total;
+                    $poolName = (string) ($row->pool?->name ?? 'Bolao');
+
+                    SendWebPushToUsersJob::dispatch(
+                        userIds: [$userId],
+                        payload: [
+                            'title' => "Resumo do dia - {$poolName}",
+                            'body' => "Sua posicao atual: #{$position} com {$points} pts.",
+                            'url' => "/pwa/pools/{$poolId}",
+                            'tag' => "bolao-pool-{$poolId}",
+                            'renotify' => false,
+                        ],
+                        dedupeKey: 'daily_ranking:'.now('America/Sao_Paulo')->toDateString().":{$poolId}:{$userId}",
+                        dedupeSeconds: 21600,
+                    )->onQueue((string) config('queue.connections.redis.queue', 'default'));
+                }
+            });
     }
 
     private function resolveTargetDate(string $timezone): Carbon

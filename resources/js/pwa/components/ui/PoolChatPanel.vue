@@ -158,6 +158,7 @@ const localMessageStates = ref({});
 const swipeHintMessageId = ref(null);
 const swipeOffsetMap     = ref({});
 const atBottom           = ref(true);  // true = auto-scroll ativado
+const recentSubmitFingerprint = ref({ body: '', at: 0 });
 
 let echoChannel      = null;
 let typingTimer      = null;
@@ -234,12 +235,36 @@ function scrollToBottom() {
 
 function upsertMessage(message) {
     const id = Number(message?.id || 0);
-    if (!id) return;
-    const idx = messages.value.findIndex((m) => Number(m?.id || 0) === id);
+    const incomingBody = String(message?.body ?? '').trim();
+    const incomingUserId = Number(message?.user?.id || 0);
+    const incomingCreatedAt = message?.created_at ? new Date(message.created_at).getTime() : 0;
+    if (!id && !incomingBody) return;
+
+    // 1) Dedupe por ID (caso padrão)
+    const idx = id
+        ? messages.value.findIndex((m) => Number(m?.id || 0) === id)
+        : -1;
     if (idx >= 0) {
         messages.value[idx] = { ...messages.value[idx], ...message };
         return;
     }
+
+    // 2) Dedupe por assinatura (mesmo usuário + mesmo texto + janela curta)
+    // Protege quando API/Echo retornam entidades equivalentes com IDs distintos.
+    const sigIdx = messages.value.findIndex((m) => {
+        const body = String(m?.body ?? '').trim();
+        const userId = Number(m?.user?.id || 0);
+        const createdAt = m?.created_at ? new Date(m.created_at).getTime() : 0;
+        if (!incomingBody || !incomingUserId || !incomingCreatedAt || !createdAt) return false;
+        if (body !== incomingBody || userId !== incomingUserId) return false;
+        return Math.abs(createdAt - incomingCreatedAt) <= 4000;
+    });
+
+    if (sigIdx >= 0) {
+        messages.value[sigIdx] = { ...messages.value[sigIdx], ...message };
+        return;
+    }
+
     messages.value.push(message);
 }
 
@@ -300,11 +325,21 @@ async function loadParticipants() {
 
 async function submit() {
     if (!canSend.value || sending.value) return;
+    const body = draft.value.trim();
+    const nowTs = Date.now();
+    if (
+        recentSubmitFingerprint.value.body === body &&
+        (nowTs - Number(recentSubmitFingerprint.value.at || 0)) < 1200
+    ) {
+        return;
+    }
+
     sending.value = true;
     let tempId = null;
     try {
-        const payload = { body: draft.value.trim() };
+        const payload = { body };
         if (replyTo.value?.id) payload.reply_to_message_id = replyTo.value.id;
+        recentSubmitFingerprint.value = { body, at: nowTs };
 
         tempId = `tmp_${Date.now()}`;
         messages.value.push({ id: tempId, body: payload.body, created_at: new Date().toISOString(),
