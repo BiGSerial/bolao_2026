@@ -5,6 +5,7 @@ use App\Jobs\RunCompetitionSyncJob;
 use App\Models\FootballMatch;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('horizon:snapshot')->everyFiveMinutes();
@@ -45,45 +46,60 @@ Schedule::call(function (): void {
         $code   = (string) $ctx['code'];
         $season = (int)    $ctx['season'];
         $stage  = (string) $ctx['stage'];
+        $now    = now(); // America/Sao_Paulo — corresponde a local_date no banco
 
         $base = FootballMatch::query()
             ->whereHas('competition', fn ($q) => $q->where('code', $code))
             ->whereHas('season',      fn ($q) => $q->where('year', $season));
 
-        // Detecta estado atual da competição
+        // ── Detecção por status ─────────────────────────────────────────────
         $liveCount = (clone $base)
             ->whereIn('status', ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'])
             ->count();
         $hasLive = $liveCount > 0;
 
-        $hasPreMatch = ! $hasLive && (clone $base)
-            ->where('status', 'PRE_MATCH')
+        // ── Detecção temporal (local_date = horário SP no banco) ────────────
+
+        // Partidas que começam nos próximos 15 min (pré-jogo imediato)
+        $hasPreMatchWindow = (clone $base)
+            ->whereNotIn('status', ['FINISHED', 'CANCELLED', 'POSTPONED', 'SUSPENDED'])
+            ->whereBetween('local_date', [$now, $now->copy()->addMinutes(15)])
             ->exists();
 
-        $hasSoon = ! $hasLive && ! $hasPreMatch && (clone $base)
-            ->whereIn('status', ['TIMED', 'SCHEDULED'])
-            ->where('utc_date', '<=', now()->addHour())
+        // Partidas que começam entre 15 min e 60 min (aviso antecipado)
+        $hasSoon = ! $hasLive && ! $hasPreMatchWindow && (clone $base)
+            ->whereNotIn('status', ['FINISHED', 'CANCELLED', 'POSTPONED', 'SUSPENDED'])
+            ->whereBetween('local_date', [$now->copy()->addMinutes(15), $now->copy()->addHour()])
             ->exists();
+
+        // Partidas que já deveriam estar ao vivo pelo horário (kickoff nas últimas 3h)
         $hasLikelyInProgressByKickoffWindow = ! $hasLive && (clone $base)
             ->whereNotIn('status', ['FINISHED', 'POSTPONED', 'CANCELLED', 'SUSPENDED'])
-            ->whereBetween('utc_date', [now()->subHours(4), now()->addHours(2)])
+            ->whereBetween('local_date', [$now->copy()->subHours(3), $now])
+            ->exists();
+
+        // Partidas finalizadas há menos de 30 min (pós-jogo confirmado)
+        $hasPostFinishWindow = (clone $base)
+            ->where('finished_at', '>=', $now->copy()->subMinutes(30))
+            ->exists();
+
+        // Fallback: partidas que provavelmente terminaram mas finished_at ainda é null
+        // (kickoff entre 90 e 210 min atrás, sem status final)
+        $hasPostMatchFallbackWindow = ! $hasPostFinishWindow && (clone $base)
+            ->whereNotIn('status', ['FINISHED', 'CANCELLED', 'POSTPONED', 'SUSPENDED'])
+            ->whereBetween('local_date', [$now->copy()->subMinutes(210), $now->copy()->subMinutes(90)])
             ->exists();
 
         $detailsLimit = max(15, min(60, $liveCount + 6));
 
-        if ($hasLive) {
+        if ($hasLive || $hasLikelyInProgressByKickoffWindow) {
             /*
-             * ── Ao vivo: proporção 2:1 (placar : eventos) ───────────────
+             * ── Ao vivo (status ou janela temporal) ─────────────────────
+             * Ativa mesmo que o provider ainda não tenha marcado IN_PLAY.
              *
-             * live_score_quick (cada 1 min): API paga apenas — sem Football-Data,
-             *   sem detail storage, sem projection. Atualiza placar/status/live_clock
-             *   e dispara MatchUpdated para atualização realtime no cliente.
-             *
-             * live_full_events (cada 2 min): API paga + Football-Data + projection.
-             *   Atualiza eventos, lineups, stats e dispara MatchDetailUpdated.
-             *
-             * Football-Data base (cada 3 min): mantém status/placar em sincronia
-             *   como fallback de status (PAUSED, FINISHED) detectado pela API gratuita.
+             * live_score_quick (cada 1 min): placar/status/live_clock + MatchUpdated
+             * live_full_events (cada 2 min): eventos, lineups, stats + MatchDetailUpdated
+             * fd:live          (cada 3 min): fallback Football-Data para PAUSED/FINISHED
              */
             if (shouldDispatchForWindow("scheduler:af-score:$code:$season:$stage", 1, 1)) {
                 RunCompetitionMatchDetailsSyncJob::dispatch($code, $season, $stage, $detailsLimit, 'live_score_quick');
@@ -93,44 +109,76 @@ Schedule::call(function (): void {
                 RunCompetitionMatchDetailsSyncJob::dispatch($code, $season, $stage, $detailsLimit, 'live_full_events');
             }
 
-            if (shouldDispatchForWindow("scheduler:fd:$code:$season:$stage", 3, 3)) {
+            if (shouldDispatchForWindow("scheduler:fd:$code:$season:$stage:live", 3, 3)) {
                 RunCompetitionSyncJob::dispatch($code, $season, $stage);
             }
         } else {
             /*
-             * ── Football-Data (gratuita · 10 RPM) ───────────────────────
-             * Fora de ao vivo: mantém calendário, status e placares gerais.
+             * ── Fora de ao vivo ──────────────────────────────────────────
+             * Cache key inclui o modo: idle não bloqueia pré-jogo.
+             * Cada modo tem sua própria chave e TTL independente.
              */
-            [$fdMin, $fdMax] = match(true) {
-                $hasPreMatch => [2, 3],
-                $hasSoon     => [2, 4],
-                default      => [7, 10],
+            [$fdMin, $fdMax, $fdMode] = match(true) {
+                $hasPreMatchWindow                                         => [2, 3,  'pre'],
+                $hasSoon                                                   => [2, 4,  'pre'],
+                $hasPostFinishWindow || $hasPostMatchFallbackWindow        => [2, 3,  'post'],
+                default                                                    => [7, 10, 'idle'],
             };
 
-            if (shouldDispatchForWindow("scheduler:fd:$code:$season:$stage", $fdMin, $fdMax)) {
+            if (shouldDispatchForWindow("scheduler:fd:$code:$season:$stage:$fdMode", $fdMin, $fdMax)) {
                 RunCompetitionSyncJob::dispatch($code, $season, $stage);
             }
 
-            /*
-             * ── API-Football (paga · 125 RPM / 7500 por hora) ───────────
-             * Fora de ao vivo: pré-jogo, próximos e janela provável de kickoff.
-             *
-             * Limite por batch:
-             *    8 = pré-jogo (lineups + eventos de aquecimento)
-             *    5 = jogo próximo (prováveis escalações)
-             *    2 = ocioso (backfill de detalhes antigos)
-             */
             [$afMin, $afMax, $afLimit, $syncType] = match(true) {
-                $hasPreMatch => [2, 3,  8, 'pre_live_priority'],
-                $hasSoon     => [3, 5,  5, 'pre_live_priority'],
-                default      => [30, 45, 2, 'scheduled_auto'],
+                $hasPreMatchWindow                                         => [1, 2,   8, 'pre_live_priority'],
+                $hasSoon                                                   => [3, 5,   5, 'pre_live_priority'],
+                $hasPostFinishWindow || $hasPostMatchFallbackWindow        => [2, 3,   5, 'post_match_cleanup'],
+                default                                                    => [30, 45, 2, 'scheduled_auto'],
             };
 
-            if (shouldDispatchForWindow("scheduler:af:$code:$season:$stage", $afMin, $afMax)) {
-                if ($hasLikelyInProgressByKickoffWindow && ! $hasPreMatch && ! $hasSoon) {
-                    $syncType = 'kickoff_window_priority';
-                    $afLimit  = $detailsLimit;
+            $afCacheKey  = "scheduler:af:$code:$season:$stage:$syncType";
+            $stateKey    = "scheduler:decision:$code:$season:$stage";
+            $heartbeatKey = "scheduler:heartbeat:$code:$season:$stage";
+
+            $lastSyncType  = Cache::get($stateKey);
+            $stateChanged  = $lastSyncType !== $syncType;
+            $isActiveMode  = $syncType !== 'scheduled_auto';
+
+            // Registra quando: estado mudou, modo ativo, ou heartbeat idle a cada 15 min
+            $shouldLog = $stateChanged
+                || $isActiveMode
+                || ! Cache::has($heartbeatKey);
+
+            if ($shouldLog) {
+                if ($stateChanged) {
+                    Cache::put($stateKey, $syncType, now()->addDay());
                 }
+                if (! $isActiveMode) {
+                    Cache::put($heartbeatKey, true, now()->addMinutes(15));
+                }
+
+                Log::channel('smart_sync')->info('[smart-sync] decision', [
+                    'code'                               => $code,
+                    'season'                             => $season,
+                    'stage'                              => $stage,
+                    'now'                                => $now->toDateTimeString(),
+                    'hasLive'                            => $hasLive,
+                    'hasPreMatchWindow'                  => $hasPreMatchWindow,
+                    'hasSoon'                            => $hasSoon,
+                    'hasLikelyInProgressByKickoffWindow' => $hasLikelyInProgressByKickoffWindow,
+                    'hasPostFinishWindow'                => $hasPostFinishWindow,
+                    'hasPostMatchFallbackWindow'         => $hasPostMatchFallbackWindow,
+                    'syncType'                           => $syncType,
+                    'afMin'                              => $afMin,
+                    'afMax'                              => $afMax,
+                    'afLimit'                            => $afLimit,
+                    'afCacheKey'                         => $afCacheKey,
+                    'nextDue'                            => Cache::get($afCacheKey)?->toDateTimeString(),
+                    'stateChanged'                       => $stateChanged,
+                ]);
+            }
+
+            if (shouldDispatchForWindow($afCacheKey, $afMin, $afMax)) {
                 RunCompetitionMatchDetailsSyncJob::dispatch($code, $season, $stage, $afLimit, $syncType);
             }
         }

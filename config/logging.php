@@ -127,6 +127,13 @@ return [
             'path' => storage_path('logs/laravel.log'),
         ],
 
+        'smart_sync' => [
+            'driver' => 'daily',
+            'path'   => storage_path('logs/smart-sync.log'),
+            'level'  => 'debug',
+            'days'   => 3,
+        ],
+
     ],
 
 ];
