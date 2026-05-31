@@ -22,43 +22,6 @@
                     </div>
                 </div>
 
-                <div class="flex items-center justify-between gap-2">
-                    <p class="pwa-section-label m-0">
-                        <i class="ti ti-settings text-bolao-accent"></i>
-                        Configurações
-                    </p>
-                    <span class="text-[10px] font-bold px-2 py-1 rounded-full border border-bolao-accent/30 text-bolao-accent bg-bolao-accent/10">
-                        {{ joinedPools }}/{{ maxPools }} bolões
-                    </span>
-                </div>
-
-                <div v-if="feedback" class="rounded-xl px-3 py-2 text-xs font-semibold" :class="feedbackType === 'ok' ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'">
-                    {{ feedback }}
-                </div>
-
-                <div class="config-card space-y-2">
-                    <p class="text-[11px] font-bold text-bolao-muted uppercase tracking-wider">Criar bolão</p>
-                    <button class="pwa-btn-primary w-full" :disabled="!canJoinMore" @click="goToCreatePool">
-                        Criar bolão
-                    </button>
-                </div>
-
-                <div class="config-card space-y-2">
-                    <p class="text-[11px] font-bold text-bolao-muted uppercase tracking-wider">Entrar com código</p>
-                    <input
-                        v-model="joinCode"
-                        class="pwa-input uppercase invite-code-input text-center"
-                        :class="{ filled: joinCode.trim().length > 0 }"
-                        placeholder="Código de convite (8 caracteres)"
-                        maxlength="8"
-                    />
-                    <button class="pwa-btn-secondary w-full" :disabled="joiningCode || !canJoinByCode" @click="doJoinByCode">
-                        {{ joiningCode ? 'Entrando...' : 'Entrar no bolão' }}
-                    </button>
-                </div>
-            </div>
-
-            <div class="pwa-section pt-4">
                 <p class="pwa-section-label">
                     <i class="ti ti-trophy text-bolao-accent"></i>
                     Meus bolões
@@ -105,6 +68,42 @@
                 <div v-else class="pool-empty">
                     <i class="ti ti-trophy-off text-3xl text-bolao-muted2 mb-2 block"></i>
                     <p class="text-sm text-bolao-muted">Você não participa de nenhum bolão ainda.</p>
+                </div>
+
+                <div class="flex items-center justify-between gap-2">
+                    <p class="pwa-section-label m-0">
+                        <i class="ti ti-settings text-bolao-accent"></i>
+                        Configurações
+                    </p>
+                    <span class="text-[10px] font-bold px-2 py-1 rounded-full border border-bolao-accent/30 text-bolao-accent bg-bolao-accent/10">
+                        {{ joinedPools }}/{{ maxPools }} bolões
+                    </span>
+                </div>
+
+                <div v-if="feedback" class="rounded-xl px-3 py-2 text-xs font-semibold" :class="feedbackType === 'ok' ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'">
+                    {{ feedback }}
+                </div>
+
+                <div class="config-card space-y-2">
+                    <p class="text-[11px] font-bold text-bolao-muted uppercase tracking-wider">Criar bolão</p>
+                    <button class="pwa-btn-primary w-full" :disabled="!canJoinMore" @click="goToCreatePool">
+                        Criar bolão
+                    </button>
+                </div>
+
+                <div class="config-card space-y-2">
+                    <p class="text-[11px] font-bold text-bolao-muted uppercase tracking-wider">Entrar com código</p>
+                    <p class="text-[11px] text-bolao-muted">Cole o convite de 8 caracteres para entrar rapidamente.</p>
+                    <input
+                        v-model="joinCode"
+                        class="pwa-input uppercase invite-code-input text-center"
+                        :class="{ filled: joinCode.trim().length > 0 }"
+                        placeholder="Código de convite (8 caracteres)"
+                        maxlength="8"
+                    />
+                    <button class="pwa-btn-secondary w-full" :disabled="joiningCode || !canJoinByCode" @click="doJoinByCode">
+                        {{ joiningCode ? 'Entrando...' : 'Entrar no bolão' }}
+                    </button>
                 </div>
             </div>
 

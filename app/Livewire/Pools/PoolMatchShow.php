@@ -174,6 +174,39 @@ class PoolMatchShow extends Component
         return $this->match->detail !== null;
     }
 
+    public function resolveLiveMinute(): ?int
+    {
+        if (! in_array($this->match->status, ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'], true)) {
+            return null;
+        }
+
+        $minute = data_get($this->match->raw_payload, 'minute');
+        if (! is_numeric($minute)) {
+            $minute = data_get($this->match->raw_payload, 'api_football_status.elapsed');
+        }
+        if (is_numeric($minute)) {
+            return max(1, min(130, (int) $minute));
+        }
+
+        $trackedSeconds = (int) ($this->match->live_clock_accumulated_seconds ?? 0);
+        if (in_array($this->match->status, ['IN_PLAY', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'], true) && $this->match->live_clock_anchor_at) {
+            $trackedSeconds += max(0, now()->getTimestamp() - $this->match->live_clock_anchor_at->getTimestamp());
+        }
+
+        if ($trackedSeconds > 0) {
+            return max(1, min(130, (int) floor($trackedSeconds / 60)));
+        }
+
+        $kickoff = $this->match->kickoffAtBrazil();
+        if (! $kickoff) {
+            return null;
+        }
+
+        $elapsed = $kickoff->diffInMinutes(now('America/Sao_Paulo'), false);
+
+        return max(1, min(130, $elapsed <= 0 ? 1 : $elapsed));
+    }
+
     public function statsUnavailableMessage(): string
     {
         if (! $this->hasMatchDetail()) {

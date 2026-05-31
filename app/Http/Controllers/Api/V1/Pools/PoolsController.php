@@ -7,7 +7,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Competition;
 use App\Models\CompetitionSeason;
 use App\Models\Pool;
+use App\Models\PoolRanking;
 use App\Models\User;
+use App\Services\Pools\PoolFinalizationService;
 use App\Services\Pools\PoolRankingService;
 use App\Services\Predictions\PredictionScoringService;
 use App\Support\ApiResponse;
@@ -21,6 +23,52 @@ class PoolsController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
+        $managedOnly = $request->boolean('managed');
+
+        if ($managedOnly) {
+            $ownedPools = Pool::query()
+                ->with(['competition:id,code,name'])
+                ->whereHas('members', function ($query) use ($user): void {
+                    $query->where('user_id', $user->id)
+                        ->where('role', 'owner')
+                        ->whereIn('status', [PoolMemberStatus::Active->value, PoolMemberStatus::Pending->value]);
+                })
+                ->orderBy('name')
+                ->get();
+
+            return ApiResponse::success($request, [
+                'items' => $ownedPools->map(function (Pool $pool): array {
+                    $activeCount = (int) $pool->members()->where('status', PoolMemberStatus::Active->value)->count();
+                    $pendingCount = (int) $pool->members()->where('status', PoolMemberStatus::Pending->value)->count();
+                    $leader = PoolRanking::query()
+                        ->where('pool_id', $pool->id)
+                        ->where('position', 1)
+                        ->with('user:id,name,display_name')
+                        ->first();
+                    $statsBase = PoolRanking::query()->where('pool_id', $pool->id);
+
+                    return [
+                        'id' => $pool->id,
+                        'name' => $pool->name,
+                        'status' => $pool->status,
+                        'invite_code' => $pool->invite_code,
+                        'competition' => [
+                            'id' => $pool->competition?->id,
+                            'code' => $pool->competition?->code,
+                            'name' => $pool->competition?->name,
+                        ],
+                        'members_count' => $activeCount,
+                        'pending_count' => $pendingCount,
+                        'stats' => [
+                            'leader_name' => $leader?->user?->public_name,
+                            'leader_points' => (int) ($leader?->points_total ?? 0),
+                            'points_distributed' => (int) $statsBase->sum('points_total'),
+                            'predictions_counted' => (int) $statsBase->sum('predictions_counted'),
+                        ],
+                    ];
+                })->values()->all(),
+            ]);
+        }
 
         $memberPools = Pool::query()
             ->with(['competition:id,code,name'])
@@ -202,8 +250,9 @@ class PoolsController extends Controller
             ->first(['id', 'role', 'status', 'sector']);
 
         $isPublic = (string) $pool->visibility === 'public' && (string) $pool->status === 'active';
+        $isAdmin = (bool) $user->is_admin;
 
-        if (! $membership && ! $isPublic) {
+        if (! $isAdmin && ! $membership && ! $isPublic) {
             return ApiResponse::error($request, 'POOL_FORBIDDEN', 'Acesso negado ao bolão.', 403);
         }
 
@@ -269,6 +318,40 @@ class PoolsController extends Controller
         ]);
     }
 
+    public function finalize(
+        Request $request,
+        Pool $pool,
+        PoolFinalizationService $finalizationService,
+    ): JsonResponse {
+        $user = $request->user();
+        $membership = $pool->members()
+            ->where('user_id', $user->id)
+            ->first(['role']);
+
+        if (! $membership || $membership->role !== 'owner') {
+            return ApiResponse::error($request, 'POOL_FORBIDDEN', 'Apenas o dono pode finalizar o bolão.', 403);
+        }
+
+        if ((string) $pool->status === 'archived') {
+            return ApiResponse::error($request, 'POOL_ALREADY_FINALIZED', 'Este bolão já está finalizado.', 409);
+        }
+
+        $result = $finalizationService->finalize($pool);
+
+        return ApiResponse::success($request, [
+            'status' => 'finalized',
+            'pool_id' => $pool->id,
+            'pool_status' => (string) $result['pool']->status,
+            'notified_users' => (int) $result['notified_users'],
+            'winner' => [
+                'name' => $result['rankings']->first()?->user?->public_name,
+                'points' => (int) ($result['rankings']->first()?->points_total ?? 0),
+            ],
+            'stats' => $result['stats'],
+            'message' => 'Bolão finalizado com sucesso. Ranking consolidado e e-mails enviados.',
+        ]);
+    }
+
     private function poolSummary(Pool $pool, int $userId): array
     {
         $membership = $pool->members()
@@ -281,6 +364,7 @@ class PoolsController extends Controller
             'slug' => $pool->slug,
             'visibility' => $pool->visibility,
             'status' => $pool->status,
+            'invite_code' => $pool->invite_code,
             'competition' => [
                 'id' => $pool->competition?->id,
                 'code' => $pool->competition?->code,

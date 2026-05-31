@@ -15,7 +15,8 @@ $statusLabel = match($match->status) {
 $homeScore = $match->home_score_full_time ?? 0;
 $awayScore = $match->away_score_full_time ?? 0;
 
-$liveMinute = $isLive ? data_get($match->raw_payload, 'minute') : null;
+$liveMinute = $this->resolveLiveMinute();
+$extraMinute = $isLive ? data_get($match->raw_payload, 'injury_time', data_get($match->raw_payload, 'api_football_status.extra')) : null;
 $matchDate  = $match->kickoffAtBrazil();
 if (in_array($match->status, ['TIMED', 'SCHEDULED'], true) && $matchDate) {
     if ($matchDate->isToday()) {
@@ -269,7 +270,7 @@ $cardInfo = function (string $card): array {
                             <span class="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
                         </span>
                         <span class="text-[11px] font-bold uppercase tracking-widest text-red-400">
-                            {{ $statusLabel }}@if($liveMinute !== null)<span class="text-red-300/80 font-black tabular-nums"> · {{ $liveMinute }}'</span>@endif
+                            {{ $statusLabel }}@if($liveMinute !== null)<span class="text-red-300/80 font-black tabular-nums"> · {{ $liveMinute }}'@if($extraMinute)+{{ $extraMinute }}@endif</span>@endif
                         </span>
                     @elseif($isFinished)
                         <span class="inline-flex items-center rounded-full border border-slate-700/50 bg-slate-800/60 px-3 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">

@@ -26,14 +26,14 @@ class MatchPayload
             'home_team' => [
                 'id' => $match->homeTeam?->id,
                 'name' => $match->homeTeam?->localized_name,
-                'short_name' => $match->homeTeam?->short_name,
+                'short_name' => $match->homeTeam?->canonical_name_br ?: $match->homeTeam?->short_name,
                 'tla' => $match->homeTeam?->tla,
                 'crest' => $match->homeTeam?->crest,
             ],
             'away_team' => [
                 'id' => $match->awayTeam?->id,
                 'name' => $match->awayTeam?->localized_name,
-                'short_name' => $match->awayTeam?->short_name,
+                'short_name' => $match->awayTeam?->canonical_name_br ?: $match->awayTeam?->short_name,
                 'tla' => $match->awayTeam?->tla,
                 'crest' => $match->awayTeam?->crest,
             ],
@@ -60,6 +60,22 @@ class MatchPayload
         $extra = data_get($payload, 'injury_time');
         if (! is_numeric($extra)) {
             $extra = data_get($payload, 'api_football_status.extra');
+        }
+
+        // Fallback para cenarios em que o provider nao envia elapsed, mas o
+        // backend ja tem o relogio acumulado/ancorado no banco.
+        if (! is_numeric($minute)) {
+            $seconds = (int) ($match->live_clock_accumulated_seconds ?? 0);
+            $isRunning = in_array((string) $match->status, ['IN_PLAY', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'], true);
+
+            if ($isRunning && $match->live_clock_anchor_at) {
+                $elapsedFromAnchor = max(0, now()->getTimestamp() - $match->live_clock_anchor_at->getTimestamp());
+                $seconds += $elapsedFromAnchor;
+            }
+
+            if ($seconds > 0) {
+                $minute = max(1, min(130, (int) floor($seconds / 60)));
+            }
         }
 
         return [

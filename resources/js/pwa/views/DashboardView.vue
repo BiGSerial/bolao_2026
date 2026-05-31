@@ -3,16 +3,26 @@
         <div
             class="dash-slider"
             ref="sliderEl"
-            @touchstart="onTouchStart"
-            @touchmove="onTouchMove"
-            @touchend="onTouchEnd"
+            @touchstart.stop="onTouchStart"
+            @touchmove.stop="onTouchMove"
+            @touchend.stop="onTouchEnd"
         >
+            <!-- Pull to Refresh Indicator -->
+            <div 
+                class="ptr-indicator" 
+                :style="{ transform: `translateY(${Math.min(ptrY, 60)}px)`, opacity: ptrY > 10 ? 1 : 0 }"
+            >
+                <i class="ti ti-refresh animate-spin text-bolao-accent" v-if="refreshing"></i>
+                <i class="ti ti-arrow-down text-bolao-accent" v-else :style="{ transform: `rotate(${Math.min(ptrY * 3, 180)}deg)` }"></i>
+            </div>
+
             <div class="dash-track" :style="trackStyle">
                 <!-- LEFT: Ranking + stats do bolão -->
                 <section class="dash-panel">
                     <div class="pwa-section pt-3">
                         <h2 class="panel-title">Ranking do bolão</h2>
-                        <p class="panel-sub">{{ selectedPool?.name ?? 'Selecione um bolão no painel central' }}</p>
+                        <p class="panel-sub" v-if="selectedPool">{{ selectedPool.name }}</p>
+                        <p class="panel-sub" v-else>Nenhum bolão selecionado</p>
                     </div>
 
                     <div class="pwa-section pt-3">
@@ -87,27 +97,8 @@
                     </template>
 
                     <template v-else-if="data">
-                        <div class="pwa-section pt-3">
-                            <div class="dash-comp-picker">
-                                <label class="comp-select-label">Competição</label>
-                                <div class="dash-comp-select-wrap">
-                                    <i class="ti ti-trophy dash-comp-icon"></i>
-                                    <select
-                                        class="comp-select dash-comp-select"
-                                        :value="selectedCompetitionId ?? ''"
-                                        @change="changeCompetition(Number($event.target.value))"
-                                    >
-                                        <option v-for="c in standingsCompetitions" :key="c.id" :value="c.id">
-                                            {{ c.name }}
-                                        </option>
-                                    </select>
-                                    <i class="ti ti-chevron-down dash-comp-arrow"></i>
-                                </div>
-                                <p v-if="selectedCompetitionType === 'CUP'" class="comp-select-hint">Formato copa: classificação por grupo.</p>
-                            </div>
-                        </div>
-
                         <div v-if="competitionPools.length" class="pwa-section pt-3">
+                            <p class="text-[11px] font-bold text-bolao-muted2 uppercase tracking-widest mb-2">Meus Bolões</p>
                             <div class="flex gap-2 overflow-x-auto no-scrollbar">
                                 <button
                                     v-for="p in competitionPools"
@@ -133,7 +124,8 @@
                             </div>
 
                             <div class="space-y-2">
-                                <div v-for="m in filteredLiveMatches" :key="m.id" class="live-card">
+                                <div v-for="m in filteredLiveMatches" :key="m.id" class="live-card cursor-pointer"
+                                     @click="router.push({ name: 'match-detail', params: { matchId: m.id } })">
                                     <div class="flex items-center justify-between text-[10px] text-bolao-muted2 mb-2">
                                         <span class="truncate max-w-[60%]">{{ m.competition?.name }}<span v-if="m.matchday"> · R{{ m.matchday }}</span></span>
                                         <span class="text-bolao-red font-bold flex items-center gap-1">
@@ -169,7 +161,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="live-toggle mt-2">
+                                    <div class="live-toggle mt-2" @click.stop>
                                         <button class="live-toggle-btn" :class="{ active: liveTab === 'mine' }" @click="liveTab = 'mine'">Meus pontos</button>
                                         <button class="live-toggle-btn" :class="{ active: liveTab === 'ranking' }" @click="liveTab = 'ranking'">Ranking</button>
                                     </div>
@@ -206,7 +198,8 @@
                                 <div class="next-card next-card-slider">
                                     <div class="next-track" :style="nextTrackStyle">
                                         <div v-for="m in todayOpenMatches" :key="m.id" class="next-slide">
-                                            <div class="next-slide-inner">
+                                            <div class="next-slide-inner cursor-pointer"
+                                                 @click="router.push({ name: 'match-detail', params: { matchId: m.id } })">
                                                 <div class="next-slide-meta">
                                                     <p class="text-[11px] text-bolao-muted2 truncate">
                                                         {{ m.competition?.name }}<span v-if="m.matchday"> · Rodada {{ m.matchday }}</span>
@@ -327,7 +320,8 @@
                     <div class="pwa-section pt-3 pb-6">
                         <h3 class="panel-title text-[28px] mb-2">Resultados recentes</h3>
                         <div class="space-y-2">
-                            <div v-for="item in recentResults" :key="item.match.id" class="recent-card p-3">
+                            <div v-for="item in recentResults" :key="item.match.id" class="recent-card p-3 cursor-pointer"
+                                 @click="router.push({ name: 'match-detail', params: { matchId: item.match.id } })">
                                 <div class="flex items-center justify-between gap-2">
                                     <div class="flex items-center gap-2 min-w-0 flex-1">
                                         <img v-if="item.match.home_team?.crest" :src="item.match.home_team.crest" class="team-crest" alt="">
@@ -356,7 +350,9 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from '../store/auth';
+import { useAppStore } from '../store/app';
 import { getDashboard } from '../api/dashboard';
 import { getLiveRanking } from '../api/rankings';
 import { getPoolPredictions } from '../api/predictions';
@@ -368,25 +364,28 @@ import { createHorizontalSwipeTracker } from '../utils/horizontalSwipe';
 import SkeletonBlock from '../components/ui/SkeletonBlock.vue';
 import SkeletonCard from '../components/ui/SkeletonCard.vue';
 
+const router = useRouter();
 const auth = useAuthStore();
+const appStore = useAppStore();
 const emit = defineEmits(['set-title']);
 
 const loading = ref(true);
 const refreshing = ref(false);
 const data = ref(null);
 
+const ptrY = ref(0);
+let startY = 0;
+let isPtrEligible = false;
+
 const selectedPoolId = ref(null);
-const selectedCompetitionId = ref(null);
 const liveTab = ref('mine');
 const DASHBOARD_POOL_ID_KEY = 'pwa_dashboard_pool_id';
-const DASHBOARD_COMPETITION_ID_KEY = 'pwa_dashboard_competition_id';
 const DASHBOARD_PANEL_INDEX_KEY = 'pwa_dashboard_panel_index';
 const DASHBOARD_LIVE_TAB_KEY = 'pwa_dashboard_live_tab';
 
 const liveRankingRows = ref([]);
 const poolPredictions = ref([]);
 const selectedPoolDetail = ref(null);
-const standingsCompetitions = ref([]);
 const standingsGroups = ref([]);
 const dayMatches = ref([]);
 
@@ -409,7 +408,7 @@ const matchSwipe = createHorizontalSwipeTracker({
 });
 
 const selectedPool = computed(() => (data.value?.pools ?? []).find((p) => p.id === selectedPoolId.value) ?? null);
-const selectedCompetition = computed(() => (standingsCompetitions.value ?? []).find((c) => c.id === selectedCompetitionId.value) ?? null);
+const selectedCompetition = computed(() => appStore.competitions.find(c => c.id === appStore.selectedCompetitionId));
 const selectedCompetitionType = computed(() => String(selectedCompetition.value?.type ?? '').toUpperCase());
 const shouldUseCupLayout = computed(() => {
     if (selectedCompetitionType.value === 'CUP') return true;
@@ -419,18 +418,14 @@ const shouldUseCupLayout = computed(() => {
     });
 });
 const competitionPools = computed(() => {
-    const pools = data.value?.pools ?? [];
-    if (!selectedCompetitionId.value) return pools;
-    return pools.filter((p) => Number(p.competition?.id) === Number(selectedCompetitionId.value));
+    return data.value?.pools ?? [];
 });
 const myRankingRow = computed(() => {
     if (!auth.user?.id) return null;
     return liveRankingRows.value.find((r) => r.user?.id === auth.user.id) ?? null;
 });
 const filteredLiveMatches = computed(() => {
-    const items = data.value?.live_matches ?? [];
-    if (!selectedCompetitionId.value) return items;
-    return items.filter((m) => Number(m.competition?.id) === Number(selectedCompetitionId.value));
+    return data.value?.live_matches ?? [];
 });
 const livePredictionMap = computed(() => {
     const map = {};
@@ -536,9 +531,10 @@ function roundLabel(match) {
 function liveMinuteLabel(match) {
     const min = match?.live_clock?.minute;
     const extra = match?.live_clock?.extra_minute;
-    if (!Number.isFinite(min)) return '';
-    if (Number.isFinite(extra) && extra > 0) return `${min}+${extra}'`;
-    return `${min}'`;
+    if (!Number.isFinite(min) || min <= 0) return '';
+    const capped = Math.min(130, min);
+    if (Number.isFinite(extra) && extra > 0) return `${capped}+${extra}'`;
+    return `${capped}'`;
 }
 function goalLine(g) {
     const num = Number.isFinite(g?.number) ? `${g.number} ` : '';
@@ -574,16 +570,14 @@ function hydrateSelections() {
     selectedPoolId.value = pools.some((p) => p.id === stored) ? stored : pools[0].id;
 }
 
-async function loadDashboard({ silent = false, competitionId = null } = {}) {
+async function loadDashboard({ silent = false } = {}) {
     if (!silent) loading.value = true;
     refreshing.value = silent;
     const params = {};
-    const resolvedCompetitionId = Number(competitionId ?? selectedCompetitionId.value ?? 0) || null;
-    if (resolvedCompetitionId) params.competition_id = resolvedCompetitionId;
+    if (appStore.selectedCompetitionId) params.competition_id = appStore.selectedCompetitionId;
     const res = await getDashboard(params);
     data.value = res.data.data;
-    const selectedName = (standingsCompetitions.value ?? []).find((c) => c.id === selectedCompetitionId.value)?.name;
-    emit('set-title', selectedName || detectCompetitionTitle(data.value));
+    emit('set-title', selectedCompetition.value?.name || detectCompetitionTitle(data.value));
     if (!selectedPoolId.value) hydrateSelections();
     loading.value = false;
     refreshing.value = false;
@@ -628,36 +622,13 @@ async function loadAllPoolPredictions(poolId) {
     return items;
 }
 
-async function loadStandings(compId = null) {
-    const res = await getStandings(compId ? { competition_id: compId } : {});
-    standingsCompetitions.value = res.data.data.competitions ?? [];
-    const backendSelected = Number(res.data.data.selected_competition_id ?? 0) || null;
-    const persisted = Number(localStorage.getItem(DASHBOARD_COMPETITION_ID_KEY) ?? 0) || null;
-    const current = Number(selectedCompetitionId.value ?? 0) || null;
-    const requested = Number(compId ?? 0) || null;
-    const has = (id) => id && standingsCompetitions.value.some((c) => Number(c.id) === Number(id));
-
-    if (has(requested)) {
-        selectedCompetitionId.value = requested;
-    } else if (has(current)) {
-        selectedCompetitionId.value = current;
-    } else if (has(persisted)) {
-        selectedCompetitionId.value = persisted;
-    } else if (has(backendSelected)) {
-        selectedCompetitionId.value = backendSelected;
-    } else {
-        selectedCompetitionId.value = standingsCompetitions.value[0]?.id ?? null;
-    }
+async function loadStandings() {
+    const res = await getStandings(appStore.selectedCompetitionId ? { competition_id: appStore.selectedCompetitionId } : {});
     standingsGroups.value = res.data.data.groups ?? [];
 }
 
 async function loadDayMatches() {
-    const referenceCompetitionId =
-        selectedCompetitionId.value
-        ?? selectedPool.value?.competition?.id
-        ?? data.value?.upcoming_matches?.[0]?.competition?.id
-        ?? data.value?.live_matches?.[0]?.competition?.id
-        ?? null;
+    const referenceCompetitionId = appStore.selectedCompetitionId;
 
     const now = new Date();
     const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -730,8 +701,8 @@ async function loadDayMatches() {
 }
 
 async function manualRefresh() {
-    await loadDashboard({ silent: true, competitionId: selectedCompetitionId.value });
-    await Promise.all([loadPoolData(), loadStandings(selectedCompetitionId.value), loadDayMatches()]);
+    await loadDashboard({ silent: true });
+    await Promise.all([loadPoolData(), loadStandings(), loadDayMatches()]);
 }
 
 function nextMatch() {
@@ -774,11 +745,25 @@ function onTouchStart(e) {
     dashboardSwipe.start(e);
     dragging.value = true;
     dragDx.value = 0;
+    
+    const panelEl = e.currentTarget.querySelector('.dash-panel');
+    isPtrEligible = panelEl && panelEl.scrollTop === 0;
+    startY = e.touches[0].clientY;
 }
 
 function onTouchMove(e) {
     if (!dragging.value) return;
     const move = dashboardSwipe.move(e);
+    
+    // Vertical PTR logic
+    if (isPtrEligible && !move.isHorizontal && !refreshing.value) {
+        const dy = e.touches[0].clientY - startY;
+        if (dy > 0) {
+            ptrY.value = dy * 0.4; // Resistance
+            if (ptrY.value > 10) e.preventDefault();
+        }
+    }
+
     if (!move.active) return;
     if (move.shouldPreventDefault) e.preventDefault();
     dragDx.value = move.dx;
@@ -789,20 +774,15 @@ function onTouchEnd(e) {
     const end = dashboardSwipe.end(e);
     dragging.value = false;
     dragDx.value = 0;
+
+    if (ptrY.value > 60) {
+        manualRefresh();
+    }
+    ptrY.value = 0;
+
     if (!end.isSwipe) return;
     if (end.direction === 'right' && panelIndex.value > 0) panelIndex.value -= 1;
     if (end.direction === 'left' && panelIndex.value < 2) panelIndex.value += 1;
-}
-
-async function changeCompetition(compId) {
-    if (!Number.isFinite(compId) || compId <= 0) return;
-    selectedCompetitionId.value = compId;
-    selectedPoolId.value = null;
-    localStorage.removeItem(DASHBOARD_POOL_ID_KEY);
-    await loadDashboard({ silent: true, competitionId: compId });
-    await Promise.all([loadStandings(compId), loadDayMatches()]);
-    hydrateSelections();
-    await loadPoolData();
 }
 
 function livePointsForMatch(m) {
@@ -884,10 +864,11 @@ watch(selectedPoolId, async () => {
     startRealtime();
 });
 
-watch(selectedCompetitionId, (id) => {
-    const normalized = Number(id ?? 0) || null;
-    if (!normalized) return;
-    localStorage.setItem(DASHBOARD_COMPETITION_ID_KEY, String(normalized));
+watch(() => appStore.selectedCompetitionId, async () => {
+    selectedPoolId.value = null;
+    localStorage.removeItem(DASHBOARD_POOL_ID_KEY);
+    await loadDashboard();
+    await Promise.all([loadPoolData(), loadStandings(), loadDayMatches()]);
 });
 
 watch(panelIndex, (idx) => {
@@ -914,11 +895,10 @@ onMounted(async () => {
     panelIndex.value = Number.isFinite(persistedPanel) ? Math.max(0, Math.min(2, persistedPanel)) : 1;
     const persistedLiveTab = String(localStorage.getItem(DASHBOARD_LIVE_TAB_KEY) ?? 'mine');
     liveTab.value = persistedLiveTab === 'ranking' ? 'ranking' : 'mine';
-    const persistedComp = Number(localStorage.getItem(DASHBOARD_COMPETITION_ID_KEY) ?? 0) || null;
-    if (persistedComp) selectedCompetitionId.value = persistedComp;
-    await loadDashboard({ competitionId: selectedCompetitionId.value });
+    
+    await loadDashboard();
     await loadPoolData();
-    await loadStandings(selectedCompetitionId.value);
+    await loadStandings();
     await loadDayMatches();
     startRealtime();
 });
@@ -933,19 +913,20 @@ onBeforeUnmount(() => {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-.comp-select-wrap { display: flex; align-items: center; gap: 10px; }
-.comp-select-label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #7a8394; font-weight: 700; }
-.comp-select { flex: 1; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: #151a24; color: #f8fafc; font-size: 13px; font-weight: 700; padding: 8px 10px; }
-.comp-select:focus { outline: none; border-color: rgba(245,166,35,0.55); }
-.comp-select-hint { margin-top: 6px; font-size: 11px; color: #9aa3b2; }
+.ptr-indicator {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    right: 0;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    transition: opacity 0.2s;
+}
 
-.dash-comp-picker { border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); background: #121722; padding: 10px; }
-.dash-comp-select-wrap { margin-top: 6px; position: relative; display: flex; align-items: center; }
-.dash-comp-icon { position: absolute; left: 10px; color: #f5a623; font-size: 14px; pointer-events: none; }
-.dash-comp-select { padding-left: 32px; padding-right: 28px; appearance: none; -webkit-appearance: none; }
-.dash-comp-arrow { position: absolute; right: 10px; color: #7a8394; font-size: 14px; pointer-events: none; }
-
-.dash-slider { height: calc(100dvh - 56px - 60px - env(safe-area-inset-bottom, 0px)); overflow: hidden; }
+.dash-slider { height: calc(100dvh - 56px - 68px - env(safe-area-inset-bottom, 0px)); overflow: hidden; position: relative; }
 .dash-slider { touch-action: pan-y; }
 .dash-track { display: flex; width: 100%; height: 100%; transition: transform 0.22s ease; }
 .dash-panel { flex: 0 0 100%; width: 100%; height: 100%; overflow-y: auto; }

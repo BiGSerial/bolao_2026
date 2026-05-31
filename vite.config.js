@@ -16,7 +16,14 @@ export default defineConfig({
         }),
         vue(),
         VitePWA({
+            strategies: 'injectManifest',
+            srcDir: 'resources/js/pwa',
+            filename: 'sw.js',
             registerType: 'autoUpdate',
+            injectManifest: {
+                globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2}'],
+                additionalManifestEntries: [{ url: '/offline', revision: null }],
+            },
             manifest: {
                 name: 'BolãoVF',
                 short_name: 'BolãoVF',
@@ -27,49 +34,9 @@ export default defineConfig({
                 background_color: '#0b1017',
                 theme_color: '#0b1017',
                 icons: [
-                    {
-                        src: '/favicon.png',
-                        sizes: '192x192',
-                        type: 'image/png',
-                    },
-                    {
-                        src: '/favicon.png',
-                        sizes: '512x512',
-                        type: 'image/png',
-                    },
+                    { src: '/favicon.png', sizes: '192x192', type: 'image/png' },
+                    { src: '/favicon.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
                 ],
-            },
-            workbox: {
-                globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2}'],
-                additionalManifestEntries: [{ url: '/offline', revision: null }],
-                runtimeCaching: [
-                    {
-                        urlPattern: ({ request }) => request.mode === 'navigate',
-                        handler: 'NetworkFirst',
-                        options: {
-                            cacheName: 'pages-cache',
-                            networkTimeoutSeconds: 5,
-                            expiration: {
-                                maxEntries: 50,
-                                maxAgeSeconds: 60 * 60 * 24,
-                            },
-                            cacheableResponse: {
-                                statuses: [0, 200],
-                            },
-                        },
-                    },
-                    {
-                        urlPattern: ({ request }) => request.destination === 'style' || request.destination === 'script',
-                        handler: 'StaleWhileRevalidate',
-                        options: {
-                            cacheName: 'assets-cache',
-                            cacheableResponse: {
-                                statuses: [0, 200],
-                            },
-                        },
-                    },
-                ],
-                navigateFallback: '/offline',
             },
         }),
     ],

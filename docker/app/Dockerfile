@@ -1,17 +1,13 @@
 FROM php:8.4-fpm
 
 RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    unzip \
-    libzip-dev \
-    libicu-dev \
-    libonig-dev \
-    libxml2-dev \
-    default-mysql-client \
-    supervisor \
+        git curl unzip \
+        libzip-dev libicu-dev libonig-dev libxml2-dev \
+        default-mysql-client supervisor \
+    && pecl install redis \
     && docker-php-ext-install pdo_mysql bcmath intl zip pcntl \
-    && rm -rf /var/lib/apt/lists/*
+    && docker-php-ext-enable redis \
+    && rm -rf /var/lib/apt/lists/* /tmp/pear
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 

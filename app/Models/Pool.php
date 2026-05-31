@@ -13,6 +13,7 @@ class Pool extends Model
 
     protected $fillable = [
         'owner_id','competition_id','competition_season_id','name','slug','description','instructions','sectors','tie_breakers','visibility','status','invite_code',
+        'suspension_reason',
         'allow_prediction_changes','closed_predictions','prediction_lock_minutes','allow_pending_member_predictions','stage',
         'points_exact_score', 'points_correct_result', 'points_correct_goals', 'correct_goals_mode',
     ];

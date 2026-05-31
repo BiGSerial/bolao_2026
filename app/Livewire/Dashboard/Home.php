@@ -565,7 +565,7 @@ class Home extends Component
             $trackedSeconds += max(0, $match->live_clock_anchor_at->diffInSeconds(now()->utc()));
         }
         if ($trackedSeconds > 0) {
-            return max(1, min(130, (int) floor($trackedSeconds / 60) + 1));
+            return max(1, min(130, (int) floor($trackedSeconds / 60)));
         }
 
         if (! $match->utc_date) {
@@ -575,7 +575,7 @@ class Home extends Component
         $elapsed = $match->utc_date->copy()->timezone('America/Sao_Paulo')
             ->diffInMinutes(now('America/Sao_Paulo'), false);
 
-        return max(1, min(130, $elapsed <= 0 ? 1 : $elapsed + 1));
+        return max(1, min(130, $elapsed <= 0 ? 1 : $elapsed));
     }
 
     private function extractLiveStats(FootballMatch $match): array

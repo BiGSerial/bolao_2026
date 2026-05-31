@@ -71,28 +71,56 @@
             <!-- LOCKED or FINISHED: read-only -->
             <template v-if="isReadOnly">
                 <div class="pred-readonly">
-                    <div class="flex items-center gap-2">
-                        <i class="ti ti-lock text-xs text-bolao-muted2"></i>
-                        <span class="text-xs text-bolao-muted">Seu palpite:</span>
-                        <template v-if="item.prediction">
-                            <span class="text-sm font-bold text-slate-100">
-                                {{ item.prediction.home_score }} – {{ item.prediction.away_score }}
-                            </span>
-                            <!-- Result chip -->
-                            <span v-if="isFinished && resultClass" :class="resultClass" class="ml-1">
-                                {{ resultLabel }}
-                            </span>
-                        </template>
-                        <span v-else class="text-xs italic text-bolao-muted2">não palpitou</span>
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <i class="ti ti-lock text-xs text-bolao-muted2"></i>
+                            <span class="text-xs text-bolao-muted">Seu palpite:</span>
+                            <template v-if="item.prediction">
+                                <span class="text-sm font-bold text-slate-100">
+                                    {{ item.prediction.home_score }} – {{ item.prediction.away_score }}
+                                </span>
+                                <!-- Result chip -->
+                                <span v-if="isFinished && resultClass" :class="resultClass" class="ml-1">
+                                    {{ resultLabel }}
+                                </span>
+                            </template>
+                            <span v-else class="text-xs italic text-bolao-muted2">não palpitou</span>
+                        </div>
+                        
+                        <router-link 
+                            v-if="isLocked || isFinished || isLive"
+                            :to="`/pwa/pools/${poolId}/matches/${item.match.id}`"
+                            class="text-[10px] font-bold text-bolao-accent uppercase tracking-wider flex items-center gap-1 active:opacity-60"
+                        >
+                            Ver todos <i class="ti ti-chevron-right"></i>
+                        </router-link>
                     </div>
                 </div>
             </template>
 
             <template v-else>
                 <div class="pred-open">
-                    <p v-if="saveError && !batchMode" class="text-[11px] text-red-400 mt-1 text-center">{{ saveError }}</p>
-                    <p v-if="saved && !saveError && !batchMode" class="text-[11px] text-green-400 mt-1 text-center">Palpite salvo!</p>
-                    <p v-if="editingBlockedReason" class="text-[11px] text-red-400 mt-1 text-center">{{ editingBlockedReason }}</p>
+                    <!-- Batch mode: only show errors -->
+                    <template v-if="batchMode">
+                        <p v-if="saveError" class="text-[11px] text-red-400 text-center">{{ saveError }}</p>
+                        <p v-if="editingBlockedReason" class="text-[11px] text-red-400 text-center">{{ editingBlockedReason }}</p>
+                    </template>
+                    <!-- Normal mode: save button -->
+                    <template v-else>
+                        <div class="flex items-center justify-between gap-2 w-full">
+                            <p v-if="saveError" class="text-[11px] text-red-400 flex-1 truncate">{{ saveError }}</p>
+                            <p v-else-if="editingBlockedReason" class="text-[11px] text-red-400 flex-1 truncate">{{ editingBlockedReason }}</p>
+                            <span v-else class="flex-1"></span>
+                            <button
+                                class="pred-save-btn"
+                                :class="saveBtnClass"
+                                :disabled="saving || isSaved || !!editingBlockedReason"
+                                @click="doSave"
+                            >
+                                {{ saveBtnLabel }}
+                            </button>
+                        </div>
+                    </template>
                 </div>
             </template>
 
@@ -117,10 +145,26 @@ const emit = defineEmits(['saved', 'changed']);
 
 const localHome = ref(props.batchMode ? (props.batchHomeScore ?? props.item.prediction?.home_score ?? 0) : (props.item.prediction?.home_score ?? 0));
 const localAway = ref(props.batchMode ? (props.batchAwayScore ?? props.item.prediction?.away_score ?? 0) : (props.item.prediction?.away_score ?? 0));
+const initialHome = ref(props.item.prediction?.home_score ?? 0);
+const initialAway = ref(props.item.prediction?.away_score ?? 0);
+const localHasPrediction = ref(props.item.prediction != null);
 const saving = ref(false);
-const saved = ref(false);
 const saveError = ref('');
-let saveTimeout = null;
+
+const isDirty  = computed(() => localHome.value !== initialHome.value || localAway.value !== initialAway.value);
+const isSaved  = computed(() => localHasPrediction.value && !isDirty.value);
+
+const saveBtnLabel = computed(() => {
+    if (saving.value) return 'Salvando...';
+    if (isSaved.value) return 'Salvo ✓';
+    if (!localHasPrediction.value) return 'Palpitar';
+    return 'Salvar';
+});
+const saveBtnClass = computed(() => {
+    if (isSaved.value) return 'pred-save-btn--saved';
+    if (isDirty.value) return 'pred-save-btn--dirty';
+    return '';
+});
 
 const isLive     = computed(() => ['IN_PLAY', 'PAUSED', 'HALFTIME'].includes(props.item.match?.status));
 const isFinished = computed(() => ['FINISHED', 'AWARDED'].includes(props.item.match?.status));
@@ -190,8 +234,13 @@ const resultLabel = computed(() => ({
 
 watch(() => props.item.prediction, (p) => {
     if (props.batchMode) return;
-    localHome.value = p?.home_score ?? 0;
-    localAway.value = p?.away_score ?? 0;
+    const h = p?.home_score ?? 0;
+    const a = p?.away_score ?? 0;
+    localHome.value = h;
+    localAway.value = a;
+    initialHome.value = h;
+    initialAway.value = a;
+    localHasPrediction.value = p != null;
 });
 watch(() => props.batchHomeScore, (v) => {
     if (!props.batchMode) return;
@@ -212,15 +261,7 @@ function onInputScore(side, evt) {
             home_score: localHome.value,
             away_score: localAway.value,
         });
-        return;
     }
-    scheduleSave();
-}
-
-function scheduleSave() {
-    clearTimeout(saveTimeout);
-    saved.value = false;
-    saveTimeout = setTimeout(doSave, 1400);
 }
 
 async function doSave() {
@@ -228,15 +269,14 @@ async function doSave() {
         saveError.value = props.editingBlockedReason;
         return;
     }
-    clearTimeout(saveTimeout);
     saving.value = true;
-    saved.value = false;
     saveError.value = '';
     try {
         await savePrediction(props.poolId, props.item.match.id, localHome.value, localAway.value);
-        saved.value = true;
-        emit('saved');
-        setTimeout(() => { saved.value = false; }, 2500);
+        localHasPrediction.value = true;
+        initialHome.value = localHome.value;
+        initialAway.value = localAway.value;
+        emit('saved', { matchId: props.item.match.id, home: localHome.value, away: localAway.value });
     } catch (err) {
         const code = err.response?.data?.error?.code;
         saveError.value = code === 'PREDICTION_RULE_VIOLATION'
@@ -346,11 +386,31 @@ async function doSave() {
 }
 
 .pred-open {
-    padding: 12px 12px 14px;
+    padding: 8px 12px 10px;
     display: flex;
     flex-direction: column;
-    align-items: center;
 }
+.pred-save-btn {
+    border-radius: 8px;
+    border: 1px solid rgba(245,166,35,.35);
+    color: #f5a623;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background .15s, border-color .15s, color .15s;
+}
+.pred-save-btn--saved {
+    border-color: rgba(52,211,153,.4);
+    color: #34d399;
+    background: rgba(52,211,153,.08);
+}
+.pred-save-btn--dirty {
+    border-color: rgba(245,166,35,.6);
+    background: rgba(245,166,35,.1);
+}
+.pred-save-btn:disabled { opacity: .45; }
 
 .pred-inline-inputs {
     display: flex;

@@ -119,7 +119,7 @@ class StandingsController extends Controller
                     'team' => [
                         'id' => $row->team?->id,
                         'name' => $row->team?->localized_name,
-                        'short_name' => $row->team?->short_name,
+                        'short_name' => $row->team?->canonical_name_br ?: $row->team?->short_name,
                         'tla' => $row->team?->tla,
                         'crest' => $row->team?->crest,
                     ],
