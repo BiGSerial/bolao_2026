@@ -41,7 +41,8 @@ function showUpdatingBanner() {
 
 function registerPwaServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
-    window.addEventListener('load', async () => {
+
+    const doRegister = async () => {
         try {
             pwaSwRegistration = await navigator.serviceWorker.register('/sw.js', {
                 scope: '/pwa/',
@@ -52,7 +53,16 @@ function registerPwaServiceWorker() {
         } catch (error) {
             console.error('[PWA] Erro ao registrar Service Worker:', error);
         }
-    });
+    };
+
+    if (document.readyState === 'complete') {
+        void doRegister();
+        return;
+    }
+
+    window.addEventListener('load', () => {
+        void doRegister();
+    }, { once: true });
 }
 
 async function forceAppUpdate() {
