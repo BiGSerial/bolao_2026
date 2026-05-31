@@ -640,6 +640,8 @@ async function loadDayMatches() {
     const paramsWindow = {
         date_from: localDateYmd(prevDay),
         date_to: localDateYmd(horizonDay),
+        status: 'TIMED',
+        order: 'asc',
         per_page: 100,
     };
     if (referenceCompetitionId) paramsWindow.competition_id = referenceCompetitionId;

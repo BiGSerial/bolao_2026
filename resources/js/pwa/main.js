@@ -48,7 +48,7 @@ async function clearAllCaches() {
 const updateSW = registerSW({
     immediate: true,
     onNeedRefresh() {
-        forceAppUpdate('sw_need_refresh');
+        forceAppUpdate();
     },
     onRegisteredSW(_, registration) {
         if (!registration) return;
@@ -62,17 +62,20 @@ async function forceAppUpdate() {
     if (appUpdateInProgress) return;
     appUpdateInProgress = true;
     showUpdatingBanner();
+
+    // Deixa o SW gerenciar o próprio cache (ele apaga versões antigas no activate).
+    // NÃO limpamos manualmente — apagar o precache do novo SW força tudo a vir da
+    // rede e qualquer falha de chunk derruba o app inteiro (incluindo o tabbar).
+    //
+    // updateSW(true) posta SKIP_WAITING e faz reload via controllerchange.
+    // NÃO chamamos window.location.reload() depois — causaria duplo reload
+    // e interromperia o Vue no meio do mount.
     try {
-        await Promise.resolve(updateSW(true));
+        await updateSW(true);
     } catch {
-        // noop
+        // updateSW falhou (ex: sem SW esperando); recarrega como fallback.
+        window.location.reload();
     }
-    try {
-        await clearAllCaches();
-    } catch {
-        // noop
-    }
-    window.location.reload();
 }
 
 async function checkBuildSignature() {

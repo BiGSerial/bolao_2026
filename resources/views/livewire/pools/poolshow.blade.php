@@ -1118,112 +1118,215 @@
 
     {{-- Tab: Chat --}}
     @if($activeTab === 'chat')
-    <div class="p-4 sm:p-6 lg:p-8">
-        <div class="mx-auto w-full max-w-4xl"
+    <div class="px-4 sm:px-6 lg:px-8 py-4">
+        <div class="mx-auto w-full max-w-3xl"
              x-data="poolChatWidget({
                 poolId: {{ (int) $pool->id }},
                 userId: {{ (int) auth()->id() }},
                 userName: @js(auth()->user()?->public_name ?? 'Você')
              })"
              x-init="init()">
-            <div class="card p-4">
-                <div class="mb-3 flex items-center justify-between gap-2">
-                    <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Chat do bolão</h2>
-                    <button type="button" class="text-xs text-amber-300 hover:text-amber-200" @click="loadMessages()">Atualizar</button>
+
+            {{-- Thread --}}
+            <div class="wc-thread rounded-2xl overflow-hidden border border-white/8 flex flex-col" style="height:62vh">
+
+                {{-- Header --}}
+                <div class="wc-header flex items-center justify-between px-4 py-2.5 shrink-0">
+                    <div class="flex items-center gap-2.5">
+                        <div class="wc-group-avatar">
+                            <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        </div>
+                        <div>
+                            <p class="text-sm font-semibold text-slate-100 leading-tight">Chat do bolão</p>
+                            <p class="text-[11px] text-slate-400 leading-tight" x-text="typingNames.length ? typingNames.join(', ') + ' digitando...' : ''"></p>
+                        </div>
+                    </div>
+                    <button type="button" class="text-slate-400 hover:text-amber-300 transition-colors" @click="loadMessages()" title="Atualizar">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    </button>
                 </div>
 
-                <div class="rounded-xl border border-white/10 bg-slate-950/40 h-[52vh] overflow-y-auto p-3 space-y-2" x-ref="list">
+                {{-- Messages --}}
+                <div class="wc-messages flex-1 overflow-y-auto px-3 py-3 space-y-1" x-ref="list">
+
                     <template x-if="loading">
-                        <p class="text-xs text-slate-500">Carregando mensagens...</p>
+                        <div class="flex justify-center pt-8">
+                            <p class="text-xs text-slate-500">Carregando...</p>
+                        </div>
                     </template>
 
                     <template x-if="!loading && messages.length === 0">
-                        <p class="text-xs text-slate-500">Sem mensagens ainda. Inicie a conversa.</p>
+                        <div class="flex flex-col items-center justify-center h-full gap-3 pt-12">
+                            <svg class="w-10 h-10 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                            <p class="text-sm text-slate-500">Sem mensagens ainda. Inicie a conversa!</p>
+                        </div>
                     </template>
 
-                    <template x-for="item in messages" :key="item.id">
-                        <div class="flex" :class="item.user?.id === userId ? 'justify-end' : 'justify-start'">
-                            <div class="max-w-[80%] rounded-2xl px-3 py-2 border"
-                                 :class="item.user?.id === userId ? 'bg-amber-500/12 border-amber-500/25' : 'bg-slate-900/70 border-white/10'">
-                                <p class="text-[10px] mb-1 text-slate-400" x-text="item.user?.name || '—'"></p>
+                    <template x-for="(item, idx) in messages" :key="item.id">
+                        <div>
+                            {{-- Separador de data quando necessário --}}
+                            <template x-if="showDateSep(idx)">
+                                <div class="flex items-center gap-2 my-3">
+                                    <div class="flex-1 h-px bg-white/8"></div>
+                                    <span class="text-[10px] text-slate-500 px-2 py-0.5 rounded-full border border-white/10 bg-slate-900/60"
+                                          x-text="formatDate(item.created_at)"></span>
+                                    <div class="flex-1 h-px bg-white/8"></div>
+                                </div>
+                            </template>
 
-                                <template x-if="item.reply_to">
-                                    <div class="rounded-lg border border-white/10 bg-black/20 px-2 py-1 mb-1.5">
-                                        <p class="text-[10px] text-slate-500" x-text="'Respondendo ' + (item.reply_to.user_name || '—')"></p>
-                                        <p class="text-[11px] text-slate-300 truncate" x-text="item.reply_to.body"></p>
+                            {{-- Bubble row --}}
+                            <div class="flex items-end gap-2 mb-0.5"
+                                 :class="isMine(item) ? 'justify-end' : 'justify-start'">
+
+                                {{-- Avatar (outros, apenas na última mensagem do grupo) --}}
+                                <template x-if="!isMine(item)">
+                                    <div class="w-7 h-7 shrink-0 mb-0.5">
+                                        <template x-if="isLastInGroup(idx)">
+                                            <div class="wc-avatar w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                                                 :style="{ background: avatarBg(item.user?.name) }"
+                                                 x-text="initials(item.user?.name)">
+                                            </div>
+                                        </template>
                                     </div>
                                 </template>
 
-                                <p class="text-sm text-slate-100 whitespace-pre-wrap break-words" x-text="item.body"></p>
-                                <div class="mt-1 flex items-center justify-between gap-2">
-                                    <p class="text-[10px] text-slate-500" x-text="formatTime(item.created_at)"></p>
-                                    <div class="flex items-center gap-2">
-                                        <span x-show="item.user?.id === userId"
-                                              class="text-[10px]"
-                                              :class="readState(item.id) === 'Lido' ? 'text-emerald-300' : 'text-slate-500'"
-                                              x-text="readState(item.id)"></span>
-                                        <button type="button" class="text-[11px] text-slate-400 hover:text-slate-200" @click="replyTo = item">Responder</button>
-                                    </div>
-                                </div>
+                                {{-- Bubble --}}
+                                <div class="relative max-w-[72%] group"
+                                     :class="isMine(item) ? 'wc-bubble-me' : 'wc-bubble-other'">
 
-                                <div class="mt-1 flex flex-wrap gap-1">
-                                    <template x-for="reaction in (item.reactions || [])" :key="`${item.id}-${reaction.emoji}`">
-                                        <button type="button"
-                                                class="text-[11px] rounded-full px-2 py-0.5 border"
-                                                :class="(reaction.user_ids || []).includes(userId) ? 'border-amber-400/40 text-amber-300' : 'border-white/15 text-slate-300'"
-                                                @click="toggleReaction(item.id, reaction.emoji)"
-                                                x-text="reaction.emoji + ' ' + reaction.count">
-                                        </button>
+                                    {{-- Nome (apenas 1ª mensagem do grupo, para outros) --}}
+                                    <template x-if="!isMine(item) && isFirstInGroup(idx)">
+                                        <p class="text-[11px] font-bold mb-1 leading-tight"
+                                           :style="{ color: nameColor(item.user?.name) }"
+                                           x-text="item.user?.name || '—'"></p>
                                     </template>
-                                    <button type="button" class="text-[11px] text-slate-400 hover:text-slate-200" @click="toggleReaction(item.id, '👍')">👍</button>
-                                    <button type="button" class="text-[11px] text-slate-400 hover:text-slate-200" @click="toggleReaction(item.id, '🔥')">🔥</button>
+
+                                    {{-- Reply quote --}}
+                                    <template x-if="item.reply_to">
+                                        <div class="wc-reply mb-1.5 px-2 py-1 rounded-lg"
+                                             :class="isMine(item) ? 'wc-reply-me' : 'wc-reply-other'">
+                                            <p class="text-[10px] font-semibold mb-0.5"
+                                               :style="{ color: nameColor(item.reply_to.user_name) }"
+                                               x-text="item.reply_to.user_name || '—'"></p>
+                                            <p class="text-[11px] opacity-80 truncate" x-text="item.reply_to.body"></p>
+                                        </div>
+                                    </template>
+
+                                    {{-- Corpo + meta em linha --}}
+                                    <div class="flex items-end gap-2 flex-wrap">
+                                        <p class="wc-body text-[14px] leading-[1.4] whitespace-pre-wrap break-words flex-1"
+                                           x-text="item.body"></p>
+
+                                        {{-- Hora + ticks --}}
+                                        <span class="wc-meta flex items-center gap-1 shrink-0 self-end ml-auto">
+                                            <span class="text-[10px] opacity-60" x-text="formatTime(item.created_at)"></span>
+                                            <template x-if="isMine(item)">
+                                                <svg class="w-3.5 h-3.5" viewBox="0 0 16 11" fill="none">
+                                                    <template x-if="readState(item.id) === 'Lido'">
+                                                        <g fill="#53bdeb">
+                                                            <path d="M11.071.653a.75.75 0 0 1 .006 1.06l-6.463 6.6a.75.75 0 0 1-1.073-.007L1.076 5.567a.75.75 0 1 1 1.098-1.022l1.952 2.097L9.01 .66a.75.75 0 0 1 1.061-.007z"/>
+                                                            <path d="M15.071.653a.75.75 0 0 1 .006 1.06l-6.463 6.6a.75.75 0 0 1-.134.103L9.617 9.3l.454-.488a.75.75 0 0 1 1.073.007l.006-.006 4.86-4.96a.75.75 0 0 1 1.061.8z"/>
+                                                        </g>
+                                                    </template>
+                                                    <template x-if="readState(item.id) !== 'Lido'">
+                                                        <g fill="currentColor" opacity="0.6">
+                                                            <path d="M11.071.653a.75.75 0 0 1 .006 1.06l-6.463 6.6a.75.75 0 0 1-1.073-.007L1.076 5.567a.75.75 0 1 1 1.098-1.022l1.952 2.097L9.01 .66a.75.75 0 0 1 1.061-.007z"/>
+                                                            <path d="M15.071.653a.75.75 0 0 1 .006 1.06l-6.463 6.6a.75.75 0 0 1-.134.103L9.617 9.3l.454-.488a.75.75 0 0 1 1.073.007l.006-.006 4.86-4.96a.75.75 0 0 1 1.061.8z"/>
+                                                        </g>
+                                                    </template>
+                                                </svg>
+                                            </template>
+                                        </span>
+                                    </div>
+
+                                    {{-- Reactions --}}
+                                    <template x-if="(item.reactions || []).length">
+                                        <div class="flex flex-wrap gap-1 mt-1.5">
+                                            <template x-for="r in (item.reactions || [])" :key="r.emoji">
+                                                <button type="button"
+                                                        class="wc-reaction"
+                                                        :class="(r.user_ids||[]).includes(userId) ? 'wc-reaction-active' : ''"
+                                                        @click="toggleReaction(item.id, r.emoji)"
+                                                        x-text="r.emoji + ((r.count||0) > 1 ? ' ' + r.count : '')">
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </template>
+
+                                    {{-- Context menu trigger (hover) --}}
+                                    <div class="wc-ctx-btn absolute top-1"
+                                         :class="isMine(item) ? '-left-7' : '-right-7'"
+                                         @click="openCtx(item)">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
+                                        </svg>
+                                    </div>
+
                                 </div>
                             </div>
                         </div>
                     </template>
                 </div>
 
-                <template x-if="typingNames.length">
-                    <p class="mt-2 text-xs text-slate-500" x-text="typingNames.join(', ') + ' digitando...'"></p>
-                </template>
-
-                <template x-if="replyTo">
-                    <div class="mt-3 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2">
-                        <p class="text-[10px] text-slate-500" x-text="'Respondendo ' + (replyTo.user?.name || '—')"></p>
-                        <p class="text-[11px] text-slate-300 truncate" x-text="replyTo.body"></p>
-                        <button type="button" class="mt-1 text-[11px] text-slate-400 hover:text-slate-200" @click="replyTo = null">Cancelar</button>
-                    </div>
-                </template>
-
-                <template x-if="mentionSuggestions().length">
-                    <div class="mt-3 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2">
-                        <p class="text-[10px] text-slate-500 mb-1">Mencionar</p>
-                        <div class="flex flex-wrap gap-1.5">
-                            <template x-for="user in mentionSuggestions()" :key="user.id">
-                                <button type="button"
-                                        class="text-[11px] rounded-full border border-white/15 px-2 py-0.5 text-slate-200"
-                                        @click="applyMention(user)"
-                                        x-text="'@' + user.name"></button>
-                            </template>
+                {{-- Context menu --}}
+                <template x-if="ctxMsg">
+                    <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" @click="ctxMsg = null">
+                        <div class="wc-ctx-menu rounded-2xl px-2 py-1.5 shadow-2xl min-w-[160px]" @click.stop>
+                            <button class="wc-ctx-item" @click="replyTo = ctxMsg; ctxMsg = null">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                                Responder
+                            </button>
+                            <button class="wc-ctx-item" @click="toggleReaction(ctxMsg.id, '👍'); ctxMsg = null">
+                                <span class="text-base leading-none">👍</span> Reagir
+                            </button>
+                            <button class="wc-ctx-item" @click="copyMsg(ctxMsg); ctxMsg = null">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                Copiar
+                            </button>
+                            <button class="wc-ctx-item text-slate-400" @click="ctxMsg = null">Cancelar</button>
                         </div>
                     </div>
                 </template>
 
-                <div class="mt-3 flex items-center gap-2">
-                    <input
-                        x-model="draft"
-                        type="text"
-                        maxlength="2000"
-                        class="chat-input-web flex-1"
-                        placeholder="Digite uma mensagem"
-                        @input="touchTyping()"
-                        @keydown.enter.prevent="sendMessage()"
-                    >
-                    <button type="button" class="btn-primary !px-4 !py-2" :disabled="sending || !draft.trim()" @click="sendMessage()">
-                        Enviar
+                {{-- Reply bar --}}
+                <template x-if="replyTo">
+                    <div class="wc-reply-bar px-4 py-2 flex items-center gap-3 shrink-0">
+                        <div class="flex-1 min-w-0 border-l-2 border-amber-400 pl-3">
+                            <p class="text-[11px] font-semibold text-amber-300" x-text="replyTo.user?.name || '—'"></p>
+                            <p class="text-[12px] text-slate-300 truncate" x-text="replyTo.body"></p>
+                        </div>
+                        <button type="button" class="text-slate-400 hover:text-slate-200 shrink-0" @click="replyTo = null">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                </template>
+
+                {{-- Composer --}}
+                <div class="wc-composer px-3 py-2.5 flex items-end gap-2 shrink-0">
+                    <div class="flex-1 wc-input-wrap rounded-2xl px-4 py-2.5 flex items-end gap-2">
+                        <textarea
+                            x-model="draft"
+                            rows="1"
+                            maxlength="2000"
+                            class="wc-textarea flex-1 text-sm text-slate-100 placeholder-slate-500 resize-none outline-none bg-transparent leading-[1.4] max-h-28"
+                            placeholder="Digite uma mensagem"
+                            @input.debounce.300ms="touchTyping(); autoResize($event)"
+                            @keydown.enter.exact.prevent="sendMessage()"
+                            @keydown.shift.enter="$event.target.style.height = 'auto'; $event.target.style.height = $event.target.scrollHeight + 'px'"
+                        ></textarea>
+                    </div>
+                    <button type="button"
+                            class="wc-send shrink-0"
+                            :class="draft.trim() ? 'wc-send-active' : 'wc-send-idle'"
+                            :disabled="sending || !draft.trim()"
+                            @click="sendMessage()">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                        </svg>
                     </button>
                 </div>
-            </div>
+
+            </div>{{-- /wc-thread --}}
         </div>
     </div>
     @endif
@@ -1234,23 +1337,13 @@
 <script>
     function poolChatWidget({ poolId, userId, userName }) {
         return {
-            poolId,
-            userId,
-            userName,
-            loading: true,
-            sending: false,
-            draft: '',
-            replyTo: null,
-            messages: [],
-            typingUsers: {},
-            participants: [],
-            readsMap: {},
-            typingTimeout: null,
-            channel: null,
+            poolId, userId, userName,
+            loading: true, sending: false,
+            draft: '', replyTo: null, ctxMsg: null,
+            messages: [], typingUsers: {}, participants: [], readsMap: {},
+            typingTimeout: null, channel: null,
 
-            get typingNames() {
-                return Object.values(this.typingUsers);
-            },
+            get typingNames() { return Object.values(this.typingUsers); },
 
             async init() {
                 await Promise.all([this.loadMessages(), this.loadParticipants()]);
@@ -1263,22 +1356,17 @@
                     const res = await window.axios.get(`/api/v1/pools/${this.poolId}/chat/messages`);
                     this.messages = Array.isArray(res?.data?.data?.items) ? res.data.data.items : [];
                     this.readsMap = (res?.data?.data?.reads_map && typeof res.data.data.reads_map === 'object')
-                        ? res.data.data.reads_map
-                        : {};
+                        ? res.data.data.reads_map : {};
                     this.$nextTick(() => this.scrollBottom());
                     await this.markRead();
-                } finally {
-                    this.loading = false;
-                }
+                } finally { this.loading = false; }
             },
 
             async loadParticipants() {
                 try {
                     const res = await window.axios.get(`/api/v1/pools/${this.poolId}/chat/participants`);
                     this.participants = Array.isArray(res?.data?.data?.items) ? res.data.data.items : [];
-                } catch (_) {
-                    this.participants = [];
-                }
+                } catch (_) { this.participants = []; }
             },
 
             bindRealtime() {
@@ -1287,9 +1375,8 @@
                     .listen('.PoolChatMessageCreated', async (payload) => {
                         const msg = payload?.message;
                         if (!msg) return;
-                        if (!this.messages.some((m) => Number(m.id) === Number(msg.id))) {
+                        if (!this.messages.some((m) => Number(m.id) === Number(msg.id)))
                             this.messages.push(msg);
-                        }
                         this.$nextTick(() => this.scrollBottom());
                         await this.markRead();
                     })
@@ -1303,18 +1390,13 @@
                         if (!uid || uid === this.userId) return;
                         if (payload?.typing) {
                             this.typingUsers[uid] = payload?.user_name || 'Alguém';
-                            setTimeout(() => {
-                                delete this.typingUsers[uid];
-                            }, 5000);
-                        } else {
-                            delete this.typingUsers[uid];
-                        }
+                            setTimeout(() => { delete this.typingUsers[uid]; }, 5000);
+                        } else { delete this.typingUsers[uid]; }
                     })
                     .listen('.PoolChatReadUpdated', (payload) => {
                         const uid = Number(payload?.user_id || 0);
                         const last = Number(payload?.last_read_message_id || 0);
-                        if (!uid || !last) return;
-                        this.readsMap[uid] = last;
+                        if (uid && last) this.readsMap[uid] = last;
                     });
             },
 
@@ -1334,13 +1416,17 @@
                     this.draft = '';
                     this.replyTo = null;
                     await this.setTyping(false);
-                } finally {
-                    this.sending = false;
-                }
+                } finally { this.sending = false; }
             },
 
             async toggleReaction(messageId, emoji) {
                 await window.axios.post(`/api/v1/pools/${this.poolId}/chat/messages/${messageId}/reactions`, { emoji });
+            },
+
+            openCtx(item) { this.ctxMsg = item; },
+
+            async copyMsg(item) {
+                try { await navigator.clipboard.writeText(item.body || ''); } catch (_) {}
             },
 
             touchTyping() {
@@ -1349,76 +1435,226 @@
                 this.typingTimeout = setTimeout(() => this.setTyping(false), 1500);
             },
 
-            mentionSuggestions() {
-                const match = String(this.draft || '').match(/(?:^|\\s)@([\\p{L}0-9_\\-.]{1,40})$/u);
-                if (!match) return [];
-                const term = String(match[1] || '').toLowerCase();
-                if (!term) return [];
-                return (this.participants || [])
-                    .filter((p) => Number(p.id) !== Number(this.userId))
-                    .filter((p) => String(p.name || '').toLowerCase().includes(term))
-                    .slice(0, 6);
+            autoResize(e) {
+                const el = e.target;
+                el.style.height = 'auto';
+                el.style.height = Math.min(el.scrollHeight, 112) + 'px';
             },
 
-            applyMention(user) {
-                const mention = `@${user.name}`;
-                this.draft = String(this.draft || '').replace(/(?:^|\\s)@[\\p{L}0-9_\\-.]{1,40}$/u, (m) => `${m.startsWith(' ') ? ' ' : ''}${mention} `);
+            isMine(item) { return Number(item.user?.id || 0) === Number(this.userId || 0); },
+
+            isFirstInGroup(idx) {
+                if (idx === 0) return true;
+                const cur = this.messages[idx];
+                const prev = this.messages[idx - 1];
+                return Number(cur.user?.id) !== Number(prev.user?.id) || this.minuteDiff(prev, cur) > 2;
+            },
+
+            isLastInGroup(idx) {
+                if (idx === this.messages.length - 1) return true;
+                const cur = this.messages[idx];
+                const next = this.messages[idx + 1];
+                return Number(cur.user?.id) !== Number(next.user?.id) || this.minuteDiff(cur, next) > 2;
+            },
+
+            minuteDiff(a, b) {
+                const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+                const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+                return Math.abs(tb - ta) / 60000;
+            },
+
+            showDateSep(idx) {
+                if (idx === 0) return true;
+                const a = this.messages[idx - 1]?.created_at;
+                const b = this.messages[idx]?.created_at;
+                if (!a || !b) return false;
+                return new Date(a).toDateString() !== new Date(b).toDateString();
             },
 
             readState(messageId) {
                 const ownId = Number(this.userId || 0);
-                const readValues = Object.entries(this.readsMap || {})
+                const vals = Object.entries(this.readsMap || {})
                     .filter(([uid]) => Number(uid) !== ownId)
                     .map(([, last]) => Number(last || 0));
-                const anyRead = readValues.some((last) => last >= Number(messageId || 0));
-                return anyRead ? 'Lido' : 'Enviado';
+                return vals.some((last) => last >= Number(messageId || 0)) ? 'Lido' : 'Enviado';
             },
 
             async setTyping(typing) {
-                try {
-                    await window.axios.post(`/api/v1/pools/${this.poolId}/chat/typing`, { typing: !!typing });
-                } catch (_) {}
+                try { await window.axios.post(`/api/v1/pools/${this.poolId}/chat/typing`, { typing: !!typing }); } catch (_) {}
             },
 
             async markRead() {
                 const lastId = this.messages.length ? this.messages[this.messages.length - 1].id : null;
                 if (!lastId) return;
-                try {
-                    await window.axios.post(`/api/v1/pools/${this.poolId}/chat/read`, { last_read_message_id: lastId });
-                } catch (_) {}
+                try { await window.axios.post(`/api/v1/pools/${this.poolId}/chat/read`, { last_read_message_id: lastId }); } catch (_) {}
             },
 
             formatTime(iso) {
-                if (!iso) return '—';
+                if (!iso) return '';
                 const d = new Date(iso);
-                if (Number.isNaN(d.getTime())) return '—';
-                return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            },
+
+            formatDate(iso) {
+                if (!iso) return '';
+                const d = new Date(iso);
+                if (Number.isNaN(d.getTime())) return '';
+                const today = new Date();
+                if (d.toDateString() === today.toDateString()) return 'Hoje';
+                const yest = new Date(today); yest.setDate(today.getDate() - 1);
+                if (d.toDateString() === yest.toDateString()) return 'Ontem';
+                return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            },
+
+            hashStr(s) {
+                let h = 0;
+                for (let i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i);
+                return Math.abs(h);
+            },
+
+            avatarBg(name) {
+                const p = ['#1d4ed8','#0f766e','#7c3aed','#b45309','#be123c','#0369a1'];
+                return p[this.hashStr(String(name||'')) % p.length];
+            },
+
+            nameColor(name) {
+                const p = ['#60a5fa','#34d399','#a78bfa','#f59e0b','#f472b6','#22d3ee'];
+                return p[this.hashStr(String(name||'')) % p.length];
+            },
+
+            initials(name) {
+                const n = String(name||'').trim();
+                if (!n) return '?';
+                return n.split(/\s+/).slice(0,2).map(p=>p.charAt(0).toUpperCase()).join('');
             },
 
             scrollBottom() {
                 const el = this.$refs.list;
-                if (!el) return;
-                el.scrollTop = el.scrollHeight;
+                if (el) el.scrollTop = el.scrollHeight;
             },
         };
     }
 </script>
 <style>
-    .chat-input-web {
-        width: 100%;
-        min-height: 44px;
-        border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        background: #0f172a;
-        color: #e5e7eb;
-        padding: 0 12px;
-        font-size: 14px;
-    }
-    .chat-input-web::placeholder { color: #8fa0b8; }
-    .chat-input-web:focus {
-        outline: none;
-        border-color: rgba(245, 166, 35, 0.55);
-        box-shadow: 0 0 0 2px rgba(245, 166, 35, 0.18);
-    }
+/* ── WhatsApp-style chat ─────────────────────────────────────── */
+.wc-thread {
+    background: #0b141a;
+    box-shadow: 0 8px 32px rgba(0,0,0,.45);
+}
+.wc-header {
+    background: #1f2c34;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.wc-group-avatar {
+    width: 36px; height: 36px;
+    border-radius: 999px;
+    background: #2a3942;
+    display: flex; align-items: center; justify-content: center;
+}
+.wc-messages {
+    background:
+        radial-gradient(ellipse at 20% 30%, rgba(0,92,75,.08) 0%, transparent 60%),
+        #0b141a;
+}
+/* Bubbles */
+.wc-bubble-me {
+    background: #005c4b;
+    border-radius: 18px 18px 4px 18px;
+    padding: 7px 12px 6px;
+    color: #e9edef;
+    box-shadow: 0 1px 2px rgba(0,0,0,.35);
+    position: relative;
+}
+.wc-bubble-other {
+    background: #202c33;
+    border-radius: 18px 18px 18px 4px;
+    padding: 7px 12px 6px;
+    color: #e9edef;
+    box-shadow: 0 1px 2px rgba(0,0,0,.35);
+    position: relative;
+}
+.wc-body { color: #e9edef; }
+.wc-meta { color: rgba(233,237,239,.6); line-height: 1; }
+/* Reply quote */
+.wc-reply-me {
+    background: rgba(0,0,0,.2);
+    border-left: 3px solid #00a884;
+}
+.wc-reply-other {
+    background: rgba(0,0,0,.2);
+    border-left: 3px solid #53bdeb;
+}
+/* Reactions */
+.wc-reaction {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 12px; line-height: 1;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.15);
+    background: #1f2c34;
+    color: rgba(233,237,239,.85);
+    transition: background .1s;
+}
+.wc-reaction-active { border-color: rgba(0,168,132,.5); background: rgba(0,168,132,.15); color: #00a884; }
+/* Context menu button */
+.wc-ctx-btn {
+    display: none;
+    cursor: pointer;
+    color: rgba(233,237,239,.55);
+    padding: 2px;
+    transition: color .1s;
+}
+.wc-bubble-me:hover .wc-ctx-btn,
+.wc-bubble-other:hover .wc-ctx-btn { display: block; }
+.wc-ctx-btn:hover { color: rgba(233,237,239,.9); }
+/* Context menu */
+.wc-ctx-menu {
+    background: #233138;
+    border: 1px solid rgba(255,255,255,.1);
+}
+.wc-ctx-item {
+    display: flex; align-items: center; gap-x: 8px; gap: 8px;
+    width: 100%; padding: 9px 12px;
+    font-size: 13px; color: #e9edef;
+    border-radius: 8px;
+    transition: background .1s;
+}
+.wc-ctx-item:hover { background: rgba(255,255,255,.06); }
+/* Reply bar */
+.wc-reply-bar {
+    background: #1f2c34;
+    border-top: 1px solid rgba(255,255,255,.06);
+}
+/* Composer */
+.wc-composer {
+    background: #1f2c34;
+    border-top: 1px solid rgba(255,255,255,.06);
+}
+.wc-input-wrap {
+    background: #2a3942;
+    border: 1px solid rgba(255,255,255,.08);
+    min-height: 44px;
+}
+.wc-textarea {
+    color: #e9edef;
+    font-size: 14px;
+    line-height: 1.4;
+    min-height: 24px;
+}
+.wc-textarea::placeholder { color: #8696a0; }
+.wc-send {
+    width: 44px; height: 44px; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s, color .15s, transform .1s;
+    flex-shrink: 0;
+}
+.wc-send:active { transform: scale(.93); }
+.wc-send-active {
+    background: #00a884; color: #fff;
+    box-shadow: 0 2px 8px rgba(0,168,132,.35);
+}
+.wc-send-idle {
+    background: #2a3942; color: #8696a0;
+}
 </style>
 @endonce

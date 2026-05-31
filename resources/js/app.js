@@ -108,8 +108,10 @@ window.addEventListener('offline', updateConnectionBanner);
 window.addEventListener('load', updateConnectionBanner);
 
 (function () {
-    // Exibe A2HS na versão web normal.
-    // A rota /pwa já possui implementação própria no entry da PWA.
+    // Banner "Instale o app" na versão web normal.
+    // Não depende de beforeinstallprompt (que só dispara se o SW estiver registrado
+    // na rota atual). Exibe após breve delay com fallback para abrir /pwa.
+    // A rota /pwa usa implementação própria no entry da PWA.
     if (isPwaRoute) return;
     if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) return;
 
@@ -118,17 +120,32 @@ window.addEventListener('load', updateConnectionBanner);
     if (dismissedUntil && Date.now() < parseInt(dismissedUntil, 10)) return;
 
     let deferredPrompt = null;
+    let bannerMounted = false;
 
+    // Captura o prompt nativo se disponível (Chrome/Edge Android)
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredPrompt = e;
-        showA2HSBanner();
+        // Atualiza o botão se o banner já estiver visível
+        const btn = document.getElementById('a2hs-install-btn');
+        if (btn) btn.textContent = 'Instalar';
     });
 
     window.addEventListener('appinstalled', hideA2HSBanner);
 
+    // Mostra após 2s — sem depender do evento nativo que pode nunca disparar
+    // em rotas web onde o SW não está registrado ainda.
+    setTimeout(() => { if (!bannerMounted) showA2HSBanner(); }, 2000);
+
     function showA2HSBanner() {
         if (document.getElementById('a2hs-banner')) return;
+        bannerMounted = true;
+
+        // Na versão web mobile a nav bar ocupa 68px na base; posiciona acima dela.
+        const isMobile = window.matchMedia('(max-width: 767px)').matches;
+        const bottomOffset = isMobile
+            ? 'calc(76px + env(safe-area-inset-bottom, 0px))'
+            : 'calc(16px + env(safe-area-inset-bottom, 0px))';
 
         const banner = document.createElement('div');
         banner.id = 'a2hs-banner';
@@ -136,13 +153,13 @@ window.addEventListener('load', updateConnectionBanner);
             <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">
                 <img src="/favicon.png" style="width:40px;height:40px;border-radius:10px;flex-shrink:0" alt="">
                 <div style="min-width:0">
-                    <p style="margin:0;font-size:13px;font-weight:700;color:#f1f5f9;line-height:1.2">Instale o BolãoVF</p>
-                    <p style="margin:0;font-size:11px;color:#94a3b8;margin-top:2px;line-height:1.3">Acesse como app nativo, sem o browser</p>
+                    <p style="margin:0;font-size:13px;font-weight:700;color:#f1f5f9;line-height:1.2">BolãoVF tem versão app</p>
+                    <p style="margin:0;font-size:11px;color:#94a3b8;margin-top:2px;line-height:1.3">Notificações, modo offline e experiência nativa</p>
                 </div>
             </div>
             <div style="display:flex;gap:8px;flex-shrink:0">
-                <button id="a2hs-dismiss" style="padding:6px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:transparent;color:#94a3b8;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Agora não</button>
-                <button id="a2hs-install" style="padding:6px 14px;border-radius:8px;border:none;background:#f5a623;color:#000;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Instalar</button>
+                <button id="a2hs-dismiss" style="padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:transparent;color:#94a3b8;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Não</button>
+                <button id="a2hs-install-btn" style="padding:6px 14px;border-radius:8px;border:none;background:#f5a623;color:#000;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">${deferredPrompt ? 'Instalar' : 'Abrir app'}</button>
             </div>
         `;
 
@@ -150,15 +167,15 @@ window.addEventListener('load', updateConnectionBanner);
             position: 'fixed',
             left: '12px',
             right: '12px',
-            bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
-            zIndex: '9998',
+            bottom: bottomOffset,
+            zIndex: '9050',
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
             padding: '12px 14px',
             borderRadius: '14px',
             background: '#1c2230',
-            border: '1px solid rgba(245, 166, 35, 0.28)',
+            border: '1px solid rgba(245,166,35,0.28)',
             boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
             transition: 'opacity 0.25s ease, transform 0.25s ease',
             opacity: '0',
@@ -172,15 +189,21 @@ window.addEventListener('load', updateConnectionBanner);
             banner.style.transform = 'translateY(0)';
         }));
 
-        document.getElementById('a2hs-install').addEventListener('click', async () => {
-            if (!deferredPrompt) return;
-            deferredPrompt.prompt();
-            await deferredPrompt.userChoice;
-            deferredPrompt = null;
+        document.getElementById('a2hs-install-btn').addEventListener('click', async () => {
+            if (deferredPrompt) {
+                // Instala nativamente via browser prompt
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                deferredPrompt = null;
+                if (outcome === 'accepted') { hideA2HSBanner(); return; }
+            }
+            // Fallback: abre a PWA no browser (usuário pode instalar de lá)
+            window.open('/pwa', '_blank', 'noopener');
             hideA2HSBanner();
         });
 
         document.getElementById('a2hs-dismiss').addEventListener('click', () => {
+            // Suprime por 7 dias
             localStorage.setItem(DISMISSED_KEY, String(Date.now() + 7 * 24 * 60 * 60 * 1000));
             hideA2HSBanner();
         });

@@ -101,12 +101,17 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/pools/{pool}/members', [PoolMembersController::class, 'index']);
         Route::patch('/pools/{pool}/members/{member}', [PoolMembersController::class, 'update']);
         Route::delete('/pools/{pool}/members/{member}', [PoolMembersController::class, 'destroy']);
-        Route::get('/pools/{pool}/chat/messages', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'index']);
-        Route::get('/pools/{pool}/chat/participants', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'participants']);
-        Route::post('/pools/{pool}/chat/messages', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'store']);
-        Route::post('/pools/{pool}/chat/messages/{message}/reactions', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'react']);
-        Route::post('/pools/{pool}/chat/typing', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'typing']);
-        Route::post('/pools/{pool}/chat/read', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'markRead']);
+        // Chat: adiciona EnsureFrontendRequestsAreStateful para aceitar sessão web (Livewire)
+        // além do Bearer token (PWA). Não afeta rotas de token — o middleware só habilita
+        // o fallback de sessão quando não há Bearer token presente.
+        Route::middleware(\Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class)->group(function () {
+            Route::get('/pools/{pool}/chat/messages', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'index']);
+            Route::get('/pools/{pool}/chat/participants', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'participants']);
+            Route::post('/pools/{pool}/chat/messages', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'store']);
+            Route::post('/pools/{pool}/chat/messages/{message}/reactions', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'react']);
+            Route::post('/pools/{pool}/chat/typing', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'typing']);
+            Route::post('/pools/{pool}/chat/read', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'markRead']);
+        });
         Route::get('/pools/{pool}/predictions/me', [MyPredictionController::class, 'indexByPool']);
         Route::get('/pools/{pool}/matches/{match}/predictions', App\Http\Controllers\Api\V1\Pools\PoolMatchPredictionsController::class);
         Route::get('/pools/{pool}/matches/{match}/predictions/me', [MyPredictionController::class, 'show']);
