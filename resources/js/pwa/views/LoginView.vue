@@ -45,6 +45,13 @@
                         required
                     >
                 </div>
+                <div class="flex items-center justify-between gap-2 text-xs">
+                    <label class="inline-flex items-center gap-2 text-bolao-muted cursor-pointer">
+                        <input v-model="rememberMe" type="checkbox" class="h-4 w-4 rounded border-white/20 bg-white/5">
+                        Manter conectado neste dispositivo
+                    </label>
+                    <a href="/forgot-password" class="text-bolao-accent hover:underline">Esqueci minha senha</a>
+                </div>
                 <button type="submit" class="pwa-btn-primary w-full mt-2" :disabled="loading">
                     <span v-if="!loading">Entrar</span>
                     <span v-else class="flex items-center justify-center gap-2">
@@ -57,6 +64,11 @@
                 </button>
             </form>
 
+            <div class="mt-4 text-center text-sm">
+                <span class="text-bolao-muted">Não tem conta? </span>
+                <a href="/register" class="text-bolao-accent font-semibold hover:underline">Criar conta</a>
+            </div>
+
             <p class="mt-6 text-center text-xs text-bolao-muted2">
                 Apenas diversão &middot; sem apostas financeiras
             </p>
@@ -66,6 +78,7 @@
 
 <script setup>
 import { ref } from 'vue';
+import { onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../store/auth';
 
@@ -73,14 +86,26 @@ const router = useRouter();
 const auth = useAuthStore();
 
 const form = ref({ login: '', password: '' });
+const rememberMe = ref(true);
 const loading = ref(false);
 const error = ref('');
+
+const LOGIN_REMEMBER_KEY = 'pwa_login_remember';
+const LOGIN_LAST_USER_KEY = 'pwa_login_last_user';
 
 async function submit() {
     error.value = '';
     loading.value = true;
     try {
-        await auth.loginUser(form.value.login, form.value.password);
+        if (rememberMe.value) {
+            localStorage.setItem(LOGIN_REMEMBER_KEY, '1');
+            localStorage.setItem(LOGIN_LAST_USER_KEY, form.value.login);
+        } else {
+            localStorage.removeItem(LOGIN_REMEMBER_KEY);
+            localStorage.removeItem(LOGIN_LAST_USER_KEY);
+        }
+
+        await auth.loginUser(form.value.login, form.value.password, rememberMe.value);
         await auth.fetchMe();
         router.push('/pwa/dashboard');
     } catch (err) {
@@ -98,6 +123,14 @@ async function submit() {
         loading.value = false;
     }
 }
+
+onMounted(() => {
+    rememberMe.value = localStorage.getItem(LOGIN_REMEMBER_KEY) !== '0';
+    if (rememberMe.value) {
+        const lastUser = localStorage.getItem(LOGIN_LAST_USER_KEY) || '';
+        if (!form.value.login) form.value.login = lastUser;
+    }
+});
 </script>
 
 <style scoped>

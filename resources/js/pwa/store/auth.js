@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import * as authApi from '../api/auth';
+import { clearStoredToken, getStoredToken, setStoredToken } from '../utils/authToken';
 
 export const useAuthStore = defineStore('auth', () => {
-    const token        = ref(sessionStorage.getItem('pwa_token') ?? null);
+    const token        = ref(getStoredToken());
     const user         = ref(null);
     const legalPending = ref(false);
 
@@ -12,10 +13,10 @@ export const useAuthStore = defineStore('auth', () => {
     const isManager       = computed(() => !!user.value?.is_manager);
     const isOwner         = computed(() => !!user.value?.is_owner);
 
-    async function loginUser(loginField, password) {
+    async function loginUser(loginField, password, persist = false) {
         const { data: res } = await authApi.login(loginField, password);
         token.value = res.data.token;
-        sessionStorage.setItem('pwa_token', res.data.token);
+        setStoredToken(res.data.token, persist);
         legalPending.value = res.data.flags?.legal_pending ?? false;
         return res.data;
     }
@@ -39,7 +40,7 @@ export const useAuthStore = defineStore('auth', () => {
         token.value    = null;
         user.value     = null;
         legalPending.value = false;
-        sessionStorage.removeItem('pwa_token');
+        clearStoredToken();
     }
 
     return {
@@ -51,7 +52,6 @@ export const useAuthStore = defineStore('auth', () => {
         isManager,
         isOwner,
         loginUser,
-        fetchMe,
         fetchMe,
         clearLegalPending,
         logoutUser,

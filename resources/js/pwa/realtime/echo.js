@@ -1,12 +1,13 @@
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
+import { getStoredToken } from '../utils/authToken';
 
 let echoInstance = null;
 
 export function getPwaEcho() {
     if (echoInstance) return echoInstance;
 
-    const token = sessionStorage.getItem('pwa_token');
+    const token = getStoredToken();
     if (!token) return null;
 
     window.Pusher = Pusher;
