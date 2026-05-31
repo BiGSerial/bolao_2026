@@ -506,6 +506,11 @@ const nextTrackStyle = computed(() => {
     return { transform: `translateX(${base + dragPct}%)` };
 });
 
+function normalizePoolId(value) {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
 function shortName(team) {
     if (!team) return '—';
     return team.short_name ?? team.name ?? team.tla ?? '—';
@@ -559,15 +564,20 @@ function detectCompetitionTitle(payload) {
 }
 
 function selectPool(id) {
-    selectedPoolId.value = id;
-    localStorage.setItem(DASHBOARD_POOL_ID_KEY, String(id));
+    const normalized = normalizePoolId(id);
+    selectedPoolId.value = normalized;
+    if (normalized) {
+        localStorage.setItem(DASHBOARD_POOL_ID_KEY, String(normalized));
+    } else {
+        localStorage.removeItem(DASHBOARD_POOL_ID_KEY);
+    }
 }
 
 function hydrateSelections() {
     const pools = competitionPools.value;
     if (!pools.length) return;
-    const stored = Number(localStorage.getItem(DASHBOARD_POOL_ID_KEY));
-    selectedPoolId.value = pools.some((p) => p.id === stored) ? stored : pools[0].id;
+    const stored = normalizePoolId(localStorage.getItem(DASHBOARD_POOL_ID_KEY));
+    selectedPoolId.value = stored && pools.some((p) => p.id === stored) ? stored : pools[0].id;
 }
 
 async function loadDashboard({ silent = false } = {}) {
@@ -584,7 +594,9 @@ async function loadDashboard({ silent = false } = {}) {
 }
 
 async function loadPoolData() {
-    if (!selectedPoolId.value) {
+    const poolId = normalizePoolId(selectedPoolId.value);
+    if (!poolId) {
+        selectedPoolId.value = null;
         liveRankingRows.value = [];
         poolPredictions.value = [];
         selectedPoolDetail.value = null;
@@ -592,10 +604,10 @@ async function loadPoolData() {
     }
 
     const [rankRes, poolRes] = await Promise.all([
-        getLiveRanking(selectedPoolId.value),
-        getPool(selectedPoolId.value),
+        getLiveRanking(poolId),
+        getPool(poolId),
     ]);
-    const predictions = await loadAllPoolPredictions(selectedPoolId.value);
+    const predictions = await loadAllPoolPredictions(poolId);
 
     liveRankingRows.value = rankRes.data.data.items ?? [];
     poolPredictions.value = predictions;
@@ -848,9 +860,10 @@ function startRealtime() {
         .listen('.MatchUpdated', manualRefresh)
         .listen('.MatchDetailUpdated', manualRefresh);
 
-    if (selectedPoolId.value) {
-        poolChannelKey = `private-pool.${selectedPoolId.value}`;
-        echo.private(`pool.${selectedPoolId.value}`).listen('.RankingUpdated', loadPoolData);
+    const poolId = normalizePoolId(selectedPoolId.value);
+    if (poolId) {
+        poolChannelKey = `private-pool.${poolId}`;
+        echo.private(`pool.${poolId}`).listen('.RankingUpdated', loadPoolData);
     }
 }
 
@@ -862,6 +875,7 @@ function stopRealtime() {
 }
 
 watch(selectedPoolId, async () => {
+    selectedPoolId.value = normalizePoolId(selectedPoolId.value);
     await loadPoolData();
     startRealtime();
 });
