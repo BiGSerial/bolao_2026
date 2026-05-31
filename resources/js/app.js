@@ -108,7 +108,9 @@ window.addEventListener('offline', updateConnectionBanner);
 window.addEventListener('load', updateConnectionBanner);
 
 (function () {
-    if (!isPwaRoute) return;
+    // Exibe A2HS na versão web normal.
+    // A rota /pwa já possui implementação própria no entry da PWA.
+    if (isPwaRoute) return;
     if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) return;
 
     const DISMISSED_KEY = 'a2hs_dismissed_until';
@@ -148,7 +150,7 @@ window.addEventListener('load', updateConnectionBanner);
             position: 'fixed',
             left: '12px',
             right: '12px',
-            bottom: 'calc(68px + env(safe-area-inset-bottom, 0px) + 10px)',
+            bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
             zIndex: '9998',
             display: 'flex',
             alignItems: 'center',

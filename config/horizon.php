@@ -33,7 +33,7 @@ return [
         'redis:broadcast'  => 5,
         'redis:scoring'    => 10,
         'redis:ranking'    => 15,
-        'redis:api-funnel' => 30,
+        'redis:api-funnel' => 20,   // live_score_quick deve processar rápido; alerta antecipado
         'redis:api-sync'   => 120,
         'redis:mail'       => 60,
         'redis:default'    => 60,
@@ -186,9 +186,9 @@ return [
             'balance'             => 'auto',
             'autoScalingStrategy' => 'time',
             'minProcesses'        => 1,
-            'maxProcesses'        => 3,
+            'maxProcesses'        => 4,   // 2 jobs/ciclo ao vivo (score_quick + full_events)
             'balanceMaxShift'     => 1,
-            'balanceCooldown'     => 5,
+            'balanceCooldown'     => 3,   // reage mais rápido a bursts de live_score_quick
             'maxTime'             => 0,
             'maxJobs'             => 0,
             'memory'              => 128,
@@ -213,7 +213,7 @@ return [
             'balance'             => 'auto',
             'autoScalingStrategy' => 'time',
             'minProcesses'        => 1,
-            'maxProcesses'        => 2,
+            'maxProcesses'        => 3,   // agora roda também durante ao vivo (base sync a cada 3 min)
             'balanceMaxShift'     => 1,
             'balanceCooldown'     => 10,
             'maxTime'             => 0,
@@ -301,15 +301,15 @@ return [
             ],
 
             'supervisor-api-funnel' => [
-                'minProcesses'    => 1,
-                'maxProcesses'    => 3,
+                'minProcesses'    => 2,   // 1 sempre pronto para score_quick + 1 para full_events
+                'maxProcesses'    => 5,   // pico de múltiplas competições ao vivo simultâneas
                 'balanceMaxShift' => 1,
-                'balanceCooldown' => 5,
+                'balanceCooldown' => 3,
             ],
 
             'supervisor-api-sync' => [
                 'minProcesses'    => 1,
-                'maxProcesses'    => 2,
+                'maxProcesses'    => 3,   // base sync agora ativo durante ao vivo
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 10,
             ],
