@@ -397,16 +397,20 @@ class SimulationLabCommand extends Command
     {
         $all = (bool) $this->option('all');
         $matchIds = collect();
+        $targetMatches = collect();
 
         if ($all) {
-            $matchIds = FootballMatch::query()
+            $targetMatches = FootballMatch::query()
                 ->where('provider', 'simulator')
+                ->get(['id']);
+            $matchIds = $targetMatches
                 ->pluck('id');
         } else {
             $match = $this->resolveMatch();
             if (! $match) {
                 return self::FAILURE;
             }
+            $targetMatches = collect([$match]);
             $matchIds = collect([$match->id]);
         }
 
@@ -416,16 +420,29 @@ class SimulationLabCommand extends Command
             return self::SUCCESS;
         }
 
+        $simulatedMatchIds = $targetMatches
+            ->filter(fn (FootballMatch $m) => $m->provider === 'simulator')
+            ->pluck('id')
+            ->values();
+
+        if ($simulatedMatchIds->isEmpty()) {
+            $this->warn('A partida informada nao e simulada (provider != simulator). Nada para remover no cleanup.');
+            $this->line('Dica: use bootstrap para criar partida simulada e opere nela.');
+
+            return self::SUCCESS;
+        }
+
         $poolIds = Prediction::query()
-            ->whereIn('football_match_id', $matchIds)
+            ->whereIn('football_match_id', $simulatedMatchIds)
             ->distinct()
             ->pluck('pool_id');
 
-        DB::transaction(function () use ($matchIds): void {
-            Prediction::query()->whereIn('football_match_id', $matchIds)->delete();
-            FootballMatchDetail::query()->whereIn('football_match_id', $matchIds)->delete();
-            FootballMatch::query()
-                ->whereIn('id', $matchIds)
+        $deletedMatches = 0;
+        DB::transaction(function () use ($simulatedMatchIds, &$deletedMatches): void {
+            Prediction::query()->whereIn('football_match_id', $simulatedMatchIds)->delete();
+            FootballMatchDetail::query()->whereIn('football_match_id', $simulatedMatchIds)->delete();
+            $deletedMatches = FootballMatch::query()
+                ->whereIn('id', $simulatedMatchIds)
                 ->where('provider', 'simulator')
                 ->delete();
 
@@ -444,7 +461,7 @@ class SimulationLabCommand extends Command
 
         $this->line('Limpeza concluida.');
         $this->table(['campo', 'valor'], [
-            ['matches_removidas', (string) $matchIds->count()],
+            ['matches_removidas', (string) $deletedMatches],
             ['pools_recalculados', (string) $poolIds->count()],
         ]);
 
