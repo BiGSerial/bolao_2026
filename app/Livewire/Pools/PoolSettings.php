@@ -5,6 +5,7 @@ namespace App\Livewire\Pools;
 use App\Enums\PoolMemberRole;
 use App\Models\Pool;
 use App\Services\Predictions\PredictionScoringService;
+use App\Services\Pools\PoolFinalizationService;
 use App\Services\Pools\PoolRankingService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -242,6 +243,24 @@ class PoolSettings extends Component
 
         session()->flash('status', "Grupo {$name} removido com sucesso.");
         $this->redirect(route('pools.index'), navigate: true);
+    }
+
+    public function finalizePool(PoolFinalizationService $finalizationService): void
+    {
+        $member = $this->pool->members()->where('user_id', Auth::id())->first();
+        abort_unless($member && $member->role === PoolMemberRole::Owner->value, 403);
+
+        if ((string) $this->pool->status === 'archived') {
+            $this->notify('info', 'Bolão já finalizado', 'Este bolão já está encerrado.');
+            return;
+        }
+
+        $finalizationService->finalize($this->pool);
+        $this->pool->refresh();
+        $this->status = (string) $this->pool->status;
+
+        session()->flash('status', 'Bolão finalizado com sucesso. Ranking consolidado e e-mails enviados.');
+        $this->notify('success', 'Bolão finalizado', 'Pontuações consolidadas e participantes notificados por e-mail.');
     }
 
     private function assertManager(): void

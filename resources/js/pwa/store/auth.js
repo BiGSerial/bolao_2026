@@ -10,6 +10,7 @@ export const useAuthStore = defineStore('auth', () => {
     const isAuthenticated = computed(() => !!token.value);
     const isAdmin         = computed(() => !!user.value?.is_admin);
     const isManager       = computed(() => !!user.value?.is_manager);
+    const isOwner         = computed(() => !!user.value?.is_owner);
 
     async function loginUser(loginField, password) {
         const { data: res } = await authApi.login(loginField, password);
@@ -48,6 +49,7 @@ export const useAuthStore = defineStore('auth', () => {
         isAuthenticated,
         isAdmin,
         isManager,
+        isOwner,
         loginUser,
         fetchMe,
         fetchMe,

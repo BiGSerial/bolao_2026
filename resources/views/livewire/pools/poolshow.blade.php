@@ -1,5 +1,5 @@
 <div class="animate-fade-in"
-     wire:poll.30s="refreshMatches"
+     wire:poll.10s="refreshMatches"
      x-data="{
          touchStartX: 0,
          touchEndX: 0,

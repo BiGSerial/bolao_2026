@@ -343,7 +343,6 @@ const activeTab          = ref(poolId.value ? 'palpites' : 'eventos');
 const lineupSide         = ref('home');
 
 // Live clock
-const clientMinuteOffset = ref(0);
 let clockTimer   = null;
 let pollTimer    = null;
 let echoChannel  = null;
@@ -360,7 +359,7 @@ const isFinished = computed(() => FINISHED_STATUSES.includes(detail.value?.statu
 
 const displayMinute = computed(() => {
     const base = detail.value?.live_clock?.minute ?? 0;
-    return Math.min(130, base + clientMinuteOffset.value);
+    return Math.min(130, base);
 });
 
 const hasHalfScore = computed(() => {
@@ -470,7 +469,6 @@ async function loadDetail() {
     try {
         const { data: res } = await client.get(`/matches/${matchId.value}/detail`);
         detail.value = res.data;
-        clientMinuteOffset.value = 0;
 
         const title = `${detail.value.home_team.short_name || detail.value.home_team.tla} × ${detail.value.away_team.short_name || detail.value.away_team.tla}`;
         emit('set-title', title);
@@ -498,19 +496,9 @@ async function loadPredictions() {
 
 function syncLiveClock() {
     stopClock();
-    if (isLive.value) {
-        clockTimer = setInterval(() => {
-            clientMinuteOffset.value = Math.floor(
-                (Date.now() - clockAnchor) / 60000
-            );
-        }, 5000);
-    }
 }
 
-let clockAnchor = Date.now();
-
 function startClock() {
-    clockAnchor = Date.now();
     syncLiveClock();
 }
 

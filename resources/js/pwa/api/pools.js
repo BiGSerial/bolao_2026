@@ -12,3 +12,4 @@ export const joinPoolByCode = (invite_code, sector = null) =>
 export const leavePool = (id) => client.post(`/pools/${id}/leave`);
 export const acceptInvite = (token) =>
     client.post(`/pools/invites/${token}/accept`);
+export const finalizePool = (id) => client.post(`/pools/${id}/finalize`);

@@ -259,6 +259,20 @@
                     </div>
 
                     @if(auth()->id() === $pool->owner_id)
+                    <div class="rounded-xl border border-amber-800/60 bg-amber-950/20 p-4 space-y-4">
+                        <div>
+                            <h3 class="text-sm font-semibold text-amber-200">Finalizar Bolão</h3>
+                            <p class="mt-1 text-xs text-amber-100/80">
+                                Encerra o bolão, consolida pontuação final e envia e-mail com ranking para todos os membros ativos.
+                            </p>
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="button" wire:click="finalizePool" class="btn-secondary" wire:loading.attr="disabled">
+                                Finalizar bolão
+                            </button>
+                        </div>
+                    </div>
+
                     <div class="rounded-xl border border-red-900/60 bg-red-950/20 p-4 space-y-4">
                         <div>
                             <h3 class="text-sm font-semibold text-red-300">Deletar Grupo</h3>

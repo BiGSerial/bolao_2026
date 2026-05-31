@@ -122,7 +122,7 @@ class SimulationLabCommand extends Command
             ['football_match_id' => $match->id],
             [
                 'provider' => 'simulator',
-                'external_id' => 'SIM-'.$match->id,
+                'external_id' => $match->id,
                 'fetched_at' => now(),
                 'payload' => $this->baseDetailPayload($match),
                 'last_error' => null,
@@ -583,7 +583,7 @@ class SimulationLabCommand extends Command
             ['football_match_id' => $match->id],
             [
                 'provider' => 'simulator',
-                'external_id' => 'SIM-'.$match->id,
+                'external_id' => $match->id,
                 'payload' => $this->baseDetailPayload($match),
                 'fetched_at' => now(),
             ]
@@ -616,10 +616,21 @@ class SimulationLabCommand extends Command
 
     private function emitMatchRealtimeUpdates(FootballMatch $match, bool $includeDetailEvent): void
     {
-        MatchUpdated::dispatch($match);
-        if ($includeDetailEvent) {
-            MatchDetailUpdated::dispatch($match);
+        // No contexto do CLI o worker pode não estar processando a fila broadcast.
+        // Forçamos dispatch síncrono para que o evento chegue ao Reverb imediatamente.
+        $prev = config('queue.default');
+        config(['queue.default' => 'sync']);
+
+        try {
+            MatchUpdated::dispatch($match);
+            if ($includeDetailEvent) {
+                MatchDetailUpdated::dispatch($match);
+            }
+        } finally {
+            config(['queue.default' => $prev]);
         }
+
+        $this->line("  → broadcast: MatchUpdated" . ($includeDetailEvent ? ' + MatchDetailUpdated' : '') . ' (sync)');
     }
 
     private function notifyPoolsFromMatch(FootballMatch $match, string $title, string $message): void

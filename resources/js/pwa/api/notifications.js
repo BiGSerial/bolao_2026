@@ -7,11 +7,17 @@ export const markAsRead = (id) =>
     client.patch(`/notifications/${id}/read`);
 
 export const subscribeToPush = (subscription) =>
-    client.post('/notifications/subscriptions', {
+{
+    const json = subscription.toJSON();
+    const keys = json.keys ?? {};
+
+    return client.post('/notifications/subscriptions', {
         endpoint: subscription.endpoint,
-        public_key: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('p256dh')))),
-        auth_token: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('auth')))),
+        public_key: keys.p256dh ?? null,
+        auth_token: keys.auth ?? null,
+        content_encoding: json?.contentEncoding ?? 'aesgcm',
     });
+};
 
 export const unsubscribeFromPush = (endpoint) =>
     client.delete('/notifications/subscriptions', { data: { endpoint } });

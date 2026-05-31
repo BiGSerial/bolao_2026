@@ -70,6 +70,10 @@ Route::prefix('v1')->group(function (): void {
                     ->whereIn('role', ['owner', 'manager'])
                     ->where('status', 'active')
                     ->exists(),
+                'is_owner'          => $user->poolMemberships()
+                    ->where('role', 'owner')
+                    ->where('status', 'active')
+                    ->exists(),
                 'legal_pending'     => $legalPending,
             ]);
         });
@@ -88,6 +92,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/pools/{pool}', [PoolsController::class, 'show']);
         Route::patch('/pools/{pool}', [PoolsController::class, 'update']);
         Route::delete('/pools/{pool}', [PoolsController::class, 'destroy']);
+        Route::post('/pools/{pool}/finalize', [PoolsController::class, 'finalize']);
         Route::post('/pools/{pool}/join-requests', [PoolMembershipActionsController::class, 'joinRequest']);
         Route::post('/pools/join-by-code', [PoolMembershipActionsController::class, 'joinByCode']);
         Route::post('/pools/{pool}/leave', [PoolMembershipActionsController::class, 'leave']);
@@ -117,7 +122,12 @@ Route::prefix('v1')->group(function (): void {
 
             Route::get('/pools', [App\Http\Controllers\Api\V1\Admin\AdminPoolController::class, 'index']);
             Route::get('/pools/{pool}', [App\Http\Controllers\Api\V1\Admin\AdminPoolController::class, 'show']);
+            Route::patch('/pools/{pool}', [App\Http\Controllers\Api\V1\Admin\AdminPoolController::class, 'update']);
             Route::patch('/pools/{pool}/status', [App\Http\Controllers\Api\V1\Admin\AdminPoolController::class, 'updateStatus']);
+            Route::get('/sync/status', [App\Http\Controllers\Api\V1\Admin\AdminOpsController::class, 'syncStatus']);
+            Route::post('/sync/run', [App\Http\Controllers\Api\V1\Admin\AdminOpsController::class, 'runSync']);
+            Route::get('/emails/status', [App\Http\Controllers\Api\V1\Admin\AdminOpsController::class, 'emailStatus']);
+            Route::post('/emails/sync', [App\Http\Controllers\Api\V1\Admin\AdminOpsController::class, 'runEmailSync']);
         });
     });
 });

@@ -33,6 +33,9 @@
                         <p v-if="pushPermissionDenied" class="text-[11px] text-red-400 mt-0.5">
                             Permissão negada. Habilite nas configurações do navegador.
                         </p>
+                        <p v-else-if="push.lastError.value" class="text-[11px] text-red-400 mt-0.5">
+                            {{ push.lastError.value }}
+                        </p>
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
                         <span v-if="push.loading.value" class="text-[10px] text-bolao-muted">
@@ -367,7 +370,7 @@ async function saveProfile() {
     if (!editForm.value.name.trim()) { editError.value = 'Nome é obrigatório.'; return; }
     savingProfile.value = true;
     try {
-        const { data: res } = await client.patch('/v1/me', {
+        const { data: res } = await client.patch('/me', {
             name:  editForm.value.name.trim(),
             email: editForm.value.email.trim(),
         });
@@ -408,7 +411,7 @@ async function sendFeedback() {
     if (feedbackForm.value.description.trim().length < 10) { feedbackError.value = 'Descreva com pelo menos 10 caracteres.'; return; }
     sendingFeedback.value = true;
     try {
-        await client.post('/v1/feedback', feedbackForm.value);
+        await client.post('/feedback', feedbackForm.value);
         feedbackSent.value = true;
         setTimeout(() => { showFeedback.value = false; }, 2000);
     } catch {

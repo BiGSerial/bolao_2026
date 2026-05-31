@@ -101,7 +101,7 @@ const tabs = [
     { name: 'dashboard', path: '/pwa/dashboard', label: 'Início',  icon: 'ti-home',          iconFill: 'ti-home' },
     { name: 'matches',   path: '/pwa/matches',   label: 'Jogos',   icon: 'ti-ball-football', iconFill: 'ti-ball-football' },
     { name: 'pools',     path: '/pwa/pools',     label: 'Bolões',  icon: 'ti-trophy',        iconFill: 'ti-trophy' },
-    { name: 'management', path: '/pwa/management', label: 'Gestão', icon: 'ti-layout-dashboard', iconFill: 'ti-layout-dashboard', requiresManager: true },
+    { name: 'management', path: '/pwa/management', label: 'Gestão', icon: 'ti-layout-dashboard', iconFill: 'ti-layout-dashboard', requiresOwner: true },
     { name: 'admin',      path: '/pwa/admin',      label: 'Admin',  icon: 'ti-shield',        iconFill: 'ti-shield',           requiresAdmin: true },
     { name: 'profile',   path: '/pwa/profile',   label: 'Perfil',  icon: 'ti-user-circle',   iconFill: 'ti-user-circle' },
 ];
@@ -109,7 +109,7 @@ const tabs = [
 const visibleTabs = computed(() => {
     return tabs.filter(tab => {
         if (tab.requiresAdmin && !auth.isAdmin) return false;
-        if (tab.requiresManager && !auth.isManager && !auth.isAdmin) return false;
+        if (tab.requiresOwner && !auth.isOwner && !auth.isAdmin) return false;
         return true;
     });
 });

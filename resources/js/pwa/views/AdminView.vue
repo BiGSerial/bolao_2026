@@ -38,6 +38,7 @@ const adminMenu = [
     { label: 'Aprovação de Usuários', icon: 'ti-users', description: 'Novos cadastros aguardando aprovação', path: '/pwa/admin/users' },
     { label: 'Controle de Grupos', icon: 'ti-tournament', description: 'Gerenciar todos os bolões criados', path: '/pwa/admin/pools' },
     { label: 'Sincronização API', icon: 'ti-refresh', description: 'Status das rodadas e times', path: '/pwa/admin/sync' },
+    { label: 'API de E-mails', icon: 'ti-mail', description: 'Métricas e sincronização de e-mails transacionais', path: '/pwa/admin/emails' },
 ];
 
 onMounted(() => {

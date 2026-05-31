@@ -531,9 +531,10 @@ function roundLabel(match) {
 function liveMinuteLabel(match) {
     const min = match?.live_clock?.minute;
     const extra = match?.live_clock?.extra_minute;
-    if (!Number.isFinite(min)) return '';
-    if (Number.isFinite(extra) && extra > 0) return `${min}+${extra}'`;
-    return `${min}'`;
+    if (!Number.isFinite(min) || min <= 0) return '';
+    const capped = Math.min(130, min);
+    if (Number.isFinite(extra) && extra > 0) return `${capped}+${extra}'`;
+    return `${capped}'`;
 }
 function goalLine(g) {
     const num = Number.isFinite(g?.number) ? `${g.number} ` : '';

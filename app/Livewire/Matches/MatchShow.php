@@ -499,12 +499,6 @@ class MatchShow extends Component
             return null;
         }
 
-        $apiShortStatus = strtoupper((string) data_get($match->raw_payload, 'api_football_status.short', ''));
-        $apiElapsed = data_get($match->raw_payload, 'api_football_status.elapsed');
-        if (in_array($apiShortStatus, ['PST', 'TBD', 'SUSP', 'INT', 'NS'], true) && ! is_numeric($apiElapsed)) {
-            return null;
-        }
-
         $minute = data_get($match->raw_payload, 'minute');
         if (is_numeric($minute)) {
             return max(1, min(130, (int) $minute));
@@ -515,7 +509,7 @@ class MatchShow extends Component
             $trackedSeconds += max(0, $match->live_clock_anchor_at->diffInSeconds(now()->utc()));
         }
         if ($trackedSeconds > 0) {
-            return max(1, min(130, (int) floor($trackedSeconds / 60) + 1));
+            return max(1, min(130, (int) floor($trackedSeconds / 60)));
         }
 
         $kickoff = $match->kickoffAtBrazil();
@@ -525,7 +519,7 @@ class MatchShow extends Component
 
         $elapsed = $kickoff->diffInMinutes(now('America/Sao_Paulo'), false);
 
-        return max(1, min(130, $elapsed <= 0 ? 1 : $elapsed + 1));
+        return max(1, min(130, $elapsed <= 0 ? 1 : $elapsed));
     }
 
     /**

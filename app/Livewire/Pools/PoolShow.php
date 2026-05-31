@@ -1058,7 +1058,7 @@ class PoolShow extends Component
         }
 
         if ($trackedSeconds > 0) {
-            return max(1, min(130, (int) floor($trackedSeconds / 60) + 1));
+            return max(1, min(130, (int) floor($trackedSeconds / 60)));
         }
 
         $kickoff = $match->kickoffAtBrazil();
@@ -1071,7 +1071,7 @@ class PoolShow extends Component
             return 1;
         }
 
-        return max(1, min(130, $elapsed + 1));
+        return max(1, min(130, $elapsed));
     }
 
     private function isBrasileiraoPool(): bool

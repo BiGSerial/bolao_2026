@@ -427,13 +427,11 @@ const persistedDetailTabKey = computed(() => `pwa_pool_detail_tab_${poolId.value
 const mainTabs = [
     { id: 'predictions', label: 'Palpites', icon: 'ti-pencil' },
     { id: 'ranking',     label: 'Ranking',  icon: 'ti-trophy' },
-    { id: 'manage',      label: 'Gestão',   icon: 'ti-users' },
-    { id: 'settings',    label: 'Config.',  icon: 'ti-settings' },
 ];
 const routeTab = String(route.query.tab || '').toLowerCase();
 const storedTab = String(localStorage.getItem(persistedDetailTabKey.value) || '').toLowerCase();
 const resolveAllowedTab = (value) => (
-    ['predictions', 'ranking', 'manage', 'settings'].includes(String(value || '').toLowerCase())
+    ['predictions', 'ranking'].includes(String(value || '').toLowerCase())
         ? String(value).toLowerCase()
         : null
 );
