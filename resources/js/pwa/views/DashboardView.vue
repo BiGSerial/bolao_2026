@@ -393,6 +393,9 @@ const nextMatchIndex = ref(0);
 
 let echo = null;
 let poolChannelKey = null;
+let poolsChannelKey = null;
+let userChannelKey = null;
+let matchChannelKeys = [];
 const panelIndex = ref(1); // 0 left, 1 center, 2 right
 const dragging = ref(false);
 const dragDx = ref(0);
@@ -865,7 +868,32 @@ function startRealtime() {
     const canSubscribePoolChannel = membershipStatus === 'active';
     if (poolId && canSubscribePoolChannel) {
         poolChannelKey = `private-pool.${poolId}`;
+        poolsChannelKey = `private-pools.${poolId}`;
         echo.private(`pool.${poolId}`).listen('.RankingUpdated', loadPoolData);
+        // Alias plural para novos eventos sem quebrar canal legado.
+        echo.private(`pools.${poolId}`).listen('.pool.ranking.updated', loadPoolData);
+    }
+
+    const userId = Number(auth.user?.id ?? 0);
+    if (userId > 0) {
+        userChannelKey = `private-users.${userId}`;
+        echo.private(`users.${userId}`)
+            .listen('.prediction.scored', manualRefresh)
+            .listen('.match.finished', manualRefresh)
+            .listen('.match.summary', manualRefresh)
+            .listen('.goal.scored', manualRefresh);
+    }
+
+    const ids = (todayOpenMatches.value ?? [])
+        .map((m) => Number(m?.id ?? 0))
+        .filter((id) => Number.isFinite(id) && id > 0);
+
+    matchChannelKeys = [...new Set(ids)].map((id) => `private-matches.${id}`);
+    for (const id of [...new Set(ids)]) {
+        echo.private(`matches.${id}`)
+            .listen('.goal.scored', manualRefresh)
+            .listen('.match.finished', manualRefresh)
+            .listen('.match.summary', manualRefresh);
     }
 }
 
@@ -873,7 +901,13 @@ function stopRealtime() {
     if (!echo) return;
     echo.leave('matches');
     if (poolChannelKey) echo.leave(poolChannelKey);
+    if (poolsChannelKey) echo.leave(poolsChannelKey);
+    if (userChannelKey) echo.leave(userChannelKey);
+    for (const key of matchChannelKeys) echo.leave(key);
     poolChannelKey = null;
+    poolsChannelKey = null;
+    userChannelKey = null;
+    matchChannelKeys = [];
 }
 
 watch(selectedPoolId, async () => {

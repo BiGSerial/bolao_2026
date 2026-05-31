@@ -3,28 +3,51 @@
 namespace App\Services\FootballData\Projections;
 
 use App\Models\FootballMatch;
+use App\Services\Matches\MatchEventNormalizer;
 use Illuminate\Support\Facades\DB;
 
 class ApiFootballDetailProjectionService
 {
+    public function __construct(
+        private readonly MatchEventNormalizer $eventNormalizer,
+    ) {
+    }
+
     public function project(FootballMatch $match, array $payload): void
     {
         DB::transaction(function () use ($match, $payload): void {
             DB::table('match_events')->where('football_match_id', $match->id)->where('provider', 'api_football')->delete();
             DB::table('match_player_statistics')->where('football_match_id', $match->id)->where('provider', 'api_football')->delete();
+            $providerFixtureId = (int) data_get($payload, 'fixture.id', 0);
 
             foreach ((array) data_get($payload, 'events', []) as $event) {
+                $normalized = $this->eventNormalizer->normalizeApiFootball(
+                    $match,
+                    (array) $event,
+                    $providerFixtureId > 0 ? $providerFixtureId : null
+                );
+
                 DB::table('match_events')->insert([
-                    'football_match_id' => $match->id,
-                    'provider' => 'api_football',
-                    'minute' => data_get($event, 'time.elapsed'),
-                    'extra_minute' => data_get($event, 'time.extra'),
-                    'team_name' => data_get($event, 'team.name'),
-                    'player_name' => data_get($event, 'player.name'),
-                    'assist_name' => data_get($event, 'assist.name'),
-                    'event_type' => data_get($event, 'type'),
-                    'event_detail' => data_get($event, 'detail'),
-                    'raw_payload' => json_encode($event),
+                    'football_match_id' => $normalized['football_match_id'],
+                    'provider' => $normalized['provider'],
+                    'provider_event_id' => $normalized['provider_event_id'],
+                    'provider_fixture_id' => $normalized['provider_fixture_id'],
+                    'minute' => $normalized['minute'],
+                    'extra_minute' => $normalized['extra_minute'],
+                    'team_id' => $normalized['team_id'],
+                    'team_name' => $normalized['team_name'],
+                    'player_id' => $normalized['player_id'],
+                    'player_name' => $normalized['player_name'],
+                    'assist_player_id' => $normalized['assist_player_id'],
+                    'assist_name' => $normalized['assist_name'],
+                    'event_type' => $normalized['event_type'],
+                    'event_detail' => $normalized['event_detail'],
+                    'home_score' => $normalized['home_score'],
+                    'away_score' => $normalized['away_score'],
+                    'team_goal_number' => $normalized['team_goal_number'],
+                    'player_goal_number' => $normalized['player_goal_number'],
+                    'fingerprint' => $normalized['fingerprint'],
+                    'raw_payload' => json_encode($normalized['raw_payload']),
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
