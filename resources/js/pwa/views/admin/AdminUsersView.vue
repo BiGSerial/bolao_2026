@@ -198,7 +198,7 @@ async function updateStatus(newStatus) {
             toast: true, position: 'top', timer: 3000, showConfirmButton: false
         });
     } catch (err) {
-        Swal.fire('Erro', err.response?.data?.message || 'Falha ao atualizar status.', 'error');
+        Swal.fire('Erro', err.response?.data?.error?.message || err.response?.data?.message || 'Falha ao atualizar status.', 'error');
     }
 }
 

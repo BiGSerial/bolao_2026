@@ -36,6 +36,17 @@ class SyncWorldCupMatchDetailsService
         $this->apiFootballConnector->resetMetrics();
         $this->apiFootballSyncType = 'not_used';
 
+        // live_score_quick: somente API paga — sem Football-Data, sem detail storage, sem projection.
+        // Atualiza placar/status/live_clock e dispara MatchUpdated a cada minuto.
+        if ($syncType === 'live_score_quick') {
+            return $this->syncScoreQuick($limit, $competitionCode, $seasonYear, $stage);
+        }
+
+        // live_full_events: equivalente ao live_stats_refresh (API paga + gratuita + projection).
+        if ($syncType === 'live_full_events') {
+            $syncType = 'live_stats_refresh';
+        }
+
         $matches = $this->matchesToSync($limit, $competitionCode, $seasonYear, $stage)
             ->loadMissing(['homeTeam:id,name,canonical_name_br,short_name,tla', 'awayTeam:id,name,canonical_name_br,short_name,tla']);
 
@@ -134,6 +145,61 @@ class SyncWorldCupMatchDetailsService
             'api_football_sync_type' => $this->apiFootballSyncType,
             'finished_changed_match_ids' => array_values(array_unique($finishedChangedMatchIds)),
             'sync_mode' => 'batch',
+        ];
+    }
+
+    /**
+     * Sync rápido de placar/status via API paga apenas.
+     * Não consome Football-Data, não atualiza FootballMatchDetail, não roda projection.
+     * Ideal para ciclos de 1 min durante partidas ao vivo.
+     *
+     * @return array<string, mixed>
+     */
+    private function syncScoreQuick(int $limit, ?string $competitionCode, ?int $seasonYear, ?string $stage): array
+    {
+        $matches = $this->matchesToSync($limit, $competitionCode, $seasonYear, $stage)
+            ->loadMissing(['homeTeam:id,name,canonical_name_br,short_name,tla', 'awayTeam:id,name,canonical_name_br,short_name,tla']);
+
+        $updated = 0;
+        $errors  = 0;
+        $finishedChangedMatchIds = [];
+
+        if ($matches->isNotEmpty()) {
+            $apiFootballIndex = $this->buildApiFootballEnrichmentIndex($matches, $competitionCode, $seasonYear);
+
+            foreach ($matches as $match) {
+                $matchId = (int) $match->id;
+                try {
+                    $payload = $apiFootballIndex[$matchId] ?? null;
+                    if (! is_array($payload)) {
+                        continue;
+                    }
+
+                    $this->upsertApiFootballTeamRefs($match, $payload);
+
+                    if ($this->syncMatchStateFromApiFootball($match, $payload)) {
+                        $finishedChangedMatchIds[] = $matchId;
+                    }
+
+                    $updated++;
+                } catch (Throwable $e) {
+                    $errors++;
+                }
+            }
+        }
+
+        $metrics = $this->apiFootballConnector->metrics();
+
+        return [
+            'selected'                    => $matches->count(),
+            'updated'                     => $updated,
+            'errors'                      => $errors,
+            'enriched'                    => $updated,
+            'api_football_requests'       => (int) ($metrics['requests'] ?? 0),
+            'api_football_failures'       => (int) ($metrics['failures'] ?? 0),
+            'api_football_sync_type'      => $this->apiFootballSyncType,
+            'finished_changed_match_ids'  => array_values(array_unique($finishedChangedMatchIds)),
+            'sync_mode'                   => 'score_quick',
         ];
     }
 

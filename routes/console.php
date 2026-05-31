@@ -69,12 +69,38 @@ Schedule::call(function (): void {
             ->whereBetween('utc_date', [now()->subHours(4), now()->addHours(2)])
             ->exists();
 
-        /*
-         * ── Football-Data (gratuita · 10 RPM) ───────────────────────────
-         * Fora de ao vivo: mantém calendário, status e placares gerais.
-         * Durante ao vivo: NÃO despacha sync base (somente fallback na camada de detalhes).
-         */
-        if (! $hasLive) {
+        $detailsLimit = max(15, min(60, $liveCount + 6));
+
+        if ($hasLive) {
+            /*
+             * ── Ao vivo: proporção 2:1 (placar : eventos) ───────────────
+             *
+             * live_score_quick (cada 1 min): API paga apenas — sem Football-Data,
+             *   sem detail storage, sem projection. Atualiza placar/status/live_clock
+             *   e dispara MatchUpdated para atualização realtime no cliente.
+             *
+             * live_full_events (cada 2 min): API paga + Football-Data + projection.
+             *   Atualiza eventos, lineups, stats e dispara MatchDetailUpdated.
+             *
+             * Football-Data base (cada 3 min): mantém status/placar em sincronia
+             *   como fallback de status (PAUSED, FINISHED) detectado pela API gratuita.
+             */
+            if (shouldDispatchForWindow("scheduler:af-score:$code:$season:$stage", 1, 1)) {
+                RunCompetitionMatchDetailsSyncJob::dispatch($code, $season, $stage, $detailsLimit, 'live_score_quick');
+            }
+
+            if (shouldDispatchForWindow("scheduler:af-events:$code:$season:$stage", 2, 2)) {
+                RunCompetitionMatchDetailsSyncJob::dispatch($code, $season, $stage, $detailsLimit, 'live_full_events');
+            }
+
+            if (shouldDispatchForWindow("scheduler:fd:$code:$season:$stage", 3, 3)) {
+                RunCompetitionSyncJob::dispatch($code, $season, $stage);
+            }
+        } else {
+            /*
+             * ── Football-Data (gratuita · 10 RPM) ───────────────────────
+             * Fora de ao vivo: mantém calendário, status e placares gerais.
+             */
             [$fdMin, $fdMax] = match(true) {
                 $hasPreMatch => [2, 3],
                 $hasSoon     => [2, 4],
@@ -84,35 +110,30 @@ Schedule::call(function (): void {
             if (shouldDispatchForWindow("scheduler:fd:$code:$season:$stage", $fdMin, $fdMax)) {
                 RunCompetitionSyncJob::dispatch($code, $season, $stage);
             }
-        }
 
-        /*
-         * ── API-Football (paga · 125 RPM / 7500 por hora) ───────────────
-         * Responsável por escalações, estatísticas e eventos detalhados.
-         * Prioridade máxima durante jogos ao vivo — batches grandes e janelas curtas.
-         * Sem jogos: janela longa para economizar cota.
-         *
-         * Limite por batch:
-         *   15 = até 15 req Football-Data (rate-limiter cuida) + ~1 req API-Football (bulk 20)
-         *    8 = pré-jogo (lineups + eventos de aquecimento)
-         *    5 = jogo próximo (atualização de prováveis escalações)
-         *    3 = ocioso (backfill de detalhes antigos)
-         */
-        [$afMin, $afMax, $detailsLimit, $syncType] = match(true) {
-            // Garante cobertura de TODOS os jogos ao vivo no batch de detalhes
-            // (lineups/eventos) com folga para pré-jogos próximos.
-            $hasLive     => [1, 1,  max(15, min(60, $liveCount + 6)), (now()->minute % 3 === 0 ? 'live_stats_refresh' : 'live_minute_tick')],
-            $hasPreMatch => [2, 3,   8, 'pre_live_priority'],
-            $hasSoon     => [3, 5,   5, 'pre_live_priority'],
-            default      => [30, 45, 2, 'scheduled_auto'],
-        };
+            /*
+             * ── API-Football (paga · 125 RPM / 7500 por hora) ───────────
+             * Fora de ao vivo: pré-jogo, próximos e janela provável de kickoff.
+             *
+             * Limite por batch:
+             *    8 = pré-jogo (lineups + eventos de aquecimento)
+             *    5 = jogo próximo (prováveis escalações)
+             *    2 = ocioso (backfill de detalhes antigos)
+             */
+            [$afMin, $afMax, $afLimit, $syncType] = match(true) {
+                $hasPreMatch => [2, 3,  8, 'pre_live_priority'],
+                $hasSoon     => [3, 5,  5, 'pre_live_priority'],
+                default      => [30, 45, 2, 'scheduled_auto'],
+            };
 
-        $shouldUsePaidApi = $hasLive || $hasPreMatch || $hasSoon || $hasLikelyInProgressByKickoffWindow;
-        if ($shouldUsePaidApi && shouldDispatchForWindow("scheduler:af:$code:$season:$stage", $afMin, $afMax)) {
-            if ($hasLikelyInProgressByKickoffWindow && ! $hasLive && ! $hasPreMatch && ! $hasSoon) {
-                $syncType = 'kickoff_window_priority';
+            $shouldUsePaidApi = $hasPreMatch || $hasSoon || $hasLikelyInProgressByKickoffWindow;
+            if ($shouldUsePaidApi && shouldDispatchForWindow("scheduler:af:$code:$season:$stage", $afMin, $afMax)) {
+                if ($hasLikelyInProgressByKickoffWindow && ! $hasPreMatch && ! $hasSoon) {
+                    $syncType = 'kickoff_window_priority';
+                    $afLimit  = $detailsLimit;
+                }
+                RunCompetitionMatchDetailsSyncJob::dispatch($code, $season, $stage, $afLimit, $syncType);
             }
-            RunCompetitionMatchDetailsSyncJob::dispatch($code, $season, $stage, $detailsLimit, $syncType);
         }
     }
 })

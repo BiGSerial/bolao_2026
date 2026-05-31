@@ -68,6 +68,11 @@ class Pool extends Model
         return $this->hasMany(PoolRanking::class);
     }
 
+    public function chatMessages(): HasMany
+    {
+        return $this->hasMany(PoolChatMessage::class);
+    }
+
     public function predictionLockMinutes(): int
     {
         return max(10, (int) $this->prediction_lock_minutes);

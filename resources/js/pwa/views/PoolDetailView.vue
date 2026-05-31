@@ -153,6 +153,15 @@
             </div>
         </div>
 
+        <!-- ─── CHAT tab ─── -->
+        <div v-show="activeTab === 'chat'">
+            <PoolChatPanel
+                v-if="pool"
+                :pool-id="poolId"
+                :user-id="Number(auth.user?.id || 0)"
+            />
+        </div>
+
         <!-- ─── GESTÃO tab ─── -->
         <div v-show="activeTab === 'manage'">
             <div v-if="!canManage" class="pwa-section text-center py-14">
@@ -415,6 +424,7 @@ import SkeletonBlock from '../components/ui/SkeletonBlock.vue';
 import SkeletonCard from '../components/ui/SkeletonCard.vue';
 import PredictionCard from '../components/ui/PredictionCard.vue';
 import RankingRow from '../components/ui/RankingRow.vue';
+import PoolChatPanel from '../components/ui/PoolChatPanel.vue';
 import { createHorizontalSwipeTracker } from '../utils/horizontalSwipe';
 
 const emit = defineEmits(['set-title']);
@@ -427,11 +437,12 @@ const persistedDetailTabKey = computed(() => `pwa_pool_detail_tab_${poolId.value
 const mainTabs = [
     { id: 'predictions', label: 'Palpites', icon: 'ti-pencil' },
     { id: 'ranking',     label: 'Ranking',  icon: 'ti-trophy' },
+    { id: 'chat',        label: 'Chat',     icon: 'ti-message-circle' },
 ];
 const routeTab = String(route.query.tab || '').toLowerCase();
 const storedTab = String(localStorage.getItem(persistedDetailTabKey.value) || '').toLowerCase();
 const resolveAllowedTab = (value) => (
-    ['predictions', 'ranking'].includes(String(value || '').toLowerCase())
+    ['predictions', 'ranking', 'chat'].includes(String(value || '').toLowerCase())
         ? String(value).toLowerCase()
         : null
 );
