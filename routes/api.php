@@ -108,6 +108,8 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/pools/{pool}/chat/messages', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'index']);
             Route::get('/pools/{pool}/chat/participants', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'participants']);
             Route::post('/pools/{pool}/chat/messages', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'store']);
+            Route::patch('/pools/{pool}/chat/messages/{message}', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'update']);
+            Route::delete('/pools/{pool}/chat/messages/{message}', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'destroy']);
             Route::post('/pools/{pool}/chat/messages/{message}/reactions', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'react']);
             Route::post('/pools/{pool}/chat/typing', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'typing']);
             Route::post('/pools/{pool}/chat/read', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'markRead']);

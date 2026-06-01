@@ -69,6 +69,7 @@
                 class="pwa-tab"
                 :class="{ active: isTabActive(tab) }"
                 @click="navigateTo(tab)"
+                @touchend.stop
             >
                 <div class="pwa-tab-icon-wrap">
                     <i class="ti pwa-tab-icon leading-none" :class="isTabActive(tab) ? tab.iconFill : tab.icon"></i>
@@ -156,6 +157,8 @@ onMounted(async () => {
         const delta = window.innerHeight - window.visualViewport.height;
         keyboardOpen.value = delta > 120;
     };
+    const onFocusOut = () => setTimeout(updateKeyboardState, 80);
+    const onVisibility = () => updateKeyboardState();
 
     updateKeyboardState();
     if (window.visualViewport) {
@@ -163,12 +166,18 @@ onMounted(async () => {
         window.visualViewport.addEventListener('scroll', updateKeyboardState);
     }
     window.addEventListener('resize', updateKeyboardState);
+    window.addEventListener('focusin', updateKeyboardState);
+    window.addEventListener('focusout', onFocusOut);
+    document.addEventListener('visibilitychange', onVisibility);
     removeKeyboardListeners = () => {
         if (window.visualViewport) {
             window.visualViewport.removeEventListener('resize', updateKeyboardState);
             window.visualViewport.removeEventListener('scroll', updateKeyboardState);
         }
         window.removeEventListener('resize', updateKeyboardState);
+        window.removeEventListener('focusin', updateKeyboardState);
+        window.removeEventListener('focusout', onFocusOut);
+        document.removeEventListener('visibilitychange', onVisibility);
     };
 });
 
@@ -217,6 +226,7 @@ let touchStartX = 0;
 let touchStartY = 0;
 
 function onShellTouchStart(e) {
+    if (shouldIgnoreShellSwipe(e)) return;
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
 }
@@ -226,6 +236,7 @@ function onShellTouchMove(e) {
 }
 
 function onShellTouchEnd(e) {
+    if (shouldIgnoreShellSwipe(e)) return;
     const dx = e.changedTouches[0].clientX - touchStartX;
     const dy = e.changedTouches[0].clientY - touchStartY;
 
@@ -247,6 +258,19 @@ function onShellTouchEnd(e) {
             }
         }
     }
+}
+
+function shouldIgnoreShellSwipe(e) {
+    const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+    for (const node of path) {
+        if (!node || typeof node !== 'object') continue;
+        if (!(node instanceof HTMLElement)) continue;
+        if (node.closest('.chat-root')) return true;
+        if (node.dataset?.shellSwipeLock === '1') return true;
+        const tag = node.tagName?.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || node.isContentEditable) return true;
+    }
+    return false;
 }
 
 </script>
@@ -289,6 +313,8 @@ function onShellTouchEnd(e) {
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
     background: #0d0f12;
+    position: relative;
+    z-index: 10;
 }
 
 /* ── Competition Switcher ── */
@@ -345,7 +371,10 @@ function onShellTouchEnd(e) {
     background: #13161b;
     border-top: 1px solid rgba(245,166,35,0.3);
     flex-shrink: 0;
-    z-index: 20;
+    z-index: 40;
+    position: relative;
+    pointer-events: auto;
+    touch-action: manipulation;
 }
 
 .pwa-shell.keyboard-open .pwa-tabbar {
@@ -366,6 +395,7 @@ function onShellTouchEnd(e) {
     cursor: pointer;
     transition: color 0.15s, transform 0.1s;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
 .pwa-tab:active {

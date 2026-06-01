@@ -4,6 +4,8 @@ namespace App\Services\FootballData;
 
 use App\Events\MatchUpdated;
 use App\Events\MatchDetailUpdated;
+use App\Jobs\Matches\GenerateMatchSummaryJob;
+use App\Jobs\Matches\SendMatchFinishedNotificationJob;
 use App\Models\FootballMatch;
 use App\Models\FootballMatchDetail;
 use App\Models\MatchProviderRef;
@@ -45,20 +47,26 @@ class SyncWorldCupMatchDetailsService
             return $this->syncScoreQuick($limit, $competitionCode, $seasonYear, $stage);
         }
 
-        // live_full_events: equivalente ao live_stats_refresh (API paga + gratuita + projection).
+        // live_full_events → live_stats_refresh (apenas API paga + projection, sem FD).
         if ($syncType === 'live_full_events') {
             $syncType = 'live_stats_refresh';
         }
 
-        $matches = $this->matchesToSync($limit, $competitionCode, $seasonYear, $stage)
+        // Modos que usam apenas API paga — Football-Data não é chamada.
+        $skipFootballData = in_array($syncType, ['live_stats_refresh', 'pre_live_priority', 'idle_full_stats_daily'], true);
+
+        $matches = $this->matchesToSync($limit, $competitionCode, $seasonYear, $stage, $syncType)
             ->loadMissing(['homeTeam:id,name,canonical_name_br,short_name,tla', 'awayTeam:id,name,canonical_name_br,short_name,tla']);
 
         $updated = 0;
         $errors = 0;
         $enriched = 0;
         $finishedChangedMatchIds = [];
+        $eventsProjectedTotal = 0;
+        $eventsProjectedNew = 0;
+        $goalJobsDispatched = 0;
 
-        $footballDataDetails = $this->footballDataConnector->fetchDetailsBatch($matches);
+        $footballDataDetails = $skipFootballData ? [] : $this->footballDataConnector->fetchDetailsBatch($matches);
         $apiFootballIndex = $this->buildApiFootballEnrichmentIndex($matches, $competitionCode, $seasonYear);
 
         foreach ($matches as $match) {
@@ -66,7 +74,7 @@ class SyncWorldCupMatchDetailsService
 
             try {
                 $footballDataPayload = $footballDataDetails[$matchId]['payload'] ?? null;
-                if (! is_array($footballDataPayload) || $footballDataPayload === []) {
+                if (! $skipFootballData && (! is_array($footballDataPayload) || $footballDataPayload === [])) {
                     throw new \RuntimeException($footballDataDetails[$matchId]['error'] ?? 'Falha ao obter detalhe no provider base.');
                 }
 
@@ -79,20 +87,33 @@ class SyncWorldCupMatchDetailsService
                     if ($this->syncMatchStateFromApiFootball($match, $apiFootballPayload)) {
                         $finishedChangedMatchIds[] = $matchId;
                     }
-                } elseif (in_array($match->status, ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'], true)) {
-                    // Fallback durante ao vivo quando a API paga falha/indisponível.
+                } elseif (! $skipFootballData && in_array($match->status, ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'], true)) {
+                    // Fallback via FD: apenas quando não estamos em modo API-paga exclusivo.
                     if ($this->syncMatchStateFromFootballDataDetail($match, $footballDataPayload)) {
                         $finishedChangedMatchIds[] = $matchId;
                     }
                 }
 
-                $mergedPayload = $this->mergePayloads($footballDataPayload, $apiFootballPayload);
+                // Em modo API-paga exclusivo, pula partida se AF não retornou dados.
+                if ($skipFootballData && ! is_array($apiFootballPayload)) {
+                    continue;
+                }
+
+                $mergedPayload = $skipFootballData
+                    ? $this->mergePayloads([], $apiFootballPayload)
+                    : $this->mergePayloads($footballDataPayload ?? [], $apiFootballPayload);
                 $after = md5(json_encode($mergedPayload));
+
+                $provider = match(true) {
+                    $skipFootballData          => 'api_football',
+                    is_array($apiFootballPayload) => 'multi',
+                    default                    => 'football_data',
+                };
 
                 FootballMatchDetail::updateOrCreate(
                     ['football_match_id' => $matchId],
                     [
-                        'provider' => $apiFootballPayload ? 'multi' : 'football_data',
+                        'provider' => $provider,
                         'external_id' => (int) $match->external_id,
                         'payload' => $mergedPayload,
                         'fetched_at' => now(),
@@ -111,7 +132,10 @@ class SyncWorldCupMatchDetailsService
 
                     $shouldProjectDetails = $syncType !== 'live_minute_tick';
                     if ($shouldProjectDetails && (bool) config('api-integration.project_match_details', true)) {
-                        $this->projectionService->project($match, $apiFootballPayload);
+                        $projection = $this->projectionService->project($match, $apiFootballPayload);
+                        $eventsProjectedTotal += (int) ($projection['events_total'] ?? 0);
+                        $eventsProjectedNew += (int) ($projection['events_new'] ?? 0);
+                        $goalJobsDispatched += (int) ($projection['goal_jobs_dispatched'] ?? 0);
                     }
                 }
 
@@ -147,6 +171,9 @@ class SyncWorldCupMatchDetailsService
             'api_football_failures' => (int) ($apiFootballMetrics['failures'] ?? 0),
             'api_football_sync_type' => $this->apiFootballSyncType,
             'finished_changed_match_ids' => array_values(array_unique($finishedChangedMatchIds)),
+            'events_projected_total' => $eventsProjectedTotal,
+            'events_projected_new' => $eventsProjectedNew,
+            'goal_jobs_dispatched' => $goalJobsDispatched,
             'sync_mode' => 'batch',
         ];
     }
@@ -421,6 +448,12 @@ class SyncWorldCupMatchDetailsService
         if ($before !== $after) {
             MatchUpdated::dispatch($match);
             $this->dispatchMatchScorePush($match, $before, $after);
+
+            if ((string) ($before['status'] ?? '') !== 'FINISHED' && (string) $match->status === 'FINISHED') {
+                SendMatchFinishedNotificationJob::dispatch((int) $match->id)
+                    ->onQueue(config('queue-priority.broadcast.events', 'broadcast'));
+                GenerateMatchSummaryJob::dispatchWithDelay((int) $match->id);
+            }
         }
 
         return (string) $match->status === 'FINISHED' && $before !== $after;
@@ -463,6 +496,12 @@ class SyncWorldCupMatchDetailsService
         if ($before !== $after) {
             MatchUpdated::dispatch($match);
             $this->dispatchMatchScorePush($match, $before, $after);
+
+            if ((string) ($before['status'] ?? '') !== 'FINISHED' && (string) $match->status === 'FINISHED') {
+                SendMatchFinishedNotificationJob::dispatch((int) $match->id)
+                    ->onQueue(config('queue-priority.broadcast.events', 'broadcast'));
+                GenerateMatchSummaryJob::dispatchWithDelay((int) $match->id);
+            }
         }
 
         return (string) $match->status === 'FINISHED' && $before !== $after;
@@ -621,7 +660,7 @@ class SyncWorldCupMatchDetailsService
     /**
      * @return Collection<int, FootballMatch>
      */
-    private function matchesToSync(int $limit, ?string $competitionCode = null, ?int $seasonYear = null, ?string $stage = null): Collection
+    private function matchesToSync(int $limit, ?string $competitionCode = null, ?int $seasonYear = null, ?string $stage = null, string $syncType = 'scheduled_auto'): Collection
     {
         $backfillDays = max(1, (int) config('football-data.match_details.backfill_finished_days', 120));
         $safeLimit = max(1, $limit);
@@ -630,6 +669,18 @@ class SyncWorldCupMatchDetailsService
             ->when($competitionCode, fn ($q) => $q->whereHas('competition', fn ($qc) => $qc->where('code', strtoupper((string) $competitionCode))))
             ->when($seasonYear, fn ($q) => $q->whereHas('season', fn ($qs) => $qs->where('year', $seasonYear)))
             ->when($stage !== null && $stage !== '', fn ($q) => $q->where('stage', $stage));
+
+        // idle_full_stats_daily: todas as partidas das últimas 24h (só API paga, sem backfill histórico).
+        if ($syncType === 'idle_full_stats_daily') {
+            return (clone $baseQuery)
+                ->whereBetween('utc_date', [now()->utc()->subHours(24), now()->utc()->addHours(24)])
+                ->whereIn('status', ['FINISHED', 'IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT', 'TIMED', 'SCHEDULED'])
+                ->orderByRaw("case football_matches.status when 'IN_PLAY' then 0 when 'PAUSED' then 1 when 'EXTRA_TIME' then 2 when 'PENALTY_SHOOTOUT' then 3 when 'FINISHED' then 4 when 'TIMED' then 5 else 6 end")
+                ->orderBy('football_matches.utc_date')
+                ->select('football_matches.*')
+                ->limit($safeLimit)
+                ->get();
+        }
 
         // Durante jogo ao vivo, garantimos cobertura de lineup/eventos para TODOS os jogos live.
         $liveStatuses = ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'];

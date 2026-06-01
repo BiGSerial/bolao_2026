@@ -1,5 +1,5 @@
 <template>
-    <div class="pwa-page">
+    <div class="pwa-page" :data-shell-swipe-lock="activeTab === 'chat' ? '1' : null">
 
         <!-- Pool header skeleton -->
         <div v-if="loadingPool" class="pwa-section space-y-2 pb-4">
@@ -837,6 +837,9 @@ async function loadRanking() {
         rankingCalcAt.value = calcAt
             ? new Date(calcAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
             : '—';
+    } catch {
+        ranking.value = [];
+        rankingCalcAt.value = '—';
     } finally {
         loadingRanking.value = false;
     }
@@ -1194,6 +1197,8 @@ async function openApplyAllModal() {
 onMounted(() => {
     loadPool();
     loadPredictions();
+    if (activeTab.value === 'ranking') loadRanking();
+    if (activeTab.value === 'manage') loadMembers();
     startClockGuard();
 });
 

@@ -95,11 +95,11 @@ Schedule::call(function (): void {
         if ($hasLive || $hasLikelyInProgressByKickoffWindow) {
             /*
              * ── Ao vivo (status ou janela temporal) ─────────────────────
-             * Ativa mesmo que o provider ainda não tenha marcado IN_PLAY.
+             * Apenas API paga. A API gratuita fica suspensa durante o jogo.
              *
              * live_score_quick (cada 1 min): placar/status/live_clock + MatchUpdated
              * live_full_events (cada 2 min): eventos, lineups, stats + MatchDetailUpdated
-             * fd:live          (cada 3 min): fallback Football-Data para PAUSED/FINISHED
+             * Proporção 2:1 (score:full) — sem Football-Data neste bloco.
              */
             if (shouldDispatchForWindow("scheduler:af-score:$code:$season:$stage", 1, 1)) {
                 RunCompetitionMatchDetailsSyncJob::dispatch($code, $season, $stage, $detailsLimit, 'live_score_quick');
@@ -108,32 +108,29 @@ Schedule::call(function (): void {
             if (shouldDispatchForWindow("scheduler:af-events:$code:$season:$stage", 2, 2)) {
                 RunCompetitionMatchDetailsSyncJob::dispatch($code, $season, $stage, $detailsLimit, 'live_full_events');
             }
-
-            if (shouldDispatchForWindow("scheduler:fd:$code:$season:$stage:live", 3, 3)) {
-                RunCompetitionSyncJob::dispatch($code, $season, $stage);
-            }
         } else {
             /*
              * ── Fora de ao vivo ──────────────────────────────────────────
-             * Cache key inclui o modo: idle não bloqueia pré-jogo.
-             * Cada modo tem sua própria chave e TTL independente.
+             * FD (gratuita) suspensa em pré-jogo imediato (≤15 min).
+             * Retoma no pós-jogo e idle.
              */
-            [$fdMin, $fdMax, $fdMode] = match(true) {
-                $hasPreMatchWindow                                         => [2, 3,  'pre'],
-                $hasSoon                                                   => [2, 4,  'pre'],
-                $hasPostFinishWindow || $hasPostMatchFallbackWindow        => [2, 3,  'post'],
-                default                                                    => [7, 10, 'idle'],
-            };
+            if (! $hasPreMatchWindow) {
+                [$fdMin, $fdMax, $fdMode] = match(true) {
+                    $hasSoon                                                => [2, 4,  'pre'],
+                    $hasPostFinishWindow || $hasPostMatchFallbackWindow     => [2, 3,  'post'],
+                    default                                                 => [7, 10, 'idle'],
+                };
 
-            if (shouldDispatchForWindow("scheduler:fd:$code:$season:$stage:$fdMode", $fdMin, $fdMax)) {
-                RunCompetitionSyncJob::dispatch($code, $season, $stage);
+                if (shouldDispatchForWindow("scheduler:fd:$code:$season:$stage:$fdMode", $fdMin, $fdMax)) {
+                    RunCompetitionSyncJob::dispatch($code, $season, $stage);
+                }
             }
 
             [$afMin, $afMax, $afLimit, $syncType] = match(true) {
-                $hasPreMatchWindow                                         => [1, 2,   8, 'pre_live_priority'],
-                $hasSoon                                                   => [3, 5,   5, 'pre_live_priority'],
-                $hasPostFinishWindow || $hasPostMatchFallbackWindow        => [2, 3,   5, 'post_match_cleanup'],
-                default                                                    => [30, 45, 2, 'scheduled_auto'],
+                $hasPreMatchWindow                                          => [1, 2,   8,  'pre_live_priority'],
+                $hasSoon                                                    => [3, 5,   5,  'pre_live_priority'],
+                $hasPostFinishWindow || $hasPostMatchFallbackWindow         => [2, 3,   5,  'post_match_cleanup'],
+                default                                                     => [60, 60, 20, 'idle_full_stats_daily'],
             };
 
             $afCacheKey  = "scheduler:af:$code:$season:$stage:$syncType";
@@ -142,7 +139,7 @@ Schedule::call(function (): void {
 
             $lastSyncType  = Cache::get($stateKey);
             $stateChanged  = $lastSyncType !== $syncType;
-            $isActiveMode  = $syncType !== 'scheduled_auto';
+            $isActiveMode  = $syncType !== 'idle_full_stats_daily';
 
             // Registra quando: estado mudou, modo ativo, ou heartbeat idle a cada 15 min
             $shouldLog = $stateChanged

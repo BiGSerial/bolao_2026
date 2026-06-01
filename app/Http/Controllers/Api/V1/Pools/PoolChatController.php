@@ -30,6 +30,7 @@ class PoolChatController extends Controller
         $beforeId = (int) $request->query('before_id', 0);
 
         $query = PoolChatMessage::query()
+            ->withTrashed()
             ->where('pool_id', $pool->id)
             ->with(['user:id,name,display_name', 'replyTo:id,body,user_id', 'replyTo.user:id,name,display_name', 'reactions'])
             ->orderByDesc('id')
@@ -98,6 +99,74 @@ class PoolChatController extends Controller
         return ApiResponse::success($request, [
             'message' => $this->serializeMessage($message),
         ], 201);
+    }
+
+    public function update(Request $request, Pool $pool, PoolChatMessage $message): JsonResponse
+    {
+        if ((int) $message->pool_id !== (int) $pool->id) {
+            return ApiResponse::error($request, 'CHAT_MESSAGE_NOT_FOUND', 'Mensagem não encontrada neste bolão.', 404);
+        }
+
+        if (! $this->canAccessChat($pool, (int) $request->user()->id, (bool) $request->user()->is_admin)) {
+            return ApiResponse::error($request, 'POOL_FORBIDDEN', 'Acesso negado ao chat deste bolão.', 403);
+        }
+
+        if ((int) $message->user_id !== (int) $request->user()->id && ! (bool) $request->user()->is_admin) {
+            return ApiResponse::error($request, 'CHAT_FORBIDDEN', 'Você não pode editar esta mensagem.', 403);
+        }
+
+        if ($message->trashed()) {
+            return ApiResponse::error($request, 'CHAT_MESSAGE_DELETED', 'Mensagem já removida.', 422);
+        }
+
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'min:1', 'max:2000'],
+        ]);
+
+        $body = trim((string) $validated['body']);
+        if ($body === '') {
+            return ApiResponse::error($request, 'CHAT_INVALID_BODY', 'Mensagem inválida.', 422);
+        }
+
+        $message->forceFill([
+            'body' => $body,
+            'edited_at' => now(),
+            'mentioned_user_ids' => $this->extractMentionedUserIds($pool, $body),
+        ])->save();
+
+        $message->load(['user:id,name,display_name', 'replyTo:id,body,user_id', 'replyTo.user:id,name,display_name', 'reactions']);
+        PoolChatMessageCreated::dispatch($message);
+
+        return ApiResponse::success($request, [
+            'message' => $this->serializeMessage($message),
+        ]);
+    }
+
+    public function destroy(Request $request, Pool $pool, PoolChatMessage $message): JsonResponse
+    {
+        if ((int) $message->pool_id !== (int) $pool->id) {
+            return ApiResponse::error($request, 'CHAT_MESSAGE_NOT_FOUND', 'Mensagem não encontrada neste bolão.', 404);
+        }
+
+        if (! $this->canAccessChat($pool, (int) $request->user()->id, (bool) $request->user()->is_admin)) {
+            return ApiResponse::error($request, 'POOL_FORBIDDEN', 'Acesso negado ao chat deste bolão.', 403);
+        }
+
+        if ((int) $message->user_id !== (int) $request->user()->id && ! (bool) $request->user()->is_admin) {
+            return ApiResponse::error($request, 'CHAT_FORBIDDEN', 'Você não pode remover esta mensagem.', 403);
+        }
+
+        if (! $message->trashed()) {
+            $message->delete();
+        }
+
+        $message = PoolChatMessage::withTrashed()->find($message->id);
+        $message?->load(['user:id,name,display_name', 'replyTo:id,body,user_id', 'replyTo.user:id,name,display_name', 'reactions']);
+        if ($message) {
+            PoolChatMessageCreated::dispatch($message);
+        }
+
+        return ApiResponse::success($request, ['ok' => true]);
     }
 
     public function react(Request $request, Pool $pool, PoolChatMessage $message): JsonResponse
@@ -246,7 +315,7 @@ class PoolChatController extends Controller
         return [
             'id' => $msg->id,
             'pool_id' => $msg->pool_id,
-            'body' => $msg->body,
+            'body' => $msg->deleted_at ? 'Mensagem removida' : $msg->body,
             'mentioned_user_ids' => (array) ($msg->mentioned_user_ids ?? []),
             'created_at' => optional($msg->created_at)?->toIso8601String(),
             'edited_at' => optional($msg->edited_at)?->toIso8601String(),
@@ -259,6 +328,7 @@ class PoolChatController extends Controller
                 'id' => $msg->replyTo->id,
                 'body' => $msg->replyTo->body,
                 'user_name' => $msg->replyTo->user?->public_name,
+                'deleted_at' => optional($msg->replyTo->deleted_at)?->toIso8601String(),
             ] : null,
             'reactions' => $msg->reactions
                 ->groupBy('emoji')
