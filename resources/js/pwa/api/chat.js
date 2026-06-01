@@ -9,6 +9,12 @@ export const getChatParticipants = (poolId) =>
 export const sendChatMessage = (poolId, payload) =>
     client.post(`/pools/${poolId}/chat/messages`, payload);
 
+export const updateChatMessage = (poolId, messageId, payload) =>
+    client.patch(`/pools/${poolId}/chat/messages/${messageId}`, payload);
+
+export const deleteChatMessage = (poolId, messageId) =>
+    client.delete(`/pools/${poolId}/chat/messages/${messageId}`);
+
 export const toggleChatReaction = (poolId, messageId, emoji) =>
     client.post(`/pools/${poolId}/chat/messages/${messageId}/reactions`, { emoji });
 

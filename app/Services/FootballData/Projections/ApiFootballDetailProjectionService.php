@@ -2,23 +2,43 @@
 
 namespace App\Services\FootballData\Projections;
 
+use App\Jobs\Matches\SendGoalNotificationJob;
 use App\Models\FootballMatch;
+use App\Models\MatchEvent;
+use App\Services\Matches\MatchEventGoalClassifier;
 use App\Services\Matches\MatchEventNormalizer;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ApiFootballDetailProjectionService
 {
     public function __construct(
+        private readonly MatchEventGoalClassifier $goalClassifier,
         private readonly MatchEventNormalizer $eventNormalizer,
     ) {
     }
 
-    public function project(FootballMatch $match, array $payload): void
+    /**
+     * @return array{events_total:int,events_new:int,goal_jobs_dispatched:int}
+     */
+    public function project(FootballMatch $match, array $payload): array
     {
-        DB::transaction(function () use ($match, $payload): void {
+        $result = DB::transaction(function () use ($match, $payload): array {
+            $existingByFingerprint = MatchEvent::query()
+                ->where('football_match_id', (int) $match->id)
+                ->where('provider', 'api_football')
+                ->whereNotNull('fingerprint')
+                ->get(['fingerprint', 'notified_at'])
+                ->keyBy('fingerprint');
+
+            $seenFingerprints = [];
+            $newNotifiableGoalEventIds = [];
+
             DB::table('match_events')->where('football_match_id', $match->id)->where('provider', 'api_football')->delete();
             DB::table('match_player_statistics')->where('football_match_id', $match->id)->where('provider', 'api_football')->delete();
             $providerFixtureId = (int) data_get($payload, 'fixture.id', 0);
+            $eventsTotal = 0;
+            $eventsNew = 0;
 
             foreach ((array) data_get($payload, 'events', []) as $event) {
                 $normalized = $this->eventNormalizer->normalizeApiFootball(
@@ -26,8 +46,21 @@ class ApiFootballDetailProjectionService
                     (array) $event,
                     $providerFixtureId > 0 ? $providerFixtureId : null
                 );
+                $eventsTotal++;
 
-                DB::table('match_events')->insert([
+                $fingerprint = (string) ($normalized['fingerprint'] ?? '');
+                if ($fingerprint === '' || isset($seenFingerprints[$fingerprint])) {
+                    continue;
+                }
+                $seenFingerprints[$fingerprint] = true;
+
+                $existing = $existingByFingerprint->get($fingerprint);
+                $knownFingerprint = $existing !== null;
+                if (! $knownFingerprint) {
+                    $eventsNew++;
+                }
+
+                $matchEventId = DB::table('match_events')->insertGetId([
                     'football_match_id' => $normalized['football_match_id'],
                     'provider' => $normalized['provider'],
                     'provider_event_id' => $normalized['provider_event_id'],
@@ -47,10 +80,18 @@ class ApiFootballDetailProjectionService
                     'team_goal_number' => $normalized['team_goal_number'],
                     'player_goal_number' => $normalized['player_goal_number'],
                     'fingerprint' => $normalized['fingerprint'],
+                    'notified_at' => $existing?->notified_at,
                     'raw_payload' => json_encode($normalized['raw_payload']),
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
+
+                if (! $knownFingerprint && $this->goalClassifier->isNotifiableGoal(
+                    (string) ($normalized['event_type'] ?? ''),
+                    (string) ($normalized['event_detail'] ?? '')
+                )) {
+                    $newNotifiableGoalEventIds[] = (int) $matchEventId;
+                }
             }
 
             foreach ((array) data_get($payload, 'lineups', []) as $lineup) {
@@ -105,6 +146,32 @@ class ApiFootballDetailProjectionService
                     ]);
                 }
             }
+
+            return [
+                'events_total' => $eventsTotal,
+                'events_new' => $eventsNew,
+                'goal_event_ids' => $newNotifiableGoalEventIds,
+            ];
         });
+
+        $goalJobsDispatched = 0;
+        foreach ((array) ($result['goal_event_ids'] ?? []) as $eventId) {
+            SendGoalNotificationJob::dispatch((int) $eventId)
+                ->onQueue(config('queue-priority.broadcast.events', 'broadcast'));
+            $goalJobsDispatched++;
+        }
+
+        Log::channel('smart_sync')->info('[notifications] projection_events_processed', [
+            'match_id' => (int) $match->id,
+            'events_total' => (int) ($result['events_total'] ?? 0),
+            'events_new' => (int) ($result['events_new'] ?? 0),
+            'goal_jobs_dispatched' => $goalJobsDispatched,
+        ]);
+
+        return [
+            'events_total' => (int) ($result['events_total'] ?? 0),
+            'events_new' => (int) ($result['events_new'] ?? 0),
+            'goal_jobs_dispatched' => $goalJobsDispatched,
+        ];
     }
 }

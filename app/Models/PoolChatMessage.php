@@ -16,6 +16,7 @@ class PoolChatMessage extends Model
         'user_id',
         'reply_to_message_id',
         'body',
+        'mentioned_user_ids',
         'edited_at',
     ];
 
@@ -39,7 +40,7 @@ class PoolChatMessage extends Model
 
     public function replyTo(): BelongsTo
     {
-        return $this->belongsTo(self::class, 'reply_to_message_id');
+        return $this->belongsTo(self::class, 'reply_to_message_id')->withTrashed();
     }
 
     public function reactions(): HasMany

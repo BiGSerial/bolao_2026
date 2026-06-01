@@ -46,12 +46,11 @@
 
                     <!-- Reply quote -->
                     <div v-if="item.reply_to" class="chat-reply mb-1.5 px-2 py-1">
-                        <p class="text-[10px] text-slate-300/80">Respondendo {{ item.reply_to.user_name }}</p>
                         <p class="text-[12px] text-white/80 line-clamp-2">{{ item.reply_to.body }}</p>
                     </div>
 
                     <!-- Texto + hora na mesma linha ao fim -->
-                    <span class="chat-body">{{ item.body }}<span class="chat-meta-spacer">&#8203;&#xFEFF;</span></span>
+                    <span class="chat-body" :class="{ 'chat-body-deleted': !!item.deleted_at }">{{ item.body }}<span class="chat-meta-spacer">&#8203;&#xFEFF;</span></span>
                     <div class="chat-meta-row">
                         <span class="chat-time">{{ formatLocalTime(item.created_at) }}</span>
                         <span v-if="isMine(item)"
@@ -84,8 +83,10 @@
                     <button v-for="emoji in quickReactions" :key="emoji" class="text-2xl" @click.stop="pickReaction(emoji)">{{ emoji }}</button>
                 </div>
                 <div class="border-t border-white/10 pt-2 grid grid-cols-2 gap-2 text-center">
-                    <button class="text-xs text-slate-300 py-1" @click.stop="startReply(contextMessage); contextMessage = null">Responder</button>
+                    <button class="text-xs text-slate-300 py-1" :disabled="!!contextMessage?.deleted_at" @click.stop="startReply(contextMessage); contextMessage = null">Responder</button>
                     <button class="text-xs text-slate-300 py-1" @click.stop="copyMessage(contextMessage)">Copiar</button>
+                    <button v-if="isMine(contextMessage) && !contextMessage?.deleted_at" class="text-xs text-slate-300 py-1" @click.stop="startEdit(contextMessage); contextMessage = null">Editar</button>
+                    <button v-if="isMine(contextMessage) && !contextMessage?.deleted_at" class="text-xs text-red-300 py-1" @click.stop="removeMessage(contextMessage); contextMessage = null">Excluir</button>
                 </div>
             </div>
         </div>
@@ -112,13 +113,21 @@
                 <i class="ti ti-x text-[15px]"></i>
             </button>
         </div>
+        <div v-if="editingMessageId" class="reply-preview">
+            <div class="flex-1 min-w-0 border-l-2 border-emerald-400 pl-2">
+                <p class="text-[11px] font-bold text-emerald-300">Editando mensagem</p>
+            </div>
+            <button class="shrink-0 text-slate-400 p-1" @click="cancelEdit">
+                <i class="ti ti-x text-[15px]"></i>
+            </button>
+        </div>
 
         <!-- ── Composer (NÃO é fixed — parte do flex column) ── -->
         <div class="chat-composer">
             <input v-model="draft"
                    class="chat-input flex-1"
                    maxlength="2000"
-                   placeholder="Digite uma mensagem"
+                   :placeholder="editingMessageId ? 'Edite sua mensagem' : 'Digite uma mensagem'"
                    @input="onTypingInput"
                    @keydown.enter.prevent="submit" />
             <button class="chat-send-btn"
@@ -133,7 +142,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { getChatMessages, getChatParticipants, markChatRead, sendChatMessage, setChatTyping, toggleChatReaction } from '../../api/chat';
+import { deleteChatMessage, getChatMessages, getChatParticipants, markChatRead, sendChatMessage, setChatTyping, toggleChatReaction, updateChatMessage } from '../../api/chat';
 import { useEcho } from '../../composables/useEcho';
 
 const props = defineProps({
@@ -147,6 +156,7 @@ const loading      = ref(true);
 const sending      = ref(false);
 const draft        = ref('');
 const replyTo      = ref(null);
+const editingMessageId = ref(null);
 const typingUsers  = ref(new Map());
 const readsMap     = ref({});
 const listEl       = ref(null);
@@ -338,8 +348,18 @@ async function submit() {
     let tempId = null;
     try {
         const payload = { body };
-        if (replyTo.value?.id) payload.reply_to_message_id = replyTo.value.id;
+        if (replyTo.value?.id && !editingMessageId.value) payload.reply_to_message_id = replyTo.value.id;
         recentSubmitFingerprint.value = { body, at: nowTs };
+
+        if (editingMessageId.value) {
+            const { data: res } = await updateChatMessage(props.poolId, editingMessageId.value, payload);
+            const updated = res?.data?.message;
+            if (updated?.id) upsertMessage(updated);
+            draft.value = '';
+            editingMessageId.value = null;
+            replyTo.value = null;
+            return;
+        }
 
         tempId = `tmp_${Date.now()}`;
         messages.value.push({ id: tempId, body: payload.body, created_at: new Date().toISOString(),
@@ -376,7 +396,26 @@ async function submit() {
 function startReply(item)  { replyTo.value = item; }
 
 async function toggleReaction(messageId, emoji) {
+    const target = messages.value.find((m) => Number(m.id) === Number(messageId));
+    if (target?.deleted_at) return;
     await toggleChatReaction(props.poolId, messageId, emoji).catch(() => {});
+}
+
+function startEdit(item) {
+    if (!item || item.deleted_at || !isMine(item)) return;
+    editingMessageId.value = Number(item.id || 0) || null;
+    draft.value = String(item.body || '');
+    replyTo.value = null;
+}
+
+function cancelEdit() {
+    editingMessageId.value = null;
+    draft.value = '';
+}
+
+async function removeMessage(item) {
+    if (!item || !isMine(item) || item.deleted_at) return;
+    await deleteChatMessage(props.poolId, item.id).catch(() => {});
 }
 
 function applyMention(user) {
@@ -403,6 +442,7 @@ async function copyMessage(msg) {
 // ── Touch gestures ───────────────────────────────────────────────────────────
 
 function onBubbleTouchStart(event, item) {
+    if (item?.deleted_at) return;
     const touch = event.touches?.[0];
     if (!touch) return;
     bubbleTouchStartX = touch.clientX;
@@ -423,6 +463,7 @@ function onBubbleTouchMove(event) {
 }
 
 function onBubbleTouchEnd(event, item) {
+    if (item?.deleted_at) return;
     if (longPressTimer) clearTimeout(longPressTimer);
     const touch = event.changedTouches?.[0];
     if (!touch) return;
@@ -579,6 +620,10 @@ onBeforeUnmount(() => {
     line-height: 1.4;
     white-space: pre-wrap;
     display: inline;
+}
+.chat-body-deleted {
+    font-style: italic;
+    opacity: .75;
 }
 
 /* Espaçador invisível antes dos metadados para reservar espaço */
