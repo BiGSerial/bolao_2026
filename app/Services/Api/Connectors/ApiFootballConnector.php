@@ -57,6 +57,29 @@ class ApiFootballConnector
             }
             $responseItems = (array) data_get($fixtures, 'response', []);
 
+            // API-Football indexa jogos pela data local da liga, não UTC.
+            // Jogos noturnos (ex: 23h30 BRT = 02h30 UTC do dia seguinte) ficam na data
+            // anterior quando consultados com timezone=UTC. Tentamos o dia anterior
+            // automaticamente quando a consulta principal retorna vazio.
+            if ($responseItems === []) {
+                $prevDate = Carbon::parse($date)->subDay()->format('Y-m-d');
+                try {
+                    $this->requestCount++;
+                    $prevFixtures = $this->client->fixturesByDate($leagueId, $season, $prevDate, 'UTC');
+                    $responseItems = (array) data_get($prevFixtures, 'response', []);
+                    if ($responseItems !== []) {
+                        logger()->info('[af-resolver] fallback to previous day', [
+                            'league_id'  => $leagueId,
+                            'queried'    => $date,
+                            'fallback'   => $prevDate,
+                            'found'      => count($responseItems),
+                        ]);
+                    }
+                } catch (\Throwable $e) {
+                    $this->failureCount++;
+                }
+            }
+
             foreach ($dateMatches as $match) {
                 $id = $this->resolveFixtureIdForMatch($match, $responseItems);
                 if ($id > 0) {
