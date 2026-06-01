@@ -665,14 +665,18 @@ class SyncWorldCupMatchDetailsService
         $backfillDays = max(1, (int) config('football-data.match_details.backfill_finished_days', 120));
         $safeLimit = max(1, $limit);
 
-        $baseQuery = FootballMatch::query()
+        // Base sem filtro de stage — usado na query live para não barrar jogos IN_PLAY
+        // que estejam em fase diferente da default_stage configurada.
+        $baseQueryNoStage = FootballMatch::query()
             ->when($competitionCode, fn ($q) => $q->whereHas('competition', fn ($qc) => $qc->where('code', strtoupper((string) $competitionCode))))
-            ->when($seasonYear, fn ($q) => $q->whereHas('season', fn ($qs) => $qs->where('year', $seasonYear)))
+            ->when($seasonYear, fn ($q) => $q->whereHas('season', fn ($qs) => $qs->where('year', $seasonYear)));
+
+        $baseQuery = (clone $baseQueryNoStage)
             ->when($stage !== null && $stage !== '', fn ($q) => $q->where('stage', $stage));
 
         // idle_full_stats_daily: todas as partidas das últimas 24h (só API paga, sem backfill histórico).
         if ($syncType === 'idle_full_stats_daily') {
-            return (clone $baseQuery)
+            return (clone $baseQueryNoStage)
                 ->whereBetween('utc_date', [now()->utc()->subHours(24), now()->utc()->addHours(24)])
                 ->whereIn('status', ['FINISHED', 'IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT', 'TIMED', 'SCHEDULED'])
                 ->orderByRaw("case football_matches.status when 'IN_PLAY' then 0 when 'PAUSED' then 1 when 'EXTRA_TIME' then 2 when 'PENALTY_SHOOTOUT' then 3 when 'FINISHED' then 4 when 'TIMED' then 5 else 6 end")
@@ -682,9 +686,9 @@ class SyncWorldCupMatchDetailsService
                 ->get();
         }
 
-        // Durante jogo ao vivo, garantimos cobertura de lineup/eventos para TODOS os jogos live.
+        // Live: sem filtro de stage — qualquer jogo IN_PLAY da competição deve ser sincronizado.
         $liveStatuses = ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'];
-        $livePriority = (clone $baseQuery)
+        $livePriority = (clone $baseQueryNoStage)
             ->whereIn('status', $liveStatuses)
             ->orderByRaw("case football_matches.status when 'IN_PLAY' then 0 when 'PAUSED' then 1 when 'EXTRA_TIME' then 2 when 'PENALTY_SHOOTOUT' then 3 else 4 end")
             ->orderBy('football_matches.utc_date')

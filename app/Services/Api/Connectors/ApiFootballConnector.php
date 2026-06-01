@@ -109,22 +109,57 @@ class ApiFootballConnector
             $fixtureAway = $this->normalize((string) data_get($fixture, 'teams.away.name', ''));
             $fixtureHomeCanonical = $this->canonicalClubName($fixtureHome);
             $fixtureAwayCanonical = $this->canonicalClubName($fixtureAway);
+            $fixtureId = (int) data_get($fixture, 'fixture.id', 0);
 
-            if (! $this->teamNamesMatch($home, $homeCanonical, $fixtureHome, $fixtureHomeCanonical)
-                || ! $this->teamNamesMatch($away, $awayCanonical, $fixtureAway, $fixtureAwayCanonical)) {
+            $homeMatch = $this->teamNamesMatch($home, $homeCanonical, $fixtureHome, $fixtureHomeCanonical);
+            $awayMatch = $this->teamNamesMatch($away, $awayCanonical, $fixtureAway, $fixtureAwayCanonical);
+
+            if (! $homeMatch || ! $awayMatch) {
+                logger()->debug('[af-resolver] candidate rejected (name mismatch)', [
+                    'match_id'       => $match->id,
+                    'fd_home'        => $home,
+                    'fd_away'        => $away,
+                    'af_home'        => $fixtureHome,
+                    'af_away'        => $fixtureAway,
+                    'af_fixture_id'  => $fixtureId,
+                    'home_match'     => $homeMatch,
+                    'away_match'     => $awayMatch,
+                ]);
                 continue;
             }
 
             $fixtureDate = data_get($fixture, 'fixture.date');
             if (! is_string($fixtureDate) || ! $kickoff) {
-                return (int) data_get($fixture, 'fixture.id', 0);
+                logger()->info('[af-resolver] resolved (no date check)', ['match_id' => $match->id, 'fixture_id' => $fixtureId]);
+                return $fixtureId;
             }
 
             $candidate = Carbon::parse($fixtureDate)->utc();
-            if (abs($candidate->diffInMinutes($kickoff)) <= 180) {
-                return (int) data_get($fixture, 'fixture.id', 0);
+            $diffMin = abs($candidate->diffInMinutes($kickoff));
+
+            if ($diffMin <= 180) {
+                logger()->info('[af-resolver] resolved', ['match_id' => $match->id, 'fixture_id' => $fixtureId, 'diff_min' => $diffMin]);
+                return $fixtureId;
             }
+
+            logger()->debug('[af-resolver] candidate rejected (date mismatch)', [
+                'match_id'      => $match->id,
+                'fd_home'       => $home,
+                'fd_away'       => $away,
+                'af_fixture_id' => $fixtureId,
+                'kickoff_utc'   => $kickoff->toIso8601String(),
+                'fixture_utc'   => $candidate->toIso8601String(),
+                'diff_min'      => $diffMin,
+            ]);
         }
+
+        logger()->warning('[af-resolver] no fixture found', [
+            'match_id'         => $match->id,
+            'fd_home'          => $home,
+            'fd_away'          => $away,
+            'kickoff_utc'      => $kickoff?->toIso8601String(),
+            'candidates_count' => count($fixtures),
+        ]);
 
         return 0;
     }
