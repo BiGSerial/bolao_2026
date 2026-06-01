@@ -224,11 +224,17 @@ function goBack() {
 // ── Gesture handling (Swipe to go back/forward or tab switch) ──
 let touchStartX = 0;
 let touchStartY = 0;
+// A decisão de processar o swipe é feita no touchstart (composedPath confiável).
+// No touchend alguns browsers Android retornam composedPath vazio, então não
+// re-verificamos — apenas usamos a flag registrada no touchstart.
+let swipeActive = false;
 
 function onShellTouchStart(e) {
+    swipeActive = false;
     if (shouldIgnoreShellSwipe(e)) return;
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
+    swipeActive = true;
 }
 
 function onShellTouchMove(e) {
@@ -236,7 +242,8 @@ function onShellTouchMove(e) {
 }
 
 function onShellTouchEnd(e) {
-    if (shouldIgnoreShellSwipe(e)) return;
+    if (!swipeActive) return;
+    swipeActive = false;
     const dx = e.changedTouches[0].clientX - touchStartX;
     const dy = e.changedTouches[0].clientY - touchStartY;
 

@@ -1069,9 +1069,17 @@ async function sendInvite() {
     }
 }
 
+// immediate: true garante que o watch dispara com o valor inicial de activeTab,
+// evitando a race condition onde onMounted chama loadRanking() mas a primeira
+// chamada falha silenciosamente e o ranking só aparece após trocar de aba.
+let tabWatchFirstRun = true;
 watch(activeTab, (tab) => {
     if (tab === 'ranking' && ranking.value.length === 0) loadRanking();
     if (tab === 'manage' && members.value.length === 0) loadMembers();
+
+    // localStorage e router.replace só na mudança real, não no disparo inicial.
+    if (tabWatchFirstRun) { tabWatchFirstRun = false; return; }
+
     localStorage.setItem(persistedDetailTabKey.value, tab);
 
     const currentQueryTab = String(route.query.tab || '').toLowerCase();
@@ -1081,7 +1089,7 @@ watch(activeTab, (tab) => {
             query: { ...route.query, tab },
         });
     }
-});
+}, { immediate: true });
 
 watch(predictionDays, (days) => {
     if (!days.length) {
@@ -1197,8 +1205,7 @@ async function openApplyAllModal() {
 onMounted(() => {
     loadPool();
     loadPredictions();
-    if (activeTab.value === 'ranking') loadRanking();
-    if (activeTab.value === 'manage') loadMembers();
+    // ranking e manage já carregados pelo watch imediato acima
     startClockGuard();
 });
 
