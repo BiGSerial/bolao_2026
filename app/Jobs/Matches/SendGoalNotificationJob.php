@@ -53,9 +53,11 @@ class SendGoalNotificationJob implements ShouldQueue
         broadcast(new GoalScored($payload));
 
         if ($userIds !== []) {
+            $teamCrest = (string) ($payload['team']['logo'] ?? '');
             $webPushService->sendToUsers($userIds, $payload + [
-                'url' => "/pwa/matches/{$event->football_match_id}",
-                'tag' => "match-goal-{$event->football_match_id}-{$event->id}",
+                'url'      => "/pwa/matches/{$event->football_match_id}",
+                'tag'      => "match-goal-{$event->football_match_id}-{$event->id}",
+                'icon'     => $teamCrest !== '' ? $teamCrest : null,
                 'renotify' => true,
             ]);
         }

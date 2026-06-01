@@ -574,14 +574,21 @@ class SyncWorldCupMatchDetailsService
             return;
         }
 
-        $beforeHome = (int) ($before['home_score_full_time'] ?? 0);
-        $beforeAway = (int) ($before['away_score_full_time'] ?? 0);
         $afterHome = (int) ($after['home_score_full_time'] ?? 0);
         $afterAway = (int) ($after['away_score_full_time'] ?? 0);
-        $statusChanged = (string) ($before['status'] ?? '') !== (string) ($after['status'] ?? '');
-        $scoreChanged = $beforeHome !== $afterHome || $beforeAway !== $afterAway;
+        $beforeStatus = (string) ($before['status'] ?? '');
+        $afterStatus = (string) ($after['status'] ?? '');
+        $statusChanged = $beforeStatus !== $afterStatus;
 
-        if (! $scoreChanged && ! $statusChanged) {
+        // Mudanças de placar puro são cobertas pelo SendGoalNotificationJob (mais detalhado).
+        // Aqui só enviamos para transições de status relevantes:
+        //   IN_PLAY → PAUSED  (intervalo)
+        //   PAUSED → IN_PLAY  (segundo tempo / retomada)
+        //   * → EXTRA_TIME    (prorrogação)
+        //   * → PENALTY_SHOOTOUT (pênaltis)
+        // FINISHED é coberto pelo SendMatchFinishedNotificationJob.
+        $notifiableStatuses = ['PAUSED', 'IN_PLAY', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'];
+        if (! $statusChanged || ! in_array($afterStatus, $notifiableStatuses, true)) {
             return;
         }
 
@@ -614,22 +621,27 @@ class SyncWorldCupMatchDetailsService
 
         $home = (string) ($match->homeTeam?->short_name ?: $match->homeTeam?->name ?: 'Casa');
         $away = (string) ($match->awayTeam?->short_name ?: $match->awayTeam?->name ?: 'Visitante');
+
+        $title = match ($afterStatus) {
+            'PAUSED'            => 'Intervalo',
+            'IN_PLAY'           => 'Jogo retomado',
+            'EXTRA_TIME'        => 'Prorrogação',
+            'PENALTY_SHOOTOUT'  => 'Pênaltis',
+            default             => 'Atualização de partida',
+        };
         $body = "{$home} {$afterHome} x {$afterAway} {$away}";
-        if ((string) $match->status === 'FINISHED') {
-            $body .= ' (Final)';
-        }
 
         SendWebPushToUsersJob::dispatch(
             userIds: $userIds,
             payload: [
-                'title' => $scoreChanged ? 'Atualizacao de placar' : 'Atualizacao de partida',
+                'title' => $title,
                 'body' => $body,
                 'url' => "/pwa/matches/{$match->id}",
-                'tag' => "bolao-gol-{$match->id}",
+                'tag' => "match-status-{$match->id}",
                 'renotify' => true,
             ],
-            dedupeKey: "match_score:{$match->id}:{$afterHome}:{$afterAway}:{$match->status}",
-            dedupeSeconds: 30,
+            dedupeKey: "match_status:{$match->id}:{$beforeStatus}:{$afterStatus}",
+            dedupeSeconds: 60,
         )->onQueue((string) config('queue.connections.redis.queue', 'default'));
     }
 

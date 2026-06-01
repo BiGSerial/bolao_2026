@@ -35,8 +35,8 @@ self.addEventListener('push', (event) => {
     const title = payload.title ?? 'BolãoVF';
     const options = {
         body:      payload.body    ?? '',
-        icon:      '/favicon.png',
-        badge:     '/favicon.png',
+        icon:      payload.icon    || '/favicon.png',  // escudo do time, fallback para app icon
+        badge:     '/favicon.png',                      // badge monochrome fica sempre como app icon
         tag:       payload.tag     ?? 'bolao-geral',
         renotify:  !!payload.renotify,
         silent:    !!payload.silent,

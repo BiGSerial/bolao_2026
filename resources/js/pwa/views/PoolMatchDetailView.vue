@@ -13,7 +13,14 @@
 
                 <!-- Status / Live badge -->
                 <div class="flex justify-center mb-3">
-                    <span v-if="isLive" class="live-badge">
+                    <span v-if="detail.status === 'PENALTY_SHOOTOUT'" class="live-badge">
+                        <span class="live-dot"></span> Pênaltis
+                    </span>
+                    <span v-else-if="detail.status === 'EXTRA_TIME'" class="live-badge">
+                        <span class="live-dot"></span> Prorrogação
+                        <span class="ml-1 opacity-80">· {{ displayMinute }}'<span v-if="detail.live_clock?.extra_minute" class="opacity-70">+{{ detail.live_clock.extra_minute }}</span></span>
+                    </span>
+                    <span v-else-if="isLive" class="live-badge">
                         <span class="live-dot"></span>
                         {{ displayMinute }}'<span v-if="detail.live_clock?.extra_minute" class="opacity-70">+{{ detail.live_clock.extra_minute }}</span>
                     </span>

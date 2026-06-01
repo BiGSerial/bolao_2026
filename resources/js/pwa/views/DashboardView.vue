@@ -128,11 +128,28 @@
                                      @click="router.push({ name: 'match-detail', params: { matchId: m.id } })">
                                     <div class="flex items-center justify-between text-[10px] text-bolao-muted2 mb-2">
                                         <span class="truncate max-w-[60%]">{{ m.competition?.name }}<span v-if="m.matchday"> · R{{ m.matchday }}</span></span>
-                                        <span class="text-bolao-red font-bold flex items-center gap-1">
-                                            <span class="live-dot"></span>
-                                            AO VIVO
-                                            <span v-if="liveMinuteLabel(m)" class="text-amber-300">· {{ liveMinuteLabel(m) }}</span>
-                                        </span>
+                                        <template v-if="m.status === 'PAUSED'">
+                                            <span class="font-bold text-amber-400 flex items-center gap-1">
+                                                <i class="ti ti-player-pause-filled" style="font-size:9px"></i> INTERVALO
+                                            </span>
+                                        </template>
+                                        <template v-else-if="m.status === 'PENALTY_SHOOTOUT'">
+                                            <span class="text-bolao-red font-bold flex items-center gap-1">
+                                                <span class="live-dot"></span> PÊNALTIS
+                                            </span>
+                                        </template>
+                                        <template v-else-if="m.status === 'EXTRA_TIME'">
+                                            <span class="text-bolao-red font-bold flex items-center gap-1">
+                                                <span class="live-dot"></span> PRORROGAÇÃO
+                                                <span v-if="liveMinuteLabel(m)" class="text-amber-300">· {{ liveMinuteLabel(m) }}</span>
+                                            </span>
+                                        </template>
+                                        <template v-else>
+                                            <span class="text-bolao-red font-bold flex items-center gap-1">
+                                                <span class="live-dot"></span> AO VIVO
+                                                <span v-if="liveMinuteLabel(m)" class="text-amber-300">· {{ liveMinuteLabel(m) }}</span>
+                                            </span>
+                                        </template>
                                     </div>
                                     <div class="live-match-grid">
                                         <div class="team-col">
@@ -206,9 +223,9 @@
                                                     </p>
                                                     <span
                                                         class="font-bold shrink-0"
-                                                        :class="['FINISHED', 'AWARDED'].includes(m.status) ? 'text-bolao-muted2' : ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'].includes(m.status) ? 'text-bolao-red' : 'text-bolao-accent'"
+                                                        :class="matchStatusColor(m.status)"
                                                     >
-                                                        {{ ['FINISHED', 'AWARDED'].includes(m.status) ? 'Encerrado' : ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'].includes(m.status) ? 'Ao vivo' : matchTime(m.local_date) }}
+                                                        {{ matchStatusShortLabel(m) }}
                                                     </span>
                                                 </div>
                                                 <div class="next-hero-teams">
@@ -543,6 +560,21 @@ function liveMinuteLabel(match) {
     const capped = Math.min(130, min);
     if (Number.isFinite(extra) && extra > 0) return `${capped}+${extra}'`;
     return `${capped}'`;
+}
+function matchStatusShortLabel(match) {
+    const s = match?.status ?? '';
+    if (['FINISHED', 'AWARDED'].includes(s)) return 'Encerrado';
+    if (s === 'PAUSED') return 'Intervalo';
+    if (s === 'EXTRA_TIME') return 'Prorrogação';
+    if (s === 'PENALTY_SHOOTOUT') return 'Pênaltis';
+    if (s === 'IN_PLAY') return 'Ao vivo';
+    return matchTime(match?.local_date);
+}
+function matchStatusColor(status) {
+    if (['FINISHED', 'AWARDED'].includes(status)) return 'text-bolao-muted2';
+    if (status === 'PAUSED') return 'text-amber-400';
+    if (['IN_PLAY', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'].includes(status)) return 'text-bolao-red';
+    return 'text-bolao-accent';
 }
 function goalLine(g) {
     const num = Number.isFinite(g?.number) ? `${g.number} ` : '';
