@@ -19,7 +19,7 @@
                     Motivo da suspensão: {{ pool.suspension_reason }}
                 </div>
 
-                <div class="grid grid-cols-2 gap-2 mt-3">
+                <div class="admin-actions mt-3">
                     <button v-if="pool.status === 'active'" class="pwa-btn-secondary !border-amber-500/30 !text-amber-300" @click="promptSuspend">Suspender</button>
                     <button v-else class="pwa-btn-secondary !border-emerald-500/30 !text-emerald-300" @click="activate">Reativar</button>
                     <button class="pwa-btn-secondary" @click="openGroupAsAdmin">Ver grupo</button>
@@ -31,7 +31,7 @@
                 <input v-model="form.name" class="field" placeholder="Nome" />
                 <textarea v-model="form.description" class="field min-h-[70px]" placeholder="Descrição"></textarea>
                 <textarea v-model="form.instructions" class="field min-h-[70px]" placeholder="Regulamento"></textarea>
-                <div class="grid grid-cols-2 gap-2">
+                <div class="admin-field-grid">
                     <select v-model="form.visibility" class="field">
                         <option value="private">Privado</option>
                         <option value="invite_only">Somente convite</option>
@@ -164,3 +164,69 @@ onMounted(async () => {
     await load();
 });
 </script>
+
+<style scoped>
+.admin-actions,
+.admin-field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.field {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    border: 1px solid rgba(255,255,255,.14);
+    background: #121a2a;
+    color: #e8eef9;
+    border-radius: 12px;
+    padding: 11px 12px;
+    font-size: 14px;
+    line-height: 1.35;
+    font-family: inherit;
+    outline: none;
+    appearance: none;
+    transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+
+.field::placeholder {
+    color: #6d7d96;
+    opacity: 1;
+}
+
+.field:focus {
+    border-color: rgba(245,166,35,.55);
+    background: #151f32;
+    box-shadow: 0 0 0 3px rgba(245,166,35,.08);
+}
+
+textarea.field {
+    min-height: 78px;
+    resize: vertical;
+}
+
+select.field {
+    padding-right: 34px;
+    background-image:
+        linear-gradient(45deg, transparent 50%, #8ea0bc 50%),
+        linear-gradient(135deg, #8ea0bc 50%, transparent 50%);
+    background-position:
+        calc(100% - 18px) calc(50% - 2px),
+        calc(100% - 12px) calc(50% - 2px);
+    background-size: 6px 6px, 6px 6px;
+    background-repeat: no-repeat;
+}
+
+select.field option {
+    background: #121a2a;
+    color: #e8eef9;
+}
+
+@media (max-width: 420px) {
+    .admin-actions,
+    .admin-field-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>

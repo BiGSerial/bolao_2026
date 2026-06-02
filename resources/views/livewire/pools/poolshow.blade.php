@@ -1138,7 +1138,15 @@
                         </div>
                         <div>
                             <p class="text-sm font-semibold text-slate-100 leading-tight">Chat do bolão</p>
-                            <p class="text-[11px] text-slate-400 leading-tight" x-text="typingNames.length ? typingNames.join(', ') + ' digitando...' : ''"></p>
+                            <template x-if="typingNames.length">
+                                <div class="wc-typing-indicator">
+                                    <span x-text="typingLabel()"></span>
+                                    <span class="wc-typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                                </div>
+                            </template>
+                            <template x-if="!typingNames.length">
+                                <p class="text-[11px] text-slate-500 leading-tight">Online</p>
+                            </template>
                         </div>
                     </div>
                     <button type="button" class="text-slate-400 hover:text-amber-300 transition-colors" @click="loadMessages()" title="Atualizar">
@@ -1241,13 +1249,13 @@
 
                                     {{-- Reactions --}}
                                     <template x-if="(item.reactions || []).length">
-                                        <div class="flex flex-wrap gap-1 mt-1.5">
+                                        <div class="wc-reactions-row">
                                             <template x-for="r in (item.reactions || [])" :key="r.emoji">
                                                 <button type="button"
                                                         class="wc-reaction"
                                                         :class="(r.user_ids||[]).includes(userId) ? 'wc-reaction-active' : ''"
                                                         @click="toggleReaction(item.id, r.emoji)"
-                                                        x-text="r.emoji + ((r.count||0) > 1 ? ' ' + r.count : '')">
+                                                        x-text="reactionLabel(r)">
                                                 </button>
                                             </template>
                                         </div>
@@ -1341,9 +1349,17 @@
             loading: true, sending: false,
             draft: '', replyTo: null, ctxMsg: null,
             messages: [], typingUsers: {}, participants: [], readsMap: {},
+            typingExpiresAt: {},
             typingTimeout: null, channel: null,
 
             get typingNames() { return Object.values(this.typingUsers); },
+
+            typingLabel() {
+                const names = this.typingNames;
+                if (names.length === 1) return `${names[0]} está digitando`;
+                if (names.length === 2) return `${names[0]} e ${names[1]} estão digitando`;
+                return `${names.length} pessoas estão digitando`;
+            },
 
             async init() {
                 await Promise.all([this.loadMessages(), this.loadParticipants()]);
@@ -1389,9 +1405,26 @@
                         const uid = Number(payload?.user_id || 0);
                         if (!uid || uid === this.userId) return;
                         if (payload?.typing) {
-                            this.typingUsers[uid] = payload?.user_name || 'Alguém';
-                            setTimeout(() => { delete this.typingUsers[uid]; }, 5000);
-                        } else { delete this.typingUsers[uid]; }
+                            const expiresAt = Date.now() + 5000;
+                            this.typingExpiresAt = { ...this.typingExpiresAt, [uid]: expiresAt };
+                            this.typingUsers = { ...this.typingUsers, [uid]: payload?.user_name || 'Alguém' };
+                            setTimeout(() => {
+                                if (Number(this.typingExpiresAt?.[uid] || 0) !== expiresAt) return;
+                                const nextExpires = { ...this.typingExpiresAt };
+                                delete nextExpires[uid];
+                                const next = { ...this.typingUsers };
+                                delete next[uid];
+                                this.typingExpiresAt = nextExpires;
+                                this.typingUsers = next;
+                            }, 5000);
+                        } else {
+                            const nextExpires = { ...this.typingExpiresAt };
+                            delete nextExpires[uid];
+                            const next = { ...this.typingUsers };
+                            delete next[uid];
+                            this.typingExpiresAt = nextExpires;
+                            this.typingUsers = next;
+                        }
                     })
                     .listen('.PoolChatReadUpdated', (payload) => {
                         const uid = Number(payload?.user_id || 0);
@@ -1421,6 +1454,10 @@
 
             async toggleReaction(messageId, emoji) {
                 await window.axios.post(`/api/v1/pools/${this.poolId}/chat/messages/${messageId}/reactions`, { emoji });
+            },
+
+            reactionLabel(reaction) {
+                return `${reaction?.emoji || ''} ${Number(reaction?.count || 0)}`;
             },
 
             openCtx(item) { this.ctxMsg = item; },
@@ -1585,17 +1622,51 @@
     border-left: 3px solid #53bdeb;
 }
 /* Reactions */
-.wc-reaction {
-    display: inline-flex; align-items: center; gap: 3px;
-    font-size: 12px; line-height: 1;
-    padding: 2px 8px;
-    border-radius: 999px;
-    border: 1px solid rgba(255,255,255,.15);
-    background: #1f2c34;
-    color: rgba(233,237,239,.85);
-    transition: background .1s;
+.wc-reactions-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
 }
-.wc-reaction-active { border-color: rgba(0,168,132,.5); background: rgba(0,168,132,.15); color: #00a884; }
+.wc-reaction {
+    display: inline-flex; align-items: baseline; gap: 2px;
+    font-size: 14px; line-height: 1;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: rgba(233,237,239,.85);
+    font-weight: 800;
+    transition: color .1s, opacity .1s;
+}
+.wc-reaction-active { color: #53bdeb; }
+.wc-typing-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #8fb7aa;
+    line-height: 1.15;
+}
+.wc-typing-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    transform: translateY(1px);
+}
+.wc-typing-dots i {
+    width: 3px;
+    height: 3px;
+    border-radius: 999px;
+    background: currentColor;
+    animation: wcTypingDot 1.05s infinite ease-in-out;
+}
+.wc-typing-dots i:nth-child(2) { animation-delay: .16s; }
+.wc-typing-dots i:nth-child(3) { animation-delay: .32s; }
+@keyframes wcTypingDot {
+    0%, 70%, 100% { opacity: .35; transform: translateY(0); }
+    35% { opacity: 1; transform: translateY(-3px); }
+}
 /* Context menu button */
 .wc-ctx-btn {
     display: none;

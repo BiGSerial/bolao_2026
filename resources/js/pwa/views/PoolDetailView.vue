@@ -1,5 +1,9 @@
 <template>
-    <div class="pwa-page" :data-shell-swipe-lock="activeTab === 'chat' ? '1' : null">
+    <div
+        class="pwa-page"
+        :data-shell-swipe-lock="activeTab === 'chat' ? '1' : null"
+        :data-pwa-chat-active="activeTab === 'chat' ? '1' : null"
+    >
 
         <!-- Pool header skeleton -->
         <div v-if="loadingPool" class="pwa-section space-y-2 pb-4">

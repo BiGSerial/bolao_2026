@@ -11,64 +11,75 @@
                 </div>
             </template>
 
-            <div v-for="item in messages" :key="item.id"
-                 class="flex items-end gap-2 mb-1"
-                 :class="isMine(item) ? 'justify-end' : 'justify-start'">
-
-                <!-- Avatar para mensagens dos outros -->
-                <div v-if="!isMine(item)"
-                     class="chat-avatar shrink-0"
-                     :style="{ background: avatarBg(item.user?.name) }">
-                    {{ initials(item.user?.name) }}
+            <template v-for="(item, idx) in messages" :key="item.id">
+                <div v-if="showDateDivider(idx)" class="chat-date-divider">
+                    <span>{{ formatDateLabel(item.created_at) }}</span>
                 </div>
 
-                <!-- Swipe hint -->
-                <div v-if="swipeHintMessageId === item.id"
-                     class="text-[11px] text-bolao-accent flex items-center gap-1 shrink-0">
-                    <i class="ti ti-arrow-back-up"></i>
-                </div>
+                <div class="flex items-end gap-2 mb-1"
+                     :class="isMine(item) ? 'justify-end' : 'justify-start'">
 
-                <!-- Bubble -->
-                <div class="chat-bubble-wrap"
-                     :class="isMine(item) ? 'chat-bubble-wrap-me' : 'chat-bubble-wrap-other'"
-                     :style="swipeTranslateStyle(item.id)"
-                     @dblclick="toggleReaction(item.id, '👍')"
-                     @touchstart="onBubbleTouchStart($event, item)"
-                     @touchmove="onBubbleTouchMove($event)"
-                     @touchend="onBubbleTouchEnd($event, item)">
-
-                    <!-- Nome (outros) -->
-                    <p v-if="!isMine(item)"
-                       class="chat-author"
-                       :style="{ color: nameColor(item.user?.name) }">
-                        {{ item.user?.name || '—' }}
-                    </p>
-
-                    <!-- Reply quote -->
-                    <div v-if="item.reply_to" class="chat-reply mb-1.5 px-2 py-1">
-                        <p class="text-[12px] text-white/80 line-clamp-2">{{ item.reply_to.body }}</p>
+                    <!-- Avatar para mensagens dos outros -->
+                    <div v-if="!isMine(item)"
+                         class="chat-avatar shrink-0"
+                         :style="{ background: avatarBg(item.user?.name) }">
+                        {{ initials(item.user?.name) }}
                     </div>
 
-                    <!-- Texto + hora na mesma linha ao fim -->
-                    <span class="chat-body" :class="{ 'chat-body-deleted': !!item.deleted_at }">{{ item.body }}<span class="chat-meta-spacer">&#8203;&#xFEFF;</span></span>
-                    <div class="chat-meta-row">
-                        <span class="chat-time">{{ formatLocalTime(item.created_at) }}</span>
-                        <span v-if="isMine(item)"
-                              class="chat-tick"
-                              :class="allReadByOthers(item.id) ? 'chat-tick-read' : 'chat-tick-sent'">
-                            <i class="ti ti-checks text-[11px]"></i>
-                        </span>
+                    <!-- Swipe hint -->
+                    <div v-if="swipeHintMessageId === item.id"
+                         class="text-[11px] text-bolao-accent flex items-center gap-1 shrink-0">
+                        <i class="ti ti-arrow-back-up"></i>
                     </div>
 
-                    <!-- Reactions -->
-                    <button v-if="item.reactions?.length"
-                            class="chat-reaction-float"
-                            @click="toggleReaction(item.id, item.reactions[0].emoji)">
-                        <span>{{ item.reactions[0].emoji }}</span>
-                        <span v-if="(item.reactions[0].count || 0) > 1" class="chat-reaction-count">{{ item.reactions[0].count }}</span>
-                    </button>
+                    <!-- Bubble -->
+                    <div class="chat-bubble-wrap"
+                         :class="isMine(item) ? 'chat-bubble-wrap-me' : 'chat-bubble-wrap-other'"
+                         :style="swipeTranslateStyle(item.id)"
+                         @dblclick="toggleReaction(item.id, '👍')"
+                         @touchstart="onBubbleTouchStart($event, item)"
+                         @touchmove="onBubbleTouchMove($event)"
+                         @touchend="onBubbleTouchEnd($event, item)">
+
+                        <!-- Nome (outros) -->
+                        <p v-if="!isMine(item)"
+                           class="chat-author"
+                           :style="{ color: nameColor(item.user?.name) }">
+                            {{ item.user?.name || '—' }}
+                        </p>
+
+                        <!-- Reply quote -->
+                        <div v-if="item.reply_to" class="chat-reply mb-1.5 px-2 py-1">
+                            <p class="text-[12px] text-white/80 line-clamp-2">{{ item.reply_to.body }}</p>
+                        </div>
+
+                        <!-- Texto + hora na mesma linha ao fim -->
+                        <span class="chat-body" :class="{ 'chat-body-deleted': !!item.deleted_at }">{{ item.body }}<span class="chat-meta-spacer">&#8203;&#xFEFF;</span></span>
+                        <div class="chat-meta-row">
+                            <span class="chat-time">{{ formatLocalTime(item.created_at) }}</span>
+                            <span v-if="isMine(item)"
+                                  class="chat-tick"
+                                  :class="allReadByOthers(item.id) ? 'chat-tick-read' : 'chat-tick-sent'">
+                                <i class="ti ti-checks text-[11px]"></i>
+                            </span>
+                        </div>
+
+                        <!-- Reactions -->
+                        <div v-if="item.reactions?.length" class="chat-reactions-row">
+                            <button
+                                v-for="reaction in item.reactions"
+                                :key="reaction.emoji"
+                                class="chat-reaction-plain"
+                                :class="{ active: isReactionMine(reaction) }"
+                                @click="toggleReaction(item.id, reaction.emoji)"
+                            >
+                                <span class="chat-reaction-emoji">{{ reaction.emoji }}</span>
+                                <span class="chat-reaction-count">{{ Number(reaction.count || 0) }}</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            </template>
 
             <!-- Padding final para a última bolha não colar -->
             <div style="height:8px"></div>
@@ -92,7 +103,10 @@
         </div>
 
         <!-- ── Typing indicator ── -->
-        <p v-if="typingNames.length" class="typing-bar">{{ typingNames.join(', ') }} digitando...</p>
+        <div v-if="typingNames.length" class="typing-bar">
+            <span>{{ typingLabel }}</span>
+            <span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        </div>
 
         <!-- ── Mention suggestions ── -->
         <div v-if="mentionSuggestions.length" class="mention-bar">
@@ -177,9 +191,16 @@ let bubbleTouchStartX  = 0;
 let bubbleTouchStartY  = 0;
 let longPressTimer     = null;
 let activeTouchMessageId = null;
+const typingExpiresAt = new Map();
 
 const canSend      = computed(() => draft.value.trim().length > 0);
 const typingNames  = computed(() => Array.from(typingUsers.value.values()));
+const typingLabel  = computed(() => {
+    const names = typingNames.value;
+    if (names.length === 1) return `${names[0]} está digitando`;
+    if (names.length === 2) return `${names[0]} e ${names[1]} estão digitando`;
+    return `${names.length} pessoas estão digitando`;
+});
 const otherParticipantIds = computed(() =>
     participants.value.map((p) => Number(p.id || 0)).filter((id) => id > 0 && id !== Number(props.userId || 0)),
 );
@@ -209,6 +230,9 @@ function hashString(text) {
 function avatarBg(name)  { const p = ['#1d4ed8','#0f766e','#7c3aed','#b45309','#be123c','#0369a1']; return p[hashString(name) % p.length]; }
 function nameColor(name) { const p = ['#60a5fa','#34d399','#a78bfa','#f59e0b','#f472b6','#22d3ee']; return p[hashString(name) % p.length]; }
 function isMine(item)    { return Number(item.user?.id || 0) === Number(props.userId || 0); }
+function isReactionMine(reaction) {
+    return (reaction?.user_ids || []).map((id) => Number(id)).includes(Number(props.userId || 0));
+}
 
 function allReadByOthers(messageId) {
     const id = Number(messageId || 0);
@@ -227,6 +251,32 @@ function formatLocalTime(iso) {
     if (!iso) return '';
     const d = new Date(iso);
     return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function showDateDivider(index) {
+    if (index === 0) return true;
+    const current = messages.value[index]?.created_at;
+    const previous = messages.value[index - 1]?.created_at;
+    if (!current || !previous) return false;
+    return dateKey(current) !== dateKey(previous);
+}
+
+function dateKey(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+function formatDateLabel(iso) {
+    if (!iso) return '';
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    const today = new Date();
+    if (date.toDateString() === today.toDateString()) return 'Hoje';
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) return 'Ontem';
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 // ── Scroll ──────────────────────────────────────────────────────────────────
@@ -501,9 +551,19 @@ function bindRealtime() {
             const uid = Number(payload?.user_id || 0);
             if (!uid || uid === Number(props.userId || 0)) return;
             if (payload?.typing) {
+                const expiresAt = Date.now() + 5000;
+                typingExpiresAt.set(uid, expiresAt);
                 typingUsers.value.set(uid, payload?.user_name || 'Alguém');
-                setTimeout(() => { typingUsers.value.delete(uid); typingUsers.value = new Map(typingUsers.value); }, 5000);
-            } else { typingUsers.value.delete(uid); }
+                setTimeout(() => {
+                    if (typingExpiresAt.get(uid) !== expiresAt) return;
+                    typingExpiresAt.delete(uid);
+                    typingUsers.value.delete(uid);
+                    typingUsers.value = new Map(typingUsers.value);
+                }, 5000);
+            } else {
+                typingExpiresAt.delete(uid);
+                typingUsers.value.delete(uid);
+            }
             typingUsers.value = new Map(typingUsers.value);
         })
         .listen('.PoolChatReadUpdated', (payload) => {
@@ -582,6 +642,23 @@ onBeforeUnmount(() => {
     -webkit-overflow-scrolling: touch;
     padding: 10px 12px 4px;
     min-height: 0;   /* critical para flex scrolling */
+}
+
+.chat-date-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 12px 0;
+}
+
+.chat-date-divider span {
+    border-radius: 999px;
+    background: rgba(17,27,37,.92);
+    color: #9fb0c9;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.22);
 }
 
 /* ── Bubbles ────────────────────────────────────────────── */
@@ -671,23 +748,39 @@ onBeforeUnmount(() => {
 }
 
 /* Reactions */
-.chat-reaction-float {
-    position: absolute;
-    bottom: -14px;
-    left: 8px;
-    min-height: 22px;
-    border-radius: 999px;
-    border: 1px solid rgba(255,255,255,.15);
-    background: #111b25;
-    padding: 1px 7px;
-    display: inline-flex;
+.chat-reactions-row {
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 3px;
-    font-size: 13px;
-    box-shadow: 0 4px 12px rgba(0,0,0,.4);
-    z-index: 2;
+    gap: 7px;
+    margin-top: 5px;
 }
-.chat-reaction-count { font-size: 10px; color: rgba(226,232,240,.8); font-weight: 700; }
+
+.chat-reaction-plain {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+    border: 0;
+    background: transparent;
+    color: rgba(233,237,239,.82);
+    padding: 0;
+    line-height: 1;
+}
+
+.chat-reaction-plain.active {
+    color: #7dd3fc;
+}
+
+.chat-reaction-emoji {
+    font-size: 15px;
+    line-height: 1;
+}
+
+.chat-reaction-count {
+    font-size: 10px;
+    font-weight: 800;
+    color: currentColor;
+}
 
 /* ── Typing / Mentions / Reply bars ──────────────────────── */
 .typing-bar {
@@ -695,6 +788,32 @@ onBeforeUnmount(() => {
     font-size: 11px;
     color: #64748b;
     padding: 4px 14px 2px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.typing-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    transform: translateY(1px);
+}
+
+.typing-dots i {
+    width: 3px;
+    height: 3px;
+    border-radius: 999px;
+    background: currentColor;
+    animation: chatTypingDot 1.05s infinite ease-in-out;
+}
+
+.typing-dots i:nth-child(2) { animation-delay: .16s; }
+.typing-dots i:nth-child(3) { animation-delay: .32s; }
+
+@keyframes chatTypingDot {
+    0%, 70%, 100% { opacity: .35; transform: translateY(0); }
+    35% { opacity: 1; transform: translateY(-3px); }
 }
 .mention-bar {
     flex-shrink: 0;

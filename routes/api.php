@@ -89,6 +89,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/matches/{match}/detail', App\Http\Controllers\Api\V1\Matches\MatchDetailController::class);
         Route::get('/pools', [PoolsController::class, 'index']);
         Route::post('/pools', [PoolsController::class, 'store']);
+        Route::get('/pools/lookup-by-code', [PoolMembershipActionsController::class, 'lookupByCode']);
         Route::get('/pools/{pool}', [PoolsController::class, 'show']);
         Route::patch('/pools/{pool}', [PoolsController::class, 'update']);
         Route::delete('/pools/{pool}', [PoolsController::class, 'destroy']);

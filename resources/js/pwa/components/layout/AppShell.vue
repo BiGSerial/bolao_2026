@@ -1,5 +1,5 @@
 <template>
-    <div class="pwa-shell" :class="{ 'keyboard-open': keyboardOpen }" @touchstart="onShellTouchStart" @touchmove="onShellTouchMove" @touchend="onShellTouchEnd">
+    <div class="pwa-shell" @touchstart="onShellTouchStart" @touchmove="onShellTouchMove" @touchend="onShellTouchEnd">
 
         <!-- Header -->
         <header class="pwa-header">
@@ -69,6 +69,8 @@
                 class="pwa-tab"
                 :class="{ active: isTabActive(tab) }"
                 @click="navigateTo(tab)"
+                @pointerdown.stop
+                @touchstart.stop
                 @touchend.stop
             >
                 <div class="pwa-tab-icon-wrap">
@@ -82,7 +84,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../../store/auth';
 import { useAppStore } from '../../store/app';
@@ -95,8 +97,6 @@ const appStore = useAppStore();
 const title        = ref('');
 const transitionName = ref('fade-page');
 const mainEl       = ref(null);
-const keyboardOpen = ref(false);
-let removeKeyboardListeners = null;
 
 // Reset scroll ao topo em cada troca de rota (evita manter posição antiga)
 watch(() => route.path, () => {
@@ -114,8 +114,14 @@ const tabs = [
 
 const visibleTabs = computed(() => {
     return tabs.filter(tab => {
-        if (tab.requiresAdmin && !auth.isAdmin) return false;
-        if (tab.requiresOwner && !auth.isOwner && !auth.isAdmin) return false;
+        const hydratingUser = auth.isAuthenticated && !auth.user;
+        const isCurrentSection = route.path.startsWith(tab.path);
+        if (tab.requiresAdmin && !auth.isAdmin) {
+            return hydratingUser && isCurrentSection;
+        }
+        if (tab.requiresOwner && !auth.isOwner && !auth.isAdmin) {
+            return hydratingUser && isCurrentSection;
+        }
         return true;
     });
 });
@@ -148,43 +154,6 @@ onMounted(async () => {
         }
     }
     appStore.fetchCompetitions();
-
-    const updateKeyboardState = () => {
-        if (!window.visualViewport) {
-            keyboardOpen.value = false;
-            return;
-        }
-        const delta = window.innerHeight - window.visualViewport.height;
-        keyboardOpen.value = delta > 120;
-    };
-    const onFocusOut = () => setTimeout(updateKeyboardState, 80);
-    const onVisibility = () => updateKeyboardState();
-
-    updateKeyboardState();
-    if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', updateKeyboardState);
-        window.visualViewport.addEventListener('scroll', updateKeyboardState);
-    }
-    window.addEventListener('resize', updateKeyboardState);
-    window.addEventListener('focusin', updateKeyboardState);
-    window.addEventListener('focusout', onFocusOut);
-    document.addEventListener('visibilitychange', onVisibility);
-    removeKeyboardListeners = () => {
-        if (window.visualViewport) {
-            window.visualViewport.removeEventListener('resize', updateKeyboardState);
-            window.visualViewport.removeEventListener('scroll', updateKeyboardState);
-        }
-        window.removeEventListener('resize', updateKeyboardState);
-        window.removeEventListener('focusin', updateKeyboardState);
-        window.removeEventListener('focusout', onFocusOut);
-        document.removeEventListener('visibilitychange', onVisibility);
-    };
-});
-
-onBeforeUnmount(() => {
-    if (typeof removeKeyboardListeners === 'function') {
-        removeKeyboardListeners();
-    }
 });
 
 const showBack = computed(() => ['pool-detail', 'pool-create', 'pool-match-detail', 'match-detail'].includes(route.name) || route.path.includes('/admin/') || route.path.includes('/management/'));
@@ -206,6 +175,8 @@ function currentTabIndex() {
 }
 
 function navigateTo(tab) {
+    if (!tab?.path) return;
+    blurActiveControl();
     const currIdx = currentTabIndex();
     const nextIdx = visibleTabs.value.indexOf(tab);
     if (currIdx !== -1 && nextIdx !== -1) {
@@ -213,12 +184,22 @@ function navigateTo(tab) {
     } else {
         transitionName.value = 'fade-page';
     }
-    router.push(tab.path);
+    if (route.path !== tab.path) {
+        router.push(tab.path);
+    }
 }
 
 function goBack() {
+    blurActiveControl();
     transitionName.value = 'slide-right';
     router.back();
+}
+
+function blurActiveControl() {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) {
+        active.blur();
+    }
 }
 
 // ── Gesture handling (Swipe to go back/forward or tab switch) ──
@@ -378,14 +359,19 @@ function shouldIgnoreShellSwipe(e) {
     background: #13161b;
     border-top: 1px solid rgba(245,166,35,0.3);
     flex-shrink: 0;
-    z-index: 40;
-    position: relative;
+    z-index: 90;
+    position: sticky;
+    bottom: 0;
     pointer-events: auto;
     touch-action: manipulation;
+    isolation: isolate;
 }
 
-.pwa-shell.keyboard-open .pwa-tabbar {
-    display: none;
+@supports selector(:has(*)) {
+    .pwa-shell:has([data-pwa-chat-active="1"]) .pwa-tabbar,
+    .pwa-shell:has(input:focus, textarea:focus, select:focus, [contenteditable="true"]:focus) .pwa-tabbar {
+        display: none;
+    }
 }
 
 .pwa-tab {

@@ -40,6 +40,49 @@ class PoolMembershipActionsApiTest extends TestCase
         ]);
     }
 
+    public function test_user_can_lookup_pool_by_invite_code_before_joining(): void
+    {
+        [$pool] = $this->basePool(['invite_code' => 'ABCD1234']);
+        $user = User::factory()->create();
+        $token = $user->createToken('test-device')->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/v1/pools/lookup-by-code?invite_code=abcd-1234');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.pool.id', $pool->id)
+            ->assertJsonPath('data.pool.name', $pool->name)
+            ->assertJsonPath('data.pool.invite_code', 'ABCD1234')
+            ->assertJsonPath('data.pool.can_request_join', true)
+            ->assertJsonPath('data.pool.membership', null);
+    }
+
+    public function test_user_can_join_by_invite_code_with_separators(): void
+    {
+        [$pool] = $this->basePool(['invite_code' => 'EFGH5678']);
+        $user = User::factory()->create();
+        $token = $user->createToken('test-device')->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/pools/join-by-code', [
+                'invite_code' => 'efgh 5678',
+                'sector' => 'Norte',
+            ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.pool_id', $pool->id)
+            ->assertJsonPath('data.status', 'pending');
+
+        $this->assertDatabaseHas('pool_members', [
+            'pool_id' => $pool->id,
+            'user_id' => $user->id,
+            'sector' => 'Norte',
+            'status' => PoolMemberStatus::Pending->value,
+        ]);
+    }
+
     public function test_manager_can_create_invite(): void
     {
         [$pool, $owner] = $this->basePool();
@@ -122,7 +165,7 @@ class PoolMembershipActionsApiTest extends TestCase
             ->assertJsonPath('error.code', 'POOL_FORBIDDEN');
     }
 
-    private function basePool(): array
+    private function basePool(array $overrides = []): array
     {
         $owner = User::factory()->create();
 
@@ -140,7 +183,7 @@ class PoolMembershipActionsApiTest extends TestCase
             'year' => 2026,
         ]);
 
-        $pool = Pool::query()->create([
+        $pool = Pool::query()->create(array_merge([
             'owner_id' => $owner->id,
             'competition_id' => $competition->id,
             'competition_season_id' => $season->id,
@@ -149,8 +192,8 @@ class PoolMembershipActionsApiTest extends TestCase
             'visibility' => 'invite_only',
             'status' => 'active',
             'sectors' => ['Norte', 'Sul'],
-            'invite_code' => Str::upper(Str::random(10)),
-        ]);
+            'invite_code' => Str::upper(Str::random(8)),
+        ], $overrides));
 
         PoolMember::query()->create([
             'pool_id' => $pool->id,

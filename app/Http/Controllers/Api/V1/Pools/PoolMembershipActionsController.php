@@ -201,24 +201,47 @@ class PoolMembershipActionsController extends Controller
         ]);
     }
 
+    public function lookupByCode(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'invite_code' => ['required', 'string', 'max:32'],
+        ]);
+
+        $code = $this->normalizeInviteCode((string) $data['invite_code']);
+        if (strlen($code) !== 8) {
+            return ApiResponse::error($request, 'INVITE_CODE_INVALID', 'Código de convite inválido.', 404);
+        }
+
+        $pool = $this->findActivePoolByInviteCode($code);
+        if (! $pool) {
+            return ApiResponse::error($request, 'INVITE_CODE_INVALID', 'Código de convite inválido ou inexistente.', 404);
+        }
+
+        return ApiResponse::success($request, [
+            'pool' => $this->poolLookupPayload($pool, (int) $user->id),
+        ]);
+    }
+
     public function joinByCode(Request $request): JsonResponse
     {
         $user = $request->user();
 
         $data = $request->validate([
-            'invite_code' => ['required', 'string', 'size:8'],
+            'invite_code' => ['required', 'string', 'max:32'],
             'sector' => ['nullable', 'string', 'max:80'],
         ]);
 
-        $code = strtoupper(trim((string) $data['invite_code']));
-        $pool = Pool::query()
-            ->with('competition:id,code,name')
-            ->where('invite_code', $code)
-            ->where('status', 'active')
-            ->first();
+        $code = $this->normalizeInviteCode((string) $data['invite_code']);
+        if (strlen($code) !== 8) {
+            return ApiResponse::error($request, 'INVITE_CODE_INVALID', 'Código de convite inválido.', 404);
+        }
+
+        $pool = $this->findActivePoolByInviteCode($code);
 
         if (! $pool) {
-            return ApiResponse::error($request, 'INVITE_CODE_INVALID', 'Código de convite inválido.', 404);
+            return ApiResponse::error($request, 'INVITE_CODE_INVALID', 'Código de convite inválido ou inexistente.', 404);
         }
 
         $allowedSectors = is_array($pool->sectors) ? array_values($pool->sectors) : [];
@@ -330,6 +353,55 @@ class PoolMembershipActionsController extends Controller
             ->where('user_id', $userId)
             ->whereIn('role', [PoolMemberRole::Owner->value, PoolMemberRole::Manager->value])
             ->exists();
+    }
+
+    private function normalizeInviteCode(string $code): string
+    {
+        return strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $code) ?? '');
+    }
+
+    private function findActivePoolByInviteCode(string $code): ?Pool
+    {
+        return Pool::query()
+            ->with('competition:id,code,name')
+            ->where('invite_code', $code)
+            ->where('status', 'active')
+            ->first();
+    }
+
+    private function poolLookupPayload(Pool $pool, int $userId): array
+    {
+        $membership = PoolMember::query()
+            ->where('pool_id', $pool->id)
+            ->where('user_id', $userId)
+            ->first(['role', 'status', 'sector']);
+
+        $allowedSectors = is_array($pool->sectors) ? array_values($pool->sectors) : [];
+
+        return [
+            'id' => $pool->id,
+            'name' => $pool->name,
+            'slug' => $pool->slug,
+            'description' => $pool->description,
+            'visibility' => $pool->visibility,
+            'status' => $pool->status,
+            'invite_code' => $pool->invite_code,
+            'competition' => [
+                'id' => $pool->competition?->id,
+                'code' => $pool->competition?->code,
+                'name' => $pool->competition?->name,
+            ],
+            'sectors' => $allowedSectors,
+            'membership' => $membership ? [
+                'role' => $membership->role,
+                'status' => $membership->status,
+                'sector' => $membership->sector,
+            ] : null,
+            'can_request_join' => ! $membership || ! in_array($membership->status, [
+                PoolMemberStatus::Active->value,
+                PoolMemberStatus::Pending->value,
+            ], true),
+        ];
     }
 
     private function notifyManagersAboutJoinRequest(Pool $pool, string $requesterName): void

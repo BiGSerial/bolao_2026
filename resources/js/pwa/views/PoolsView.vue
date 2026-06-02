@@ -112,10 +112,44 @@
                         class="pwa-input uppercase invite-code-input text-center"
                         :class="{ filled: joinCode.trim().length > 0 }"
                         placeholder="Código de convite (8 caracteres)"
+                        inputmode="text"
                         maxlength="8"
+                        @input="onJoinCodeInput"
                     />
-                    <button class="pwa-btn-secondary w-full" :disabled="joiningCode || !canJoinByCode" @click="doJoinByCode">
-                        {{ joiningCode ? 'Entrando...' : 'Entrar no bolão' }}
+                    <div v-if="lookupLoading" class="invite-lookup-status">
+                        <i class="ti ti-loader-2 animate-spin"></i>
+                        Buscando bolão...
+                    </div>
+                    <div v-else-if="lookupError" class="invite-lookup-status invite-lookup-error">
+                        <i class="ti ti-alert-circle"></i>
+                        {{ lookupError }}
+                    </div>
+                    <div v-else-if="lookupPool" class="invite-lookup-result">
+                        <div class="flex items-center gap-3">
+                            <div class="invite-lookup-icon">
+                                <i class="ti ti-trophy"></i>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-sm font-extrabold text-slate-100">{{ lookupPool.name }}</p>
+                                <p class="truncate text-[11px] text-bolao-muted">{{ lookupPool.competition?.name }}</p>
+                            </div>
+                            <span v-if="lookupPool.membership?.status === 'active'" class="invite-status-pill">ativo</span>
+                            <span v-else-if="lookupPool.membership?.status === 'pending'" class="invite-status-pill invite-status-pending">pendente</span>
+                        </div>
+
+                        <select
+                            v-if="lookupPool.sectors?.length"
+                            v-model="selectedInviteSector"
+                            class="comp-select mt-2"
+                        >
+                            <option value="">Selecione um setor</option>
+                            <option v-for="sector in lookupPool.sectors" :key="sector" :value="sector">
+                                {{ sector }}
+                            </option>
+                        </select>
+                    </div>
+                    <button class="pwa-btn-secondary w-full" :disabled="joiningCode || !canJoinLookupPool" @click="doJoinLookupPool">
+                        {{ joiningCode ? 'Solicitando...' : joinLookupButtonLabel }}
                     </button>
                 </div>
             </div>
@@ -152,9 +186,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { getPools, joinPool as apiJoinPool, joinPoolByCode as apiJoinPoolByCode, leavePool as apiLeavePool } from '../api/pools';
+import { getPools, joinPool as apiJoinPool, leavePool as apiLeavePool, lookupPoolByCode as apiLookupPoolByCode } from '../api/pools';
 import SkeletonCard from '../components/ui/SkeletonCard.vue';
 
 const emit = defineEmits(['set-title']);
@@ -173,6 +207,12 @@ const LAST_COMPETITION_CODE_KEY = 'pwa_last_competition_code';
 
 const joinCode = ref('');
 const copiedId = ref(null);
+const lookupPool = ref(null);
+const lookupLoading = ref(false);
+const lookupError = ref('');
+const selectedInviteSector = ref('');
+let lookupTimer = null;
+let lookupRequestId = 0;
 
 const roleLabel = (role) => ({ owner: 'Dono', manager: 'Gestor', member: 'Membro' }[role] ?? role ?? '');
 
@@ -212,7 +252,18 @@ const joinedPools = computed(() =>
 );
 const canJoinMore = computed(() => joinedPools.value < maxPools.value);
 
-const canJoinByCode = computed(() => canJoinMore.value && joinCode.value.trim().length === 8);
+const normalizedJoinCode = computed(() => normalizeInviteCode(joinCode.value));
+const joinLookupButtonLabel = computed(() => {
+    if (lookupPool.value?.membership?.status === 'active') return 'Você já participa';
+    if (lookupPool.value?.membership?.status === 'pending') return 'Solicitação em análise';
+    return 'Solicitar entrada';
+});
+const canJoinLookupPool = computed(() =>
+    canJoinMore.value
+    && lookupPool.value
+    && lookupPool.value.can_request_join !== false
+    && (!lookupPool.value.sectors?.length || selectedInviteSector.value !== ''),
+);
 
 const competitionOptions = computed(() => {
     const fromApi = Array.isArray(data.value?.competitions) ? data.value.competitions : [];
@@ -235,6 +286,24 @@ const filteredDiscoverablePools = computed(() =>
 function setFeedback(message, type = 'ok') {
     feedback.value = message;
     feedbackType.value = type;
+}
+
+function normalizeInviteCode(value) {
+    return String(value || '').replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 8);
+}
+
+function onJoinCodeInput() {
+    const normalized = normalizeInviteCode(joinCode.value);
+    if (joinCode.value !== normalized) {
+        joinCode.value = normalized;
+    }
+}
+
+function clearInviteLookup() {
+    lookupPool.value = null;
+    lookupError.value = '';
+    lookupLoading.value = false;
+    selectedInviteSector.value = '';
 }
 
 function canLeave(pool) {
@@ -269,6 +338,43 @@ watch(selectedCompetitionCode, (code) => {
     localStorage.setItem(LAST_COMPETITION_CODE_KEY, normalized);
 });
 
+watch(normalizedJoinCode, (code) => {
+    if (lookupTimer) {
+        clearTimeout(lookupTimer);
+        lookupTimer = null;
+    }
+
+    lookupRequestId += 1;
+    const requestId = lookupRequestId;
+
+    if (code.length < 8) {
+        clearInviteLookup();
+        return;
+    }
+
+    lookupLoading.value = true;
+    lookupPool.value = null;
+    lookupError.value = '';
+    selectedInviteSector.value = '';
+
+    lookupTimer = setTimeout(async () => {
+        try {
+            const res = await apiLookupPoolByCode(code);
+            if (requestId !== lookupRequestId) return;
+            lookupPool.value = res?.data?.data?.pool ?? null;
+            lookupError.value = lookupPool.value ? '' : 'Bolão não encontrado.';
+        } catch (err) {
+            if (requestId !== lookupRequestId) return;
+            lookupError.value = err?.response?.data?.error?.message ?? 'Código inválido ou inexistente.';
+            lookupPool.value = null;
+        } finally {
+            if (requestId === lookupRequestId) {
+                lookupLoading.value = false;
+            }
+        }
+    }, 300);
+});
+
 function goToCreatePool() {
     const code = selectedCompetitionCode.value || competitionOptions.value[0]?.code || 'WC';
     router.push(`/pwa/pools/create?competition=${encodeURIComponent(code)}`);
@@ -288,15 +394,22 @@ async function doJoin(pool) {
     }
 }
 
-async function doJoinByCode() {
+async function doJoinLookupPool() {
+    if (!lookupPool.value) return;
+
     joiningCode.value = true;
     try {
-        const res = await apiJoinPoolByCode(joinCode.value.trim().toUpperCase());
+        const res = await apiJoinPool(lookupPool.value.id, selectedInviteSector.value || null);
         joinCode.value = '';
+        clearInviteLookup();
         setFeedback(res?.data?.message ?? 'Solicitação enviada com sucesso.');
         await load();
     } catch (err) {
-        setFeedback(err?.response?.data?.message ?? 'Código inválido ou indisponível.', 'err');
+        setFeedback(err?.response?.data?.message ?? err?.response?.data?.error?.message ?? 'Não foi possível solicitar entrada.', 'err');
+        if (normalizedJoinCode.value.length === 8) {
+            lookupRequestId += 1;
+            clearInviteLookup();
+        }
     } finally {
         joiningCode.value = false;
     }
@@ -318,6 +431,10 @@ async function doLeave(pool) {
 onMounted(() => {
     emit('set-title', 'Bolões');
     load();
+});
+
+onBeforeUnmount(() => {
+    if (lookupTimer) clearTimeout(lookupTimer);
 });
 </script>
 
@@ -418,6 +535,58 @@ onMounted(() => {
     font-weight: 800;
     letter-spacing: 0.03em;
     text-align: center;
+}
+
+.invite-lookup-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(245,166,35,0.2);
+    background: rgba(245,166,35,0.08);
+    color: #fbbf24;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 9px 10px;
+}
+
+.invite-lookup-error {
+    border-color: rgba(248,113,113,0.28);
+    background: rgba(248,113,113,0.08);
+    color: #fca5a5;
+}
+
+.invite-lookup-result {
+    border-radius: 10px;
+    border: 1px solid rgba(34,197,94,0.25);
+    background: rgba(34,197,94,0.08);
+    padding: 10px;
+}
+
+.invite-lookup-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: rgba(34,197,94,0.14);
+    color: #86efac;
+    flex-shrink: 0;
+}
+
+.invite-status-pill {
+    border-radius: 999px;
+    background: rgba(34,197,94,0.15);
+    color: #86efac;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 4px 7px;
+}
+
+.invite-status-pending {
+    background: rgba(251,191,36,0.15);
+    color: #fcd34d;
 }
 
 .dash-comp-picker { border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); background: #121722; padding: 10px; }

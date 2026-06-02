@@ -5,6 +5,8 @@ export const getPool = (id) => client.get(`/pools/${id}`);
 export const createPool = (payload) => client.post('/pools', payload);
 export const updatePool = (id, payload) => client.patch(`/pools/${id}`, payload);
 export const deletePool = (id) => client.delete(`/pools/${id}`);
+export const lookupPoolByCode = (invite_code) =>
+    client.get('/pools/lookup-by-code', { params: { invite_code } });
 export const joinPool = (id, sector = null) =>
     client.post(`/pools/${id}/join-requests`, sector ? { sector } : {});
 export const joinPoolByCode = (invite_code, sector = null) =>
