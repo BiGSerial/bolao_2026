@@ -18,6 +18,7 @@ class PoolChatMessage extends Model
         'body',
         'mentioned_user_ids',
         'edited_at',
+        'deleted_by',
     ];
 
     protected function casts(): array
@@ -46,5 +47,15 @@ class PoolChatMessage extends Model
     public function reactions(): HasMany
     {
         return $this->hasMany(PoolChatMessageReaction::class, 'message_id');
+    }
+
+    public function edits(): HasMany
+    {
+        return $this->hasMany(PoolChatMessageEdit::class, 'message_id');
+    }
+
+    public function deletedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'deleted_by');
     }
 }

@@ -1227,6 +1227,9 @@
 
                                         {{-- Hora + ticks --}}
                                         <span class="wc-meta flex items-center gap-1 shrink-0 self-end ml-auto">
+                                            <template x-if="item.edited_at">
+                                                <span class="text-[10px] opacity-50 italic">editada</span>
+                                            </template>
                                             <span class="text-[10px] opacity-60" x-text="formatTime(item.created_at)"></span>
                                             <template x-if="isMine(item)">
                                                 <svg class="w-3.5 h-3.5" viewBox="0 0 16 11" fill="none">
@@ -1261,6 +1264,17 @@
                                         </div>
                                     </template>
 
+                                    <template x-if="item.audit?.edits?.length || item.audit?.deleted_body">
+                                        <div class="wc-audit">
+                                            <template x-if="item.audit?.deleted_body">
+                                                <p class="wc-audit-line" x-text="'Apagada: ' + item.audit.deleted_body"></p>
+                                            </template>
+                                            <template x-for="(edit, auditIdx) in (item.audit?.edits || [])" :key="auditIdx">
+                                                <p class="wc-audit-line" x-text="'Editada: &quot;' + edit.old_body + '&quot; -> &quot;' + edit.new_body + '&quot;'"></p>
+                                            </template>
+                                        </div>
+                                    </template>
+
                                     {{-- Context menu trigger (hover) --}}
                                     <div class="wc-ctx-btn absolute top-1"
                                          :class="isMine(item) ? '-left-7' : '-right-7'"
@@ -1291,6 +1305,18 @@
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                                 Copiar
                             </button>
+                            <template x-if="canEditMessage(ctxMsg)">
+                                <button class="wc-ctx-item" @click="startEdit(ctxMsg); ctxMsg = null">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                    Editar
+                                </button>
+                            </template>
+                            <template x-if="isMine(ctxMsg) && !ctxMsg?.deleted_at">
+                                <button class="wc-ctx-item text-red-300" @click="deleteMessage(ctxMsg); ctxMsg = null">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M4 7h16"/></svg>
+                                    Apagar
+                                </button>
+                            </template>
                             <button class="wc-ctx-item text-slate-400" @click="ctxMsg = null">Cancelar</button>
                         </div>
                     </div>
@@ -1309,6 +1335,17 @@
                     </div>
                 </template>
 
+                <template x-if="editingMessageId">
+                    <div class="wc-reply-bar px-4 py-2 flex items-center gap-3 shrink-0">
+                        <div class="flex-1 min-w-0 border-l-2 border-emerald-400 pl-3">
+                            <p class="text-[11px] font-semibold text-emerald-300">Editando mensagem</p>
+                        </div>
+                        <button type="button" class="text-slate-400 hover:text-slate-200 shrink-0" @click="cancelEdit()">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                </template>
+
                 {{-- Composer --}}
                 <div class="wc-composer px-3 py-2.5 flex items-end gap-2 shrink-0">
                     <div class="flex-1 wc-input-wrap rounded-2xl px-4 py-2.5 flex items-end gap-2">
@@ -1317,7 +1354,7 @@
                             rows="1"
                             maxlength="2000"
                             class="wc-textarea flex-1 text-sm text-slate-100 placeholder-slate-500 resize-none outline-none bg-transparent leading-[1.4] max-h-28"
-                            placeholder="Digite uma mensagem"
+                            :placeholder="editingMessageId ? 'Edite sua mensagem' : 'Digite uma mensagem'"
                             @input.debounce.300ms="touchTyping(); autoResize($event)"
                             @keydown.enter.exact.prevent="sendMessage()"
                             @keydown.shift.enter="$event.target.style.height = 'auto'; $event.target.style.height = $event.target.scrollHeight + 'px'"
@@ -1347,7 +1384,7 @@
         return {
             poolId, userId, userName,
             loading: true, sending: false,
-            draft: '', replyTo: null, ctxMsg: null,
+            draft: '', replyTo: null, ctxMsg: null, editingMessageId: null,
             messages: [], typingUsers: {}, participants: [], readsMap: {},
             typingExpiresAt: {},
             typingTimeout: null, channel: null,
@@ -1391,8 +1428,7 @@
                     .listen('.PoolChatMessageCreated', async (payload) => {
                         const msg = payload?.message;
                         if (!msg) return;
-                        if (!this.messages.some((m) => Number(m.id) === Number(msg.id)))
-                            this.messages.push(msg);
+                        this.upsertMessage(msg);
                         this.$nextTick(() => this.scrollBottom());
                         await this.markRead();
                     })
@@ -1438,6 +1474,17 @@
                 if (!body || this.sending) return;
                 this.sending = true;
                 try {
+                    if (this.editingMessageId) {
+                        const res = await window.axios.patch(`/api/v1/pools/${this.poolId}/chat/messages/${this.editingMessageId}`, { body });
+                        const updated = res?.data?.data?.message;
+                        if (updated?.id) this.upsertMessage(updated);
+                        this.draft = '';
+                        this.editingMessageId = null;
+                        this.replyTo = null;
+                        await this.setTyping(false);
+                        return;
+                    }
+
                     const payload = { body };
                     if (this.replyTo?.id) payload.reply_to_message_id = this.replyTo.id;
                     const res = await window.axios.post(`/api/v1/pools/${this.poolId}/chat/messages`, payload);
@@ -1452,6 +1499,16 @@
                 } finally { this.sending = false; }
             },
 
+            upsertMessage(message) {
+                const idx = this.messages.findIndex((m) => Number(m.id) === Number(message.id));
+                if (idx >= 0) {
+                    this.messages[idx] = { ...this.messages[idx], ...message };
+                    this.messages = [...this.messages];
+                    return;
+                }
+                this.messages.push(message);
+            },
+
             async toggleReaction(messageId, emoji) {
                 await window.axios.post(`/api/v1/pools/${this.poolId}/chat/messages/${messageId}/reactions`, { emoji });
             },
@@ -1461,6 +1518,27 @@
             },
 
             openCtx(item) { this.ctxMsg = item; },
+
+            canEditMessage(item) {
+                return !!item && this.isMine(item) && !item.deleted_at && item.can_edit !== false;
+            },
+
+            startEdit(item) {
+                if (!this.canEditMessage(item)) return;
+                this.editingMessageId = Number(item.id || 0) || null;
+                this.draft = String(item.body || '');
+                this.replyTo = null;
+            },
+
+            cancelEdit() {
+                this.editingMessageId = null;
+                this.draft = '';
+            },
+
+            async deleteMessage(item) {
+                if (!item?.id || !this.isMine(item) || item.deleted_at) return;
+                await window.axios.delete(`/api/v1/pools/${this.poolId}/chat/messages/${item.id}`);
+            },
 
             async copyMsg(item) {
                 try { await navigator.clipboard.writeText(item.body || ''); } catch (_) {}
@@ -1640,6 +1718,17 @@
     transition: color .1s, opacity .1s;
 }
 .wc-reaction-active { color: #53bdeb; }
+.wc-audit {
+    margin-top: 6px;
+    border-top: 1px solid rgba(255,255,255,.08);
+    padding-top: 5px;
+}
+.wc-audit-line {
+    color: #fbbf24;
+    font-size: 10px;
+    line-height: 1.35;
+    opacity: .9;
+}
 .wc-typing-indicator {
     display: inline-flex;
     align-items: center;

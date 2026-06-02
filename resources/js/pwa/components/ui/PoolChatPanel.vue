@@ -56,6 +56,7 @@
                         <!-- Texto + hora na mesma linha ao fim -->
                         <span class="chat-body" :class="{ 'chat-body-deleted': !!item.deleted_at }">{{ item.body }}<span class="chat-meta-spacer">&#8203;&#xFEFF;</span></span>
                         <div class="chat-meta-row">
+                            <span v-if="item.edited_at" class="chat-edited-label">editada</span>
                             <span class="chat-time">{{ formatLocalTime(item.created_at) }}</span>
                             <span v-if="isMine(item)"
                                   class="chat-tick"
@@ -77,6 +78,12 @@
                                 <span class="chat-reaction-count">{{ Number(reaction.count || 0) }}</span>
                             </button>
                         </div>
+                        <div v-if="item.audit?.edits?.length || item.audit?.deleted_body" class="chat-audit">
+                            <p v-if="item.audit?.deleted_body" class="chat-audit-line">Apagada: {{ item.audit.deleted_body }}</p>
+                            <p v-for="(edit, editIdx) in item.audit?.edits || []" :key="editIdx" class="chat-audit-line">
+                                Editada: "{{ edit.old_body }}" -> "{{ edit.new_body }}"
+                            </p>
+                        </div>
                     </div>
                 </div>
             </template>
@@ -96,7 +103,7 @@
                 <div class="border-t border-white/10 pt-2 grid grid-cols-2 gap-2 text-center">
                     <button class="text-xs text-slate-300 py-1" :disabled="!!contextMessage?.deleted_at" @click.stop="startReply(contextMessage); contextMessage = null">Responder</button>
                     <button class="text-xs text-slate-300 py-1" @click.stop="copyMessage(contextMessage)">Copiar</button>
-                    <button v-if="isMine(contextMessage) && !contextMessage?.deleted_at" class="text-xs text-slate-300 py-1" @click.stop="startEdit(contextMessage); contextMessage = null">Editar</button>
+                    <button v-if="canEditMessage(contextMessage)" class="text-xs text-slate-300 py-1" @click.stop="startEdit(contextMessage); contextMessage = null">Editar</button>
                     <button v-if="isMine(contextMessage) && !contextMessage?.deleted_at" class="text-xs text-red-300 py-1" @click.stop="removeMessage(contextMessage); contextMessage = null">Excluir</button>
                 </div>
             </div>
@@ -232,6 +239,9 @@ function nameColor(name) { const p = ['#60a5fa','#34d399','#a78bfa','#f59e0b','#
 function isMine(item)    { return Number(item.user?.id || 0) === Number(props.userId || 0); }
 function isReactionMine(reaction) {
     return (reaction?.user_ids || []).map((id) => Number(id)).includes(Number(props.userId || 0));
+}
+function canEditMessage(item) {
+    return !!item && isMine(item) && !item.deleted_at && item.can_edit !== false;
 }
 
 function allReadByOthers(messageId) {
@@ -452,7 +462,7 @@ async function toggleReaction(messageId, emoji) {
 }
 
 function startEdit(item) {
-    if (!item || item.deleted_at || !isMine(item)) return;
+    if (!canEditMessage(item)) return;
     editingMessageId.value = Number(item.id || 0) || null;
     draft.value = String(item.body || '');
     replyTo.value = null;
@@ -722,6 +732,12 @@ onBeforeUnmount(() => {
     opacity: .55;
 }
 
+.chat-edited-label {
+    font-size: 10px;
+    opacity: .5;
+    font-style: italic;
+}
+
 .chat-tick       { line-height: 1; }
 .chat-tick-sent  { opacity: .6; }
 .chat-tick-read  { color: #60a5fa; }
@@ -780,6 +796,19 @@ onBeforeUnmount(() => {
     font-size: 10px;
     font-weight: 800;
     color: currentColor;
+}
+
+.chat-audit {
+    margin-top: 6px;
+    border-top: 1px solid rgba(255,255,255,.08);
+    padding-top: 5px;
+}
+
+.chat-audit-line {
+    color: #fbbf24;
+    font-size: 10px;
+    line-height: 1.35;
+    opacity: .9;
 }
 
 /* ── Typing / Mentions / Reply bars ──────────────────────── */

@@ -13,6 +13,8 @@ class PoolChatMessageCreated implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
+    private const EDIT_WINDOW_MINUTES = 15;
+
     public function __construct(public PoolChatMessage $message)
     {}
 
@@ -34,19 +36,20 @@ class PoolChatMessageCreated implements ShouldBroadcastNow
             'message' => [
                 'id' => $msg->id,
                 'pool_id' => $msg->pool_id,
-                'body' => $msg->body,
                 'mentioned_user_ids' => (array) ($msg->mentioned_user_ids ?? []),
-                'body' => $msg->deleted_at ? 'Mensagem removida' : $msg->body,
+                'body' => $msg->deleted_at ? 'Mensagem apagada' : $msg->body,
                 'created_at' => optional($msg->created_at)?->toIso8601String(),
                 'edited_at' => optional($msg->edited_at)?->toIso8601String(),
                 'deleted_at' => optional($msg->deleted_at)?->toIso8601String(),
+                'edit_expires_at' => optional($msg->created_at?->copy()->addMinutes(self::EDIT_WINDOW_MINUTES))?->toIso8601String(),
+                'can_edit' => ! $msg->deleted_at && $msg->created_at && $msg->created_at->greaterThanOrEqualTo(now()->subMinutes(self::EDIT_WINDOW_MINUTES)),
                 'user' => [
                     'id' => $msg->user?->id,
                     'name' => $msg->user?->public_name,
                 ],
                 'reply_to' => $msg->replyTo ? [
                     'id' => $msg->replyTo->id,
-                    'body' => $msg->replyTo->deleted_at ? 'Mensagem removida' : $msg->replyTo->body,
+                    'body' => $msg->replyTo->deleted_at ? 'Mensagem apagada' : $msg->replyTo->body,
                     'user_name' => $msg->replyTo->user?->public_name,
                     'deleted_at' => optional($msg->replyTo->deleted_at)?->toIso8601String(),
                 ] : null,

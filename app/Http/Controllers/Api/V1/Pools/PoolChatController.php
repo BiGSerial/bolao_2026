@@ -9,6 +9,7 @@ use App\Events\PoolChatTypingChanged;
 use App\Http\Controllers\Controller;
 use App\Models\Pool;
 use App\Models\PoolChatMessage;
+use App\Models\PoolChatMessageEdit;
 use App\Models\PoolChatMessageReaction;
 use App\Models\PoolChatRead;
 use App\Models\PoolMember;
@@ -20,9 +21,13 @@ use Illuminate\Support\Facades\Cache;
 
 class PoolChatController extends Controller
 {
+    private const EDIT_WINDOW_MINUTES = 15;
+
     public function index(Request $request, Pool $pool): JsonResponse
     {
-        if (! $this->canAccessChat($pool, (int) $request->user()->id, (bool) $request->user()->is_admin)) {
+        $isAdmin = $this->isAdmin($request);
+
+        if (! $this->canAccessChat($pool, (int) $request->user()->id, $isAdmin)) {
             return ApiResponse::error($request, 'POOL_FORBIDDEN', 'Acesso negado ao chat deste bolão.', 403);
         }
 
@@ -32,7 +37,14 @@ class PoolChatController extends Controller
         $query = PoolChatMessage::query()
             ->withTrashed()
             ->where('pool_id', $pool->id)
-            ->with(['user:id,name,display_name', 'replyTo:id,body,user_id', 'replyTo.user:id,name,display_name', 'reactions'])
+            ->with([
+                'user:id,name,display_name',
+                'replyTo:id,body,user_id,deleted_at',
+                'replyTo.user:id,name,display_name',
+                'reactions',
+                'edits.editor:id,name,display_name',
+                'deletedBy:id,name,display_name',
+            ])
             ->orderByDesc('id')
             ->limit($limit);
 
@@ -54,7 +66,7 @@ class PoolChatController extends Controller
             ->all();
 
         return ApiResponse::success($request, [
-            'items' => $items->map(fn (PoolChatMessage $msg): array => $this->serializeMessage($msg))->values()->all(),
+            'items' => $items->map(fn (PoolChatMessage $msg): array => $this->serializeMessage($msg, $isAdmin))->values()->all(),
             'next_before_id' => $items->isNotEmpty() ? $items->first()->id : null,
             'read' => [
                 'last_read_message_id' => (int) ($read?->last_read_message_id ?? 0),
@@ -66,7 +78,7 @@ class PoolChatController extends Controller
 
     public function store(Request $request, Pool $pool): JsonResponse
     {
-        if (! $this->canAccessChat($pool, (int) $request->user()->id, (bool) $request->user()->is_admin)) {
+        if (! $this->canAccessChat($pool, (int) $request->user()->id, $this->isAdmin($request))) {
             return ApiResponse::error($request, 'POOL_FORBIDDEN', 'Acesso negado ao chat deste bolão.', 403);
         }
 
@@ -103,20 +115,26 @@ class PoolChatController extends Controller
 
     public function update(Request $request, Pool $pool, PoolChatMessage $message): JsonResponse
     {
+        $isAdmin = $this->isAdmin($request);
+
         if ((int) $message->pool_id !== (int) $pool->id) {
             return ApiResponse::error($request, 'CHAT_MESSAGE_NOT_FOUND', 'Mensagem não encontrada neste bolão.', 404);
         }
 
-        if (! $this->canAccessChat($pool, (int) $request->user()->id, (bool) $request->user()->is_admin)) {
+        if (! $this->canAccessChat($pool, (int) $request->user()->id, $isAdmin)) {
             return ApiResponse::error($request, 'POOL_FORBIDDEN', 'Acesso negado ao chat deste bolão.', 403);
         }
 
-        if ((int) $message->user_id !== (int) $request->user()->id && ! (bool) $request->user()->is_admin) {
+        if ((int) $message->user_id !== (int) $request->user()->id) {
             return ApiResponse::error($request, 'CHAT_FORBIDDEN', 'Você não pode editar esta mensagem.', 403);
         }
 
         if ($message->trashed()) {
             return ApiResponse::error($request, 'CHAT_MESSAGE_DELETED', 'Mensagem já removida.', 422);
+        }
+
+        if (! $this->canEditMessage($message)) {
+            return ApiResponse::error($request, 'CHAT_EDIT_WINDOW_EXPIRED', 'Você só pode editar uma mensagem até 15 minutos depois de enviá-la.', 409);
         }
 
         $validated = $request->validate([
@@ -128,35 +146,52 @@ class PoolChatController extends Controller
             return ApiResponse::error($request, 'CHAT_INVALID_BODY', 'Mensagem inválida.', 422);
         }
 
+        if ($body === (string) $message->body) {
+            return ApiResponse::success($request, [
+                'message' => $this->serializeMessage($message->loadMissing(['user:id,name,display_name', 'replyTo:id,body,user_id', 'replyTo.user:id,name,display_name', 'reactions', 'edits.editor:id,name,display_name', 'deletedBy:id,name,display_name']), $isAdmin),
+            ]);
+        }
+
+        PoolChatMessageEdit::query()->create([
+            'message_id' => $message->id,
+            'edited_by' => $request->user()->id,
+            'old_body' => (string) $message->body,
+            'new_body' => $body,
+            'edited_at' => now(),
+        ]);
+
         $message->forceFill([
             'body' => $body,
             'edited_at' => now(),
             'mentioned_user_ids' => $this->extractMentionedUserIds($pool, $body),
         ])->save();
 
-        $message->load(['user:id,name,display_name', 'replyTo:id,body,user_id', 'replyTo.user:id,name,display_name', 'reactions']);
+        $message->load(['user:id,name,display_name', 'replyTo:id,body,user_id', 'replyTo.user:id,name,display_name', 'reactions', 'edits.editor:id,name,display_name', 'deletedBy:id,name,display_name']);
         PoolChatMessageCreated::dispatch($message);
 
         return ApiResponse::success($request, [
-            'message' => $this->serializeMessage($message),
+            'message' => $this->serializeMessage($message, $isAdmin),
         ]);
     }
 
     public function destroy(Request $request, Pool $pool, PoolChatMessage $message): JsonResponse
     {
+        $isAdmin = $this->isAdmin($request);
+
         if ((int) $message->pool_id !== (int) $pool->id) {
             return ApiResponse::error($request, 'CHAT_MESSAGE_NOT_FOUND', 'Mensagem não encontrada neste bolão.', 404);
         }
 
-        if (! $this->canAccessChat($pool, (int) $request->user()->id, (bool) $request->user()->is_admin)) {
+        if (! $this->canAccessChat($pool, (int) $request->user()->id, $isAdmin)) {
             return ApiResponse::error($request, 'POOL_FORBIDDEN', 'Acesso negado ao chat deste bolão.', 403);
         }
 
-        if ((int) $message->user_id !== (int) $request->user()->id && ! (bool) $request->user()->is_admin) {
+        if ((int) $message->user_id !== (int) $request->user()->id && ! $isAdmin) {
             return ApiResponse::error($request, 'CHAT_FORBIDDEN', 'Você não pode remover esta mensagem.', 403);
         }
 
         if (! $message->trashed()) {
+            $message->forceFill(['deleted_by' => $request->user()->id])->save();
             $message->delete();
         }
 
@@ -175,7 +210,7 @@ class PoolChatController extends Controller
             return ApiResponse::error($request, 'CHAT_MESSAGE_NOT_FOUND', 'Mensagem não encontrada neste bolão.', 404);
         }
 
-        if (! $this->canAccessChat($pool, (int) $request->user()->id, (bool) $request->user()->is_admin)) {
+        if (! $this->canAccessChat($pool, (int) $request->user()->id, $this->isAdmin($request))) {
             return ApiResponse::error($request, 'POOL_FORBIDDEN', 'Acesso negado ao chat deste bolão.', 403);
         }
 
@@ -215,7 +250,7 @@ class PoolChatController extends Controller
 
     public function typing(Request $request, Pool $pool): JsonResponse
     {
-        if (! $this->canAccessChat($pool, (int) $request->user()->id, (bool) $request->user()->is_admin)) {
+        if (! $this->canAccessChat($pool, (int) $request->user()->id, $this->isAdmin($request))) {
             return ApiResponse::error($request, 'POOL_FORBIDDEN', 'Acesso negado ao chat deste bolão.', 403);
         }
 
@@ -244,7 +279,7 @@ class PoolChatController extends Controller
 
     public function markRead(Request $request, Pool $pool): JsonResponse
     {
-        if (! $this->canAccessChat($pool, (int) $request->user()->id, (bool) $request->user()->is_admin)) {
+        if (! $this->canAccessChat($pool, (int) $request->user()->id, $this->isAdmin($request))) {
             return ApiResponse::error($request, 'POOL_FORBIDDEN', 'Acesso negado ao chat deste bolão.', 403);
         }
 
@@ -277,7 +312,7 @@ class PoolChatController extends Controller
 
     public function participants(Request $request, Pool $pool): JsonResponse
     {
-        if (! $this->canAccessChat($pool, (int) $request->user()->id, (bool) $request->user()->is_admin)) {
+        if (! $this->canAccessChat($pool, (int) $request->user()->id, $this->isAdmin($request))) {
             return ApiResponse::error($request, 'POOL_FORBIDDEN', 'Acesso negado ao chat deste bolão.', 403);
         }
 
@@ -310,16 +345,20 @@ class PoolChatController extends Controller
             ->exists();
     }
 
-    private function serializeMessage(PoolChatMessage $msg): array
+    private function serializeMessage(PoolChatMessage $msg, bool $isAdmin = false): array
     {
-        return [
+        $isDeleted = $msg->trashed() || $msg->deleted_at !== null;
+        $body = $isDeleted && ! $isAdmin ? 'Mensagem apagada' : (string) $msg->body;
+        $payload = [
             'id' => $msg->id,
             'pool_id' => $msg->pool_id,
-            'body' => $msg->deleted_at ? 'Mensagem removida' : $msg->body,
+            'body' => $body,
             'mentioned_user_ids' => (array) ($msg->mentioned_user_ids ?? []),
             'created_at' => optional($msg->created_at)?->toIso8601String(),
             'edited_at' => optional($msg->edited_at)?->toIso8601String(),
             'deleted_at' => optional($msg->deleted_at)?->toIso8601String(),
+            'edit_expires_at' => optional($msg->created_at?->copy()->addMinutes(self::EDIT_WINDOW_MINUTES))?->toIso8601String(),
+            'can_edit' => ! $isDeleted && $this->canEditMessage($msg),
             'user' => [
                 'id' => $msg->user?->id,
                 'name' => $msg->user?->public_name,
@@ -340,6 +379,47 @@ class PoolChatController extends Controller
                 ->values()
                 ->all(),
         ];
+
+        if ($isAdmin) {
+            $payload['audit'] = [
+                'deleted_body' => $isDeleted ? (string) $msg->body : null,
+                'deleted_by' => $msg->deletedBy ? [
+                    'id' => $msg->deletedBy->id,
+                    'name' => $msg->deletedBy->public_name,
+                ] : null,
+                'edits' => $msg->edits
+                    ->sortBy('edited_at')
+                    ->map(fn (PoolChatMessageEdit $edit): array => [
+                        'old_body' => $edit->old_body,
+                        'new_body' => $edit->new_body,
+                        'edited_at' => optional($edit->edited_at)?->toIso8601String(),
+                        'edited_by' => $edit->editor ? [
+                            'id' => $edit->editor->id,
+                            'name' => $edit->editor->public_name,
+                        ] : null,
+                    ])
+                    ->values()
+                    ->all(),
+            ];
+        }
+
+        return $payload;
+    }
+
+    private function canEditMessage(PoolChatMessage $message): bool
+    {
+        if (! $message->created_at) {
+            return false;
+        }
+
+        return $message->created_at->greaterThanOrEqualTo(now()->subMinutes(self::EDIT_WINDOW_MINUTES));
+    }
+
+    private function isAdmin(Request $request): bool
+    {
+        $user = $request->user();
+
+        return $user !== null && ((bool) $user->is_admin || $user->can('admin'));
     }
 
     private function extractMentionedUserIds(Pool $pool, string $body): array
