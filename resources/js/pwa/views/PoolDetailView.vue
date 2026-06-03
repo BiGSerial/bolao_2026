@@ -673,7 +673,7 @@ const openPredictions = computed(() =>
 const visibleOpenPredictions = computed(() => openPredictions.value.slice(0, visibleCount.value));
 const hasMoreToShow = computed(() => visibleCount.value < openPredictions.value.length);
 
-const openCount = computed(() => openPredictions.value.length);
+const openCount = computed(() => openPredictions.value.filter((i) => i.prediction == null).length);
 
 const predictionEditingBlockedReason = computed(() => {
     if (!navigator.onLine) return 'Sem conexão. O aplicativo exige validação online de horário para salvar palpite.';
@@ -951,7 +951,23 @@ async function loadRanking() {
     }
 }
 
-function onPredictionSaved() {
+function onPredictionSaved(payload) {
+    const matchId = Number(payload?.matchId ?? payload?.match_id ?? 0);
+    if (matchId) {
+        predictions.value = predictions.value.map((item) => {
+            if (Number(item.match?.id) !== matchId) return item;
+
+            return {
+                ...item,
+                prediction: {
+                    ...(item.prediction ?? {}),
+                    home_score: Number(payload?.home ?? payload?.home_score ?? 0),
+                    away_score: Number(payload?.away ?? payload?.away_score ?? 0),
+                },
+            };
+        });
+    }
+
     // Reload ranking silently on next open
     if (activeTab.value === 'ranking') loadRanking();
 }

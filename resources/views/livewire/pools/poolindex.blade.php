@@ -46,7 +46,7 @@
                 @foreach($myPools as $membership)
                 @php
                 $isActiveForAppView = $activeHomePoolId > 0 && (int) $membership->pool_id === $activeHomePoolId;
-                $membersCount = (int) ($membership->pool_members_count ?? 0);
+                $membersCount = (int) ($membership->pool->members_count ?? 0);
                 $statusColor = match($membership->status) {
                     'active' => 'badge-green',
                     'pending' => 'badge-amber',
@@ -54,9 +54,9 @@
                     default => 'badge-red',
                 };
                 $roleLabel = match($membership->role) {
-                    'owner' => '👑 Dono',
-                    'manager' => '🛡️ Gestor',
-                    default => '🎯 Membro',
+                    'owner' => 'Dono',
+                    'manager' => 'Gestor',
+                    default => 'Membro',
                 };
                 $statusLabel = match($membership->status) {
                     'active' => 'Ativo',
@@ -77,96 +77,104 @@
                 @php
                 $pendingCount = (int) ($membership->pool->pending_members_count ?? 0);
                 $isManager = in_array($membership->role, ['owner', 'manager']);
+                $canLeavePool = in_array($membership->role, ['manager', 'member']) || $membership->status === 'pending';
                 @endphp
-                <div class="card-hover border {{ $isActiveForAppView ? 'border-amber-400/90 bg-amber-500/5 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]' : 'border-white/[0.07]' }} overflow-hidden"
+                <div class="overflow-hidden rounded-[18px] border bg-gradient-to-br from-[#141920] to-[#0f1319] {{ $isActiveForAppView ? 'border-amber-400/90 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]' : 'border-white/[0.09]' }}"
                      x-data="{ copied: false, rulesOpen: false }">
 
                     <a href="{{ route('pools.show', $membership->pool->slug) }}"
-                       class="p-4 block group">
-                        <div class="flex items-start justify-between gap-2">
-                            <div class="min-w-0 flex-1">
-                                <h3 class="font-semibold {{ $isActiveForAppView ? 'text-amber-300' : 'text-slate-100 group-hover:text-white' }} transition-colors truncate">
-                                    {{ $membership->pool->name }}
-                                </h3>
+                       class="group flex items-center gap-2 p-4 transition-colors hover:bg-white/[0.02]">
+                        <div class="min-w-0 flex-1">
+                            <div class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-300">
+                                <i class="ti ti-trophy-filled text-[10px]"></i>
+                                <span class="truncate">{{ $competitionName }}</span>
                             </div>
-                            <div class="flex items-center gap-2 shrink-0">
-                                @if($isManager && $pendingCount > 0)
-                                <a href="{{ route('pools.members', $membership->pool->slug) }}"
-                                   @click.stop
-                                   class="inline-flex items-center gap-1 rounded-full bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 text-[11px] font-semibold text-amber-300 hover:bg-amber-500/30 transition-colors">
-                                    <span class="flex h-1.5 w-1.5 relative">
-                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                                        <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400"></span>
-                                    </span>
-                                    {{ $pendingCount }} pendente{{ $pendingCount !== 1 ? 's' : '' }}
-                                </a>
+
+                            <h3 class="mt-2 truncate text-base font-extrabold leading-tight {{ $isActiveForAppView ? 'text-amber-300' : 'text-slate-100 group-hover:text-white' }} transition-colors">
+                                {{ $membership->pool->name }}
+                            </h3>
+
+                            <div class="mt-2 flex flex-wrap items-center gap-2">
+                                <span class="rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-300">{{ $roleLabel }}</span>
+                                <span class="{{ $statusColor }}">{{ $statusLabel }}</span>
+                                @if($membership->pool->closed_predictions)
+                                <span class="rounded-full bg-slate-700/50 px-2 py-0.5 text-[10px] font-bold text-slate-300">
+                                    <i class="ti ti-lock text-[10px]"></i> Palpite único
+                                </span>
                                 @endif
-                                <span class="{{ $statusColor }} shrink-0">{{ $statusLabel }}</span>
+                                @if($isManager && $pendingCount > 0)
+                                <span class="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300">
+                                    <i class="ti ti-clock text-[10px]"></i>
+                                    {{ $pendingCount }} pendente{{ $pendingCount !== 1 ? 's' : '' }}
+                                </span>
+                                @endif
                             </div>
-                        </div>
 
-                        <div class="mt-1.5 flex items-center gap-3 text-xs text-slate-500">
-                            <span class="inline-flex items-center gap-1">
-                                <i class="ti ti-ball-football text-sm"></i>
-                                jogos
-                            </span>
-                            <span class="inline-flex items-center gap-1">
-                                <i class="ti ti-users text-sm"></i>
-                                {{ $membersCount }} membro{{ $membersCount !== 1 ? 's' : '' }}
-                            </span>
-                        </div>
+                            <div class="mt-3 flex flex-wrap items-center gap-1.5">
+                                <span class="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-300">
+                                    <i class="ti ti-target text-xs"></i>{{ $membership->pool->points_exact_score ?? 5 }}pts exato
+                                </span>
+                                <span class="inline-flex items-center gap-1 rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 text-[10px] font-bold text-sky-300">
+                                    <i class="ti ti-check text-xs"></i>{{ $membership->pool->points_correct_result ?? 3 }}pts resultado
+                                </span>
+                                @if(($membership->pool->points_correct_goals ?? 0) > 0)
+                                <span class="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-300">
+                                    <i class="ti ti-ball-football text-xs"></i>{{ $membership->pool->points_correct_goals }}pts gols
+                                </span>
+                                @endif
+                            </div>
 
-                        <div class="mt-3 flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-2 min-w-0">
+                            <div class="mt-3 flex items-center justify-between gap-3">
+                                <span class="inline-flex items-center gap-1 text-xs text-slate-500">
+                                    <i class="ti ti-users text-sm"></i>
+                                    {{ $membersCount }} membro{{ $membersCount !== 1 ? 's' : '' }}
+                                </span>
                                 @if($ranking)
                                 <span class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 {{ $rankingBadge }}">
-                                    #{{ $ranking->position }}
+                                    #{{ $ranking->position }} · {{ $ranking->points_total }} pts
                                 </span>
-                                <span class="text-sm text-slate-300">{{ $ranking->points_total }} pts</span>
                                 @else
                                 <span class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 bg-slate-800 text-slate-400 ring-slate-600/40">
                                     Ranking pendente
                                 </span>
                                 @endif
                             </div>
-                            <span class="text-xs text-amber-300 shrink-0">{{ $roleLabel }}</span>
                         </div>
+                        <i class="ti ti-chevron-right shrink-0 text-xl text-amber-300/60"></i>
                     </a>
 
-                    <div class="px-4 pb-3 border-t border-slate-800 flex items-center justify-between">
-                        @if($isManager)
-                        <div class="flex items-center gap-2 pt-3">
-                            <span class="text-xs text-slate-500">
-                                <span class="text-slate-500">🔗</span>
-                                <span class="font-mono text-emerald-400">{{ $membership->pool->invite_code }}</span>
-                            </span>
-                            <button type="button"
-                                    @click.prevent.stop="navigator.clipboard.writeText('{{ $membership->pool->invite_code }}').then(() => { copied = true; setTimeout(() => copied = false, 1400); })"
-                                    class="inline-flex items-center justify-center rounded-md p-1 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/30 transition-colors"
-                                    title="Copiar código de convite">
-                                <svg x-show="!copied" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                                </svg>
-                                <svg x-show="copied" x-cloak class="w-3.5 h-3.5 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                                </svg>
-                            </button>
-                        </div>
-                        @else
-                        <div class="pt-3"></div>
+                    <div class="flex flex-wrap items-center justify-end gap-2 border-t border-white/[0.07] px-4 py-3">
+                        @if($isManager && $membership->pool->invite_code)
+                        <button type="button"
+                                @click.prevent.stop="navigator.clipboard.writeText('{{ $membership->pool->invite_code }}').then(() => { copied = true; setTimeout(() => copied = false, 1400); })"
+                                class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 text-xs font-bold text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-slate-100">
+                            <i class="ti text-sm" :class="copied ? 'ti-check text-emerald-400' : 'ti-copy'"></i>
+                            <span x-text="copied ? 'Copiado!' : '{{ $membership->pool->invite_code }}'">{{ $membership->pool->invite_code }}</span>
+                        </button>
                         @endif
                         <button type="button"
                                 @click.stop="rulesOpen = !rulesOpen"
-                                class="mt-3 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors">
-                            <i class="ti ti-info-circle text-sm"></i>
-                            <span x-text="rulesOpen ? 'Ocultar regras' : 'Ver regras'">Ver regras</span>
-                            <i class="ti text-xs transition-transform duration-200" :class="rulesOpen ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
+                                class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 text-xs font-bold text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-slate-100">
+                            <i class="ti text-sm" :class="rulesOpen ? 'ti-chevron-up' : 'ti-file-description'"></i>
+                            <span x-text="rulesOpen ? 'Fechar' : 'Regras'">Regras</span>
                         </button>
+                        @if($canLeavePool)
+                        <button type="button"
+                                wire:click="leavePool({{ $membership->pool_id }})"
+                                wire:confirm="Sair do bolão {{ $membership->pool->name }}?"
+                                wire:loading.attr="disabled"
+                                wire:target="leavePool({{ $membership->pool_id }})"
+                                class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 text-xs font-bold text-red-300 transition-colors hover:bg-red-500/15 hover:text-red-200 disabled:opacity-50">
+                            <i class="ti ti-door-exit text-sm"></i>
+                            <span wire:loading.remove wire:target="leavePool({{ $membership->pool_id }})">Sair</span>
+                            <span wire:loading wire:target="leavePool({{ $membership->pool_id }})">Saindo...</span>
+                        </button>
+                        @endif
                     </div>
 
                     {{-- Painel de regras expandível --}}
                     <div x-show="rulesOpen" x-cloak x-transition
-                         class="border-t border-slate-800/60 bg-slate-900/50 px-4 py-3 space-y-3">
+                         class="border-t border-white/[0.07] bg-black/10 px-4 py-3 space-y-3">
 
                         @if($membership->pool->description)
                         <p class="text-xs text-slate-400 leading-relaxed">{{ $membership->pool->description }}</p>
@@ -199,21 +207,21 @@
                                 <div class="flex items-center justify-between rounded-lg bg-slate-800/50 px-2.5 py-1.5">
                                     <span class="text-xs text-slate-400">Palpite único (sem editar)</span>
                                     <span class="text-xs font-semibold {{ $membership->pool->closed_predictions ? 'text-amber-300' : 'text-slate-500' }}">
-                                        {{ $membership->pool->closed_predictions ? '🔒 Sim' : '🔓 Não' }}
+                                        {{ $membership->pool->closed_predictions ? 'Ativo' : 'Inativo' }}
                                     </span>
                                 </div>
                                 @if(!$membership->pool->closed_predictions)
                                 <div class="flex items-center justify-between rounded-lg bg-slate-800/50 px-2.5 py-1.5">
                                     <span class="text-xs text-slate-400">Edição de palpite</span>
                                     <span class="text-xs font-semibold {{ $membership->pool->allow_prediction_changes ? 'text-emerald-300' : 'text-slate-500' }}">
-                                        {{ $membership->pool->allow_prediction_changes ? '✅ Sim' : '❌ Não' }}
+                                        {{ $membership->pool->allow_prediction_changes ? 'Permitida' : 'Bloqueada' }}
                                     </span>
                                 </div>
                                 @endif
                                 <div class="flex items-center justify-between rounded-lg bg-slate-800/50 px-2.5 py-1.5">
                                     <span class="text-xs text-slate-400">Pendentes palpitam</span>
                                     <span class="text-xs font-semibold {{ $membership->pool->allow_pending_member_predictions ? 'text-blue-300' : 'text-slate-500' }}">
-                                        {{ $membership->pool->allow_pending_member_predictions ? '✅ Sim' : '❌ Não' }}
+                                        {{ $membership->pool->allow_pending_member_predictions ? 'Permitido' : 'Bloqueado' }}
                                     </span>
                                 </div>
                             </div>

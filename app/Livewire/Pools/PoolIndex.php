@@ -255,6 +255,38 @@ class PoolIndex extends Component
         session()->flash('status', 'Solicitação enviada. Aguarde aprovação do gestor do bolão.');
     }
 
+    public function leavePool(int $poolId): void
+    {
+        $userId = (int) Auth::id();
+        $member = PoolMember::query()
+            ->where('pool_id', $poolId)
+            ->where('user_id', $userId)
+            ->whereIn('status', [PoolMemberStatus::Active->value, PoolMemberStatus::Pending->value])
+            ->first();
+
+        if (! $member) {
+            session()->flash('status', 'Você não participa deste bolão.');
+            return;
+        }
+
+        if ($member->role === 'owner') {
+            session()->flash('status', 'O dono do bolão não pode sair sem transferir a propriedade.');
+            return;
+        }
+
+        $member->update([
+            'status' => PoolMemberStatus::Removed->value,
+            'deactivated_by' => $userId,
+            'deactivated_at' => now(),
+        ]);
+
+        if ($member->pool) {
+            PoolMembersUpdated::dispatch($member->pool);
+        }
+
+        session()->flash('status', 'Você saiu do bolão.');
+    }
+
     public function render()
     {
         $userId = (int) Auth::id();

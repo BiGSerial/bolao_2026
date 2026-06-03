@@ -493,19 +493,19 @@ onMounted(() => {
 .modal-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 50;
+    z-index: 120;
     background: rgba(0,0,0,0.6);
     display: flex;
     align-items: flex-end;
-    padding: 0;
+    padding: 12px 12px calc(80px + env(safe-area-inset-bottom, 0px));
 }
 .modal-box {
     width: 100%;
     background: #141820;
-    border-top: 1px solid rgba(255,255,255,0.08);
-    border-radius: 20px 20px 0 0;
-    padding: 20px 16px 32px;
-    max-height: 88dvh;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    padding: 20px 16px 24px;
+    max-height: calc(100dvh - 104px - env(safe-area-inset-bottom, 0px));
     overflow-y: auto;
 }
 </style>
