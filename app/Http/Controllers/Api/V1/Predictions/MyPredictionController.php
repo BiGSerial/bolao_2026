@@ -105,15 +105,16 @@ class MyPredictionController extends Controller
         }
 
         $validated = $request->validate([
-            'status' => ['nullable', 'string', 'max:40'],
+            'status'    => ['nullable', 'string', 'max:40'],
             'date_from' => ['nullable', 'date'],
-            'date_to' => ['nullable', 'date'],
-            'page' => ['nullable', 'integer', 'min:1'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'date_to'   => ['nullable', 'date'],
+            'open_only' => ['nullable', 'boolean'],
+            'page'      => ['nullable', 'integer', 'min:1'],
+            'per_page'  => ['nullable', 'integer', 'min:1', 'max:200'],
         ]);
 
         $perPage = (int) ($validated['per_page'] ?? 20);
-        $userId = (int) $request->user()->id;
+        $userId  = (int) $request->user()->id;
 
         $matchesQuery = FootballMatch::query()
             ->with(['homeTeam:id,name,canonical_name_br,short_name,tla,crest', 'awayTeam:id,name,canonical_name_br,short_name,tla,crest'])
@@ -130,6 +131,10 @@ class MyPredictionController extends Controller
         }
         if (! empty($validated['date_to'])) {
             $matchesQuery->where('utc_date', '<=', (string) $validated['date_to'].' 23:59:59');
+        }
+        // Filtra apenas jogos que ainda podem receber palpite (exclui encerrados/cancelados)
+        if ($request->boolean('open_only')) {
+            $matchesQuery->whereNotIn('status', ['FINISHED', 'AWARDED', 'CANCELLED', 'POSTPONED', 'SUSPENDED']);
         }
 
         $matchesPage = $matchesQuery->paginate($perPage)->withQueryString();

@@ -283,7 +283,7 @@ class PoolChatController extends Controller
 
         $items = PoolMember::query()
             ->where('pool_id', $pool->id)
-            ->whereIn('status', ['active', 'pending'])
+            ->where('status', 'active')
             ->with('user:id,name,display_name')
             ->orderBy('id')
             ->get()
@@ -306,7 +306,7 @@ class PoolChatController extends Controller
 
         return $pool->members()
             ->where('user_id', $userId)
-            ->whereIn('status', ['active', 'pending'])
+            ->where('status', 'active')
             ->exists();
     }
 
@@ -361,7 +361,7 @@ class PoolChatController extends Controller
 
         $members = PoolMember::query()
             ->where('pool_id', $pool->id)
-            ->whereIn('status', ['active', 'pending'])
+            ->where('status', 'active')
             ->pluck('user_id')
             ->unique()
             ->values();
