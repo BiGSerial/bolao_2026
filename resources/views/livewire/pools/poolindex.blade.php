@@ -74,48 +74,68 @@
                     default => 'bg-blue-900/30 text-blue-300 ring-blue-500/30',
                 };
                 @endphp
-                <a href="{{ route('pools.show', $membership->pool->slug) }}"
-                   class="card-hover p-4 block group border {{ $isActiveForAppView ? 'border-amber-400/90 bg-amber-500/5 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]' : 'border-white/[0.07]' }}"
-                   x-data="{ copied: false }">
-                    <div class="flex items-start justify-between gap-2">
-                        <div class="min-w-0">
-                            <h3 class="font-semibold {{ $isActiveForAppView ? 'text-amber-300' : 'text-slate-100 group-hover:text-white' }} transition-colors truncate">
-                                {{ $membership->pool->name }}
-                            </h3>
+                @php
+                $pendingCount = (int) ($membership->pool->pending_members_count ?? 0);
+                $isManager = in_array($membership->role, ['owner', 'manager']);
+                @endphp
+                <div class="card-hover border {{ $isActiveForAppView ? 'border-amber-400/90 bg-amber-500/5 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]' : 'border-white/[0.07]' }} overflow-hidden"
+                     x-data="{ copied: false, rulesOpen: false }">
+
+                    <a href="{{ route('pools.show', $membership->pool->slug) }}"
+                       class="p-4 block group">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0 flex-1">
+                                <h3 class="font-semibold {{ $isActiveForAppView ? 'text-amber-300' : 'text-slate-100 group-hover:text-white' }} transition-colors truncate">
+                                    {{ $membership->pool->name }}
+                                </h3>
+                            </div>
+                            <div class="flex items-center gap-2 shrink-0">
+                                @if($isManager && $pendingCount > 0)
+                                <a href="{{ route('pools.members', $membership->pool->slug) }}"
+                                   @click.stop
+                                   class="inline-flex items-center gap-1 rounded-full bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 text-[11px] font-semibold text-amber-300 hover:bg-amber-500/30 transition-colors">
+                                    <span class="flex h-1.5 w-1.5 relative">
+                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                        <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400"></span>
+                                    </span>
+                                    {{ $pendingCount }} pendente{{ $pendingCount !== 1 ? 's' : '' }}
+                                </a>
+                                @endif
+                                <span class="{{ $statusColor }} shrink-0">{{ $statusLabel }}</span>
+                            </div>
                         </div>
-                        <span class="{{ $statusColor }} shrink-0">{{ $statusLabel }}</span>
-                    </div>
 
-                    <div class="mt-1.5 flex items-center gap-3 text-xs text-slate-500">
-                        <span class="inline-flex items-center gap-1">
-                            <i class="ti ti-ball-football text-sm"></i>
-                            jogos
-                        </span>
-                        <span class="inline-flex items-center gap-1">
-                            <i class="ti ti-users text-sm"></i>
-                            {{ $membersCount }} membro{{ $membersCount !== 1 ? 's' : '' }}
-                        </span>
-                    </div>
-
-                    <div class="mt-3 flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-2 min-w-0">
-                            @if($ranking)
-                            <span class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 {{ $rankingBadge }}">
-                                #{{ $ranking->position }}
+                        <div class="mt-1.5 flex items-center gap-3 text-xs text-slate-500">
+                            <span class="inline-flex items-center gap-1">
+                                <i class="ti ti-ball-football text-sm"></i>
+                                jogos
                             </span>
-                            <span class="text-sm text-slate-300">{{ $ranking->points_total }} pts</span>
-                            @else
-                            <span class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 bg-slate-800 text-slate-400 ring-slate-600/40">
-                                Ranking pendente
+                            <span class="inline-flex items-center gap-1">
+                                <i class="ti ti-users text-sm"></i>
+                                {{ $membersCount }} membro{{ $membersCount !== 1 ? 's' : '' }}
                             </span>
-                            @endif
                         </div>
-                        <span class="text-xs text-amber-300 shrink-0">{{ $roleLabel }}</span>
-                    </div>
 
-                    <div class="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
-                        @if(in_array($membership->role, ['owner', 'manager']))
-                        <div class="flex items-center gap-2">
+                        <div class="mt-3 flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-2 min-w-0">
+                                @if($ranking)
+                                <span class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 {{ $rankingBadge }}">
+                                    #{{ $ranking->position }}
+                                </span>
+                                <span class="text-sm text-slate-300">{{ $ranking->points_total }} pts</span>
+                                @else
+                                <span class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 bg-slate-800 text-slate-400 ring-slate-600/40">
+                                    Ranking pendente
+                                </span>
+                                @endif
+                            </div>
+                            <span class="text-xs text-amber-300 shrink-0">{{ $roleLabel }}</span>
+                        </div>
+                    </a>
+
+                    <div class="px-4 pb-3 border-t border-slate-800 flex items-center justify-between">
+                        @if($isManager)
+                        <div class="flex items-center gap-2 pt-3">
                             <span class="text-xs text-slate-500">
                                 <span class="text-slate-500">🔗</span>
                                 <span class="font-mono text-emerald-400">{{ $membership->pool->invite_code }}</span>
@@ -133,14 +153,87 @@
                             </button>
                         </div>
                         @else
-                        <span class="text-xs text-slate-600">—</span>
+                        <div class="pt-3"></div>
                         @endif
-                        <svg class="w-4 h-4 text-slate-600 group-hover:text-emerald-400 transition-colors"
-                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                        </svg>
+                        <button type="button"
+                                @click.stop="rulesOpen = !rulesOpen"
+                                class="mt-3 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors">
+                            <i class="ti ti-info-circle text-sm"></i>
+                            <span x-text="rulesOpen ? 'Ocultar regras' : 'Ver regras'">Ver regras</span>
+                            <i class="ti text-xs transition-transform duration-200" :class="rulesOpen ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
+                        </button>
                     </div>
-                </a>
+
+                    {{-- Painel de regras expandível --}}
+                    <div x-show="rulesOpen" x-cloak x-transition
+                         class="border-t border-slate-800/60 bg-slate-900/50 px-4 py-3 space-y-3">
+
+                        @if($membership->pool->description)
+                        <p class="text-xs text-slate-400 leading-relaxed">{{ $membership->pool->description }}</p>
+                        <div class="h-px bg-slate-800/60"></div>
+                        @endif
+
+                        {{-- Pontuação --}}
+                        <div>
+                            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Pontuação</p>
+                            <div class="grid grid-cols-3 gap-2">
+                                <div class="rounded-lg bg-slate-800/60 px-2 py-1.5 text-center">
+                                    <p class="text-base font-black text-emerald-400">{{ $membership->pool->points_exact_score ?? 5 }}</p>
+                                    <p class="text-[10px] text-slate-500">Exato</p>
+                                </div>
+                                <div class="rounded-lg bg-slate-800/60 px-2 py-1.5 text-center">
+                                    <p class="text-base font-black text-sky-400">{{ $membership->pool->points_correct_result ?? 3 }}</p>
+                                    <p class="text-[10px] text-slate-500">Resultado</p>
+                                </div>
+                                <div class="rounded-lg bg-slate-800/60 px-2 py-1.5 text-center">
+                                    <p class="text-base font-black text-amber-400">{{ $membership->pool->points_correct_goals ?? 1 }}</p>
+                                    <p class="text-[10px] text-slate-500">Gols</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Regras de palpite --}}
+                        <div>
+                            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Regras de Palpite</p>
+                            <div class="space-y-1.5">
+                                <div class="flex items-center justify-between rounded-lg bg-slate-800/50 px-2.5 py-1.5">
+                                    <span class="text-xs text-slate-400">Palpite único (sem editar)</span>
+                                    <span class="text-xs font-semibold {{ $membership->pool->closed_predictions ? 'text-amber-300' : 'text-slate-500' }}">
+                                        {{ $membership->pool->closed_predictions ? '🔒 Sim' : '🔓 Não' }}
+                                    </span>
+                                </div>
+                                @if(!$membership->pool->closed_predictions)
+                                <div class="flex items-center justify-between rounded-lg bg-slate-800/50 px-2.5 py-1.5">
+                                    <span class="text-xs text-slate-400">Edição de palpite</span>
+                                    <span class="text-xs font-semibold {{ $membership->pool->allow_prediction_changes ? 'text-emerald-300' : 'text-slate-500' }}">
+                                        {{ $membership->pool->allow_prediction_changes ? '✅ Sim' : '❌ Não' }}
+                                    </span>
+                                </div>
+                                @endif
+                                <div class="flex items-center justify-between rounded-lg bg-slate-800/50 px-2.5 py-1.5">
+                                    <span class="text-xs text-slate-400">Pendentes palpitam</span>
+                                    <span class="text-xs font-semibold {{ $membership->pool->allow_pending_member_predictions ? 'text-blue-300' : 'text-slate-500' }}">
+                                        {{ $membership->pool->allow_pending_member_predictions ? '✅ Sim' : '❌ Não' }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if($isManager)
+                        <a href="{{ route('pools.members', $membership->pool->slug) }}"
+                           class="flex items-center justify-between rounded-lg border border-amber-500/20 bg-amber-900/10 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-900/20 transition-colors">
+                            <span class="flex items-center gap-1.5">
+                                <i class="ti ti-users text-sm"></i>
+                                Gerenciar participantes
+                                @if($pendingCount > 0)
+                                <span class="rounded-full bg-amber-500 text-white text-[10px] font-bold px-1.5">{{ $pendingCount }}</span>
+                                @endif
+                            </span>
+                            <i class="ti ti-chevron-right text-sm"></i>
+                        </a>
+                        @endif
+                    </div>
+                </div>
                 @endforeach
             </div>
             @endif

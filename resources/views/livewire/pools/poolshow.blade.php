@@ -6,7 +6,7 @@
          swipe() {
              const diff = this.touchStartX - this.touchEndX;
              if (Math.abs(diff) < 50) return;
-             const tabs = ['jogos', 'ranking', 'chat', 'resumo'];
+             const tabs = ['jogos', 'ranking', 'chat', 'resumo', 'info'];
              const i = tabs.indexOf($wire.activeTab);
              if (diff > 0 && i < tabs.length - 1) $wire.setTab(tabs[i + 1]);
              else if (diff < 0 && i > 0) $wire.setTab(tabs[i - 1]);
@@ -67,6 +67,11 @@
                     wire:click="setTab('resumo')"
                     class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'resumo' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
                 Meu resumo
+            </button>
+            <button type="button"
+                    wire:click="setTab('info')"
+                    class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'info' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
+                Regras
             </button>
         </div>
     </div>
@@ -1373,6 +1378,139 @@
 
             </div>{{-- /wc-thread --}}
         </div>
+    </div>
+    @endif
+
+    {{-- Tab: Info / Regras --}}
+    @if($activeTab === 'info')
+    <div class="p-4 sm:p-6 lg:p-8 space-y-5">
+
+        {{-- Descrição --}}
+        @if($pool->description)
+        <div class="card p-4 sm:p-5">
+            <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Descrição</h3>
+            <p class="text-sm text-slate-300 leading-relaxed">{{ $pool->description }}</p>
+        </div>
+        @endif
+
+        {{-- Regulamento / Instruções --}}
+        @if($pool->instructions)
+        <div class="card p-4 sm:p-5">
+            <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Regulamento</h3>
+            <p class="text-sm text-slate-300 whitespace-pre-line leading-relaxed">{{ $pool->instructions }}</p>
+        </div>
+        @endif
+
+        {{-- Pontuação por Palpite --}}
+        <div class="card p-4 sm:p-5">
+            <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Pontuação por Palpite</h3>
+            <div class="grid grid-cols-3 gap-3">
+                <div class="rounded-xl border border-white/[0.07] bg-bolao-bg2/80 p-3 text-center">
+                    <p class="text-2xl font-black text-emerald-400">{{ $pool->points_exact_score ?? 5 }}</p>
+                    <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Placar Exato</p>
+                </div>
+                <div class="rounded-xl border border-white/[0.07] bg-bolao-bg2/80 p-3 text-center">
+                    <p class="text-2xl font-black text-sky-400">{{ $pool->points_correct_result ?? 3 }}</p>
+                    <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Resultado</p>
+                </div>
+                <div class="rounded-xl border border-white/[0.07] bg-bolao-bg2/80 p-3 text-center">
+                    <p class="text-2xl font-black text-amber-400">{{ $pool->points_correct_goals ?? 1 }}</p>
+                    <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Gols do Time</p>
+                </div>
+            </div>
+        </div>
+
+        {{-- Regras de Palpite --}}
+        <div class="card p-4 sm:p-5">
+            <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Regras de Palpite</h3>
+            <div class="space-y-2.5">
+
+                <div class="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-bolao-bg2/60 px-3.5 py-3">
+                    <span class="mt-0.5 shrink-0 text-base {{ $pool->closed_predictions ? 'text-amber-400' : 'text-slate-600' }}">
+                        {{ $pool->closed_predictions ? '🔒' : '🔓' }}
+                    </span>
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold {{ $pool->closed_predictions ? 'text-amber-300' : 'text-slate-400' }}">
+                            Palpite Único
+                        </p>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            @if($pool->closed_predictions)
+                                Palpites são fechados após o início do primeiro jogo da competição e não podem ser alterados.
+                            @else
+                                Palpites podem ser alterados antes do início de cada jogo.
+                            @endif
+                        </p>
+                    </div>
+                    <span class="shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold {{ $pool->closed_predictions ? 'bg-amber-900/40 text-amber-300' : 'bg-slate-800 text-slate-400' }}">
+                        {{ $pool->closed_predictions ? 'Ativo' : 'Inativo' }}
+                    </span>
+                </div>
+
+                @if(!$pool->closed_predictions)
+                <div class="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-bolao-bg2/60 px-3.5 py-3">
+                    <span class="mt-0.5 shrink-0 text-base {{ $pool->allow_prediction_changes ? 'text-emerald-400' : 'text-slate-600' }}">
+                        {{ $pool->allow_prediction_changes ? '✏️' : '✋' }}
+                    </span>
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold {{ $pool->allow_prediction_changes ? 'text-emerald-300' : 'text-slate-400' }}">
+                            Edição de Palpite
+                        </p>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            @if($pool->allow_prediction_changes)
+                                Alterações permitidas até {{ $pool->prediction_lock_minutes ?? 10 }} minutos antes do início de cada jogo.
+                            @else
+                                Palpites não podem ser alterados após o envio.
+                            @endif
+                        </p>
+                    </div>
+                    <span class="shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold {{ $pool->allow_prediction_changes ? 'bg-emerald-900/40 text-emerald-300' : 'bg-slate-800 text-slate-400' }}">
+                        {{ $pool->allow_prediction_changes ? 'Permitido' : 'Bloqueado' }}
+                    </span>
+                </div>
+                @endif
+
+                <div class="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-bolao-bg2/60 px-3.5 py-3">
+                    <span class="mt-0.5 shrink-0 text-base {{ $pool->allow_pending_member_predictions ? 'text-blue-400' : 'text-slate-600' }}">
+                        {{ $pool->allow_pending_member_predictions ? '👥' : '🚫' }}
+                    </span>
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold {{ $pool->allow_pending_member_predictions ? 'text-blue-300' : 'text-slate-400' }}">
+                            Palpites de Pendentes
+                        </p>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            @if($pool->allow_pending_member_predictions)
+                                Membros aguardando aprovação podem palpitar antes de serem confirmados.
+                            @else
+                                Apenas membros aprovados podem enviar palpites.
+                            @endif
+                        </p>
+                    </div>
+                    <span class="shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold {{ $pool->allow_pending_member_predictions ? 'bg-blue-900/40 text-blue-300' : 'bg-slate-800 text-slate-400' }}">
+                        {{ $pool->allow_pending_member_predictions ? 'Permitido' : 'Bloqueado' }}
+                    </span>
+                </div>
+
+            </div>
+        </div>
+
+        {{-- Link para participantes --}}
+        @if(in_array($member->role, ['owner', 'manager']))
+        <div class="card p-4 sm:p-5">
+            <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Gestão</h3>
+            <a href="{{ route('pools.members', $pool->slug) }}"
+               class="flex items-center justify-between rounded-xl border border-white/[0.07] bg-bolao-bg2/80 px-4 py-3 hover:border-amber-500/30 transition-colors group">
+                <div class="flex items-center gap-3">
+                    <i class="ti ti-users text-lg text-slate-400 group-hover:text-amber-400 transition-colors"></i>
+                    <div>
+                        <p class="text-sm font-semibold text-slate-200 group-hover:text-white transition-colors">Gerenciar Participantes</p>
+                        <p class="text-xs text-slate-500">Aprovar pendentes, remover ou suspender membros</p>
+                    </div>
+                </div>
+                <i class="ti ti-chevron-right text-slate-500 group-hover:text-amber-400 transition-colors"></i>
+            </a>
+        </div>
+        @endif
+
     </div>
     @endif
 

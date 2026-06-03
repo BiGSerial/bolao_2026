@@ -264,8 +264,14 @@ class PoolIndex extends Component
             ->whereHas('pool.competition', fn ($q) => $q->where('code', $this->competition_code))
             ->with([
                 'pool' => fn ($q) => $q
-                    ->select('id', 'competition_id', 'name', 'slug', 'status', 'visibility', 'invite_code')
-                    ->withCount('members'),
+                    ->select('id', 'competition_id', 'name', 'slug', 'status', 'visibility', 'invite_code',
+                             'description', 'closed_predictions', 'allow_prediction_changes',
+                             'points_exact_score', 'points_correct_result', 'points_correct_goals',
+                             'allow_pending_member_predictions')
+                    ->withCount([
+                        'members',
+                        'members as pending_members_count' => fn ($q) => $q->where('status', 'pending'),
+                    ]),
             ])
             ->latest('id')
             ->get();

@@ -179,6 +179,12 @@ class PoolMembers extends Component
             ->groupBy('status')
             ->pluck('total', 'status');
 
-        return view('livewire.pools.poolmembers', compact('members', 'counts'));
+        $pendingMembers = $this->pool->members()
+            ->with('user:id,name,email')
+            ->where('status', 'pending')
+            ->orderBy('id')
+            ->get();
+
+        return view('livewire.pools.poolmembers', compact('members', 'counts', 'pendingMembers'));
     }
 }

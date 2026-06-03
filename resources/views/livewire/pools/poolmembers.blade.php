@@ -31,6 +31,53 @@
 
 <div class="p-4 sm:p-6 lg:p-8">
 
+    {{-- Pendentes: seção destacada para gestores/donos --}}
+    @if($pendingMembers->isNotEmpty() && in_array($memberRole, ['owner', 'manager']))
+    <div class="card border border-amber-500/30 bg-amber-950/20 overflow-hidden mb-6">
+        <div class="px-4 py-3 border-b border-amber-500/20 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+                <span class="flex h-2.5 w-2.5 relative shrink-0">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500"></span>
+                </span>
+                <p class="text-sm font-semibold text-amber-300">
+                    {{ $pendingMembers->count() }} aguardando aprovação
+                </p>
+            </div>
+            <span class="text-xs text-amber-500">Ação necessária</span>
+        </div>
+
+        <div class="divide-y divide-amber-900/20">
+            @foreach($pendingMembers as $pending)
+            <div class="flex items-center gap-3 px-4 py-3"
+                 wire:key="pending-{{ $pending->id }}">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-900/40 text-sm font-bold text-amber-300 uppercase">
+                    {{ mb_substr($pending->user?->name ?? '?', 0, 2) }}
+                </div>
+                <div class="min-w-0 flex-1">
+                    <p class="text-sm font-semibold text-slate-100 truncate">{{ $pending->user?->name ?? '—' }}</p>
+                    <p class="text-xs text-slate-500 truncate">{{ $pending->user?->email ?? '—' }}</p>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button wire:click="activateMember({{ $pending->id }})"
+                            wire:confirm="Aprovar {{ $pending->user?->name }}?"
+                            class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-600/40 bg-emerald-900/30 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-900/50 transition-colors">
+                        <i class="ti ti-check text-sm"></i>
+                        <span class="hidden sm:inline">Aprovar</span>
+                    </button>
+                    <button wire:click="blockMember({{ $pending->id }})"
+                            wire:confirm="Bloquear {{ $pending->user?->name }}?"
+                            class="inline-flex items-center gap-1.5 rounded-lg border border-red-700/40 bg-red-900/20 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-900/30 transition-colors">
+                        <i class="ti ti-ban text-sm"></i>
+                        <span class="hidden sm:inline">Bloquear</span>
+                    </button>
+                </div>
+            </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
     {{-- Stats --}}
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         @foreach([
