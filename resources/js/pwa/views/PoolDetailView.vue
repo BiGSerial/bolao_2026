@@ -45,37 +45,117 @@
             </button>
         </div>
 
-        <!-- ─── PALPITES tab ─── -->
-        <div v-show="activeTab === 'predictions'">
-            <div v-if="predictionDays.length" class="px-4 pt-3 pb-1">
-                <div
-                    ref="dateStripEl"
-                    class="date-strip no-scrollbar"
-                    @touchstart="onDateTouchStart"
-                    @touchmove="onDateTouchMove"
-                    @touchend="onDateTouchEnd"
-                    @scroll.passive="onDateStripScroll"
-                >
-                    <button
-                        v-for="d in predictionDays"
-                        :key="d.key"
-                        :data-day-key="d.key"
-                        class="date-chip"
-                        :class="{ active: selectedDayKey === d.key }"
-                        @click="selectedDayKey = d.key"
-                    >
-                        {{ d.label }}
+        <!-- ─── INFO tab ─── -->
+        <div v-show="activeTab === 'info'">
+            <div v-if="pool" class="pwa-section pt-4 pb-6 space-y-3">
+
+                <!-- Descrição -->
+                <div v-if="pool.description" class="info-card">
+                    <p class="info-card-label"><i class="ti ti-align-left"></i> Descrição</p>
+                    <p class="info-card-body">{{ pool.description }}</p>
+                </div>
+
+                <!-- Regulamento -->
+                <div v-if="pool.instructions" class="info-card">
+                    <p class="info-card-label"><i class="ti ti-clipboard-text"></i> Regulamento</p>
+                    <p class="info-card-body whitespace-pre-wrap">{{ pool.instructions }}</p>
+                </div>
+
+                <!-- Pontuação -->
+                <div class="info-card">
+                    <p class="info-card-label"><i class="ti ti-star"></i> Pontuação por palpite</p>
+                    <div class="info-score-grid">
+                        <div class="info-score-item">
+                            <span class="info-score-val">{{ pool.scoring?.points_exact_score ?? 0 }}</span>
+                            <span class="info-score-lbl">Placar exato</span>
+                        </div>
+                        <div class="info-score-item">
+                            <span class="info-score-val">{{ pool.scoring?.points_correct_result ?? 0 }}</span>
+                            <span class="info-score-lbl">Resultado certo</span>
+                        </div>
+                        <div class="info-score-item">
+                            <span class="info-score-val">{{ pool.scoring?.points_correct_goals ?? 0 }}</span>
+                            <span class="info-score-lbl">Gols de um time</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Regras de palpite -->
+                <div class="info-card">
+                    <p class="info-card-label"><i class="ti ti-lock"></i> Regras de palpite</p>
+                    <div class="space-y-2 mt-1">
+                        <div class="info-rule-row" :class="pool.closed_predictions ? 'rule-on' : 'rule-off'">
+                            <i class="ti shrink-0" :class="pool.closed_predictions ? 'ti-lock text-rose-400' : 'ti-lock-open text-emerald-400'"></i>
+                            <div>
+                                <p class="font-semibold text-[13px]">Palpite único</p>
+                                <p class="text-[11px] text-slate-400 mt-0.5">
+                                    {{ pool.closed_predictions
+                                        ? 'Ativo — após o início do 1º jogo, nenhum palpite pode ser alterado.'
+                                        : 'Desativado — você pode editar palpites conforme as regras abaixo.' }}
+                                </p>
+                            </div>
+                        </div>
+                        <div v-if="!pool.closed_predictions" class="info-rule-row" :class="pool.allow_prediction_changes ? 'rule-on' : 'rule-off'">
+                            <i class="ti shrink-0" :class="pool.allow_prediction_changes ? 'ti-pencil text-sky-400' : 'ti-pencil-off text-slate-500'"></i>
+                            <div>
+                                <p class="font-semibold text-[13px]">Edição de palpite</p>
+                                <p class="text-[11px] text-slate-400 mt-0.5">
+                                    {{ pool.allow_prediction_changes
+                                        ? `Permitida até ${pool.prediction_lock_minutes ?? 10} minuto(s) antes de cada partida.`
+                                        : 'Desativada — palpite enviado não pode ser alterado.' }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Critérios de desempate -->
+                <div v-if="pool.tie_breakers?.length" class="info-card">
+                    <p class="info-card-label"><i class="ti ti-sort-descending"></i> Desempate (em ordem)</p>
+                    <ol class="mt-2 space-y-1">
+                        <li v-for="(tb, i) in pool.tie_breakers" :key="tb" class="flex items-center gap-2 text-[13px] text-slate-200">
+                            <span class="w-5 h-5 rounded-full bg-white/[0.06] flex items-center justify-center text-[10px] font-bold text-bolao-muted shrink-0">{{ i + 1 }}</span>
+                            {{ tieBreakerLabel(tb) }}
+                        </li>
+                    </ol>
+                </div>
+
+                <!-- Setores -->
+                <div v-if="pool.sectors?.length" class="info-card">
+                    <p class="info-card-label"><i class="ti ti-building"></i> Setores</p>
+                    <div class="flex flex-wrap gap-2 mt-2">
+                        <span v-for="s in pool.sectors" :key="s" class="text-[12px] px-3 py-1 rounded-full border border-white/10 bg-white/[0.04] text-slate-300">{{ s }}</span>
+                    </div>
+                </div>
+
+                <!-- Código de convite (visível para todos os membros ativos) -->
+                <div v-if="pool.invite_code && pool.membership?.status === 'active'" class="info-card">
+                    <p class="info-card-label"><i class="ti ti-share"></i> Código de convite</p>
+                    <button class="invite-code-block" @click="copyInviteCode">
+                        <span class="invite-code-text">{{ pool.invite_code }}</span>
+                        <span class="invite-code-copy" :class="inviteCodeCopied ? 'text-emerald-400' : ''">
+                            <i class="ti" :class="inviteCodeCopied ? 'ti-check' : 'ti-copy'"></i>
+                            {{ inviteCodeCopied ? 'Copiado!' : 'Copiar' }}
+                        </span>
                     </button>
                 </div>
-            </div>
 
-            <!-- Loading -->
+                <div v-if="!pool.description && !pool.instructions" class="text-center py-6 text-sm text-bolao-muted">
+                    <i class="ti ti-info-circle text-2xl block mb-2 text-bolao-muted2"></i>
+                    Este bolão ainda não tem descrição ou regulamento cadastrado.
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── PALPITES tab ─── -->
+        <div v-show="activeTab === 'predictions'">
+            <!-- Loading inicial -->
             <div v-if="loadingPredictions" class="pwa-section space-y-3 pt-2">
                 <SkeletonCard v-for="i in 4" :key="i" />
             </div>
 
-            <!-- Prediction list -->
-            <div v-else-if="selectedDayItems.length" class="pwa-section space-y-3 pt-2">
+            <!-- Lista infinita -->
+            <div v-else-if="openPredictions.length" class="pwa-section space-y-3 pt-2">
                 <!-- Action toolbar -->
                 <div class="flex gap-2 justify-end">
                     <button class="bulk-action-btn" :disabled="savingBulk" @click="openBulkModal">
@@ -89,15 +169,17 @@
                 </div>
 
                 <div v-if="pool?.closed_predictions" class="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-[11px] text-amber-200">
-                    Palpite fechado ativo: preencha os jogos e use "Salvar palpites" para enviar tudo de uma vez.
+                    <i class="ti ti-lock text-[11px] mr-1"></i>
+                    Palpite único ativo — preencha todos os jogos e toque em "Salvar palpites". Após envio, não é possível alterar.
                 </div>
                 <div v-if="pool?.closed_predictions" class="flex justify-end">
                     <button class="pwa-btn-primary" :disabled="savingBatchPredictions || !hasBatchChanges" @click="saveBatchPredictions">
-                        {{ savingBatchPredictions ? 'Salvando palpites...' : 'Salvar palpites' }}
+                        {{ savingBatchPredictions ? 'Salvando...' : `Salvar palpites (${Object.keys(predictionDrafts).length})` }}
                     </button>
                 </div>
+
                 <PredictionCard
-                    v-for="item in selectedDayItems"
+                    v-for="item in visibleOpenPredictions"
                     :key="item.match.id"
                     :item="item"
                     :pool-id="poolId"
@@ -109,13 +191,26 @@
                     @changed="onPredictionDraftChanged"
                     @saved="onPredictionSaved"
                 />
+
+                <!-- Sentinel de scroll infinito -->
+                <div ref="sentinelEl" class="h-4"></div>
+
+                <!-- Spinner de carregamento de mais itens -->
+                <div v-if="hasMoreToShow" class="flex justify-center py-3">
+                    <i class="ti ti-loader-2 animate-spin text-bolao-muted2 text-xl"></i>
+                </div>
+
+                <!-- Fim da lista -->
+                <div v-else class="text-center py-3 text-[11px] text-bolao-muted2">
+                    {{ openPredictions.length }} jogo(s) disponíveis para palpitar
+                </div>
             </div>
 
-            <!-- Empty state -->
+            <!-- Sem jogos abertos -->
             <div v-else class="pwa-section text-center py-14">
-                <i class="ti ti-edit-off text-4xl text-bolao-muted2 mb-3 block"></i>
+                <i class="ti ti-calendar-check text-4xl text-bolao-muted2 mb-3 block"></i>
                 <p class="text-sm text-bolao-muted">
-                    Nenhum jogo encontrado para esta data.
+                    Nenhum jogo aberto para palpitar no momento.
                 </p>
             </div>
         </div>
@@ -159,6 +254,22 @@
 
         <!-- ─── CHAT tab ─── -->
         <div v-show="activeTab === 'chat'">
+            <!-- Regras do bolão -->
+            <div v-if="pool" class="pwa-section pt-2 pb-0">
+                <div class="chat-rules-banner">
+                    <i class="ti ti-info-circle text-bolao-accent shrink-0 mt-0.5"></i>
+                    <div class="min-w-0">
+                        <p class="text-[11px] font-bold text-bolao-accent mb-0.5">Regra: palpite único</p>
+                        <p class="text-[11px] text-slate-400 leading-snug">
+                            O palpite não pode ser alterado após o início do primeiro jogo da competição.
+                            Apenas membros <strong>ativos</strong> participam do chat.
+                        </p>
+                        <p v-if="pool.instructions" class="text-[11px] text-slate-400 mt-1 leading-snug">
+                            {{ pool.instructions }}
+                        </p>
+                    </div>
+                </div>
+            </div>
             <PoolChatPanel
                 v-if="pool"
                 :pool-id="poolId"
@@ -416,7 +527,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount, computed, nextTick } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Swal from 'sweetalert2';
 import { useAuthStore } from '../store/auth';
@@ -429,7 +540,6 @@ import SkeletonCard from '../components/ui/SkeletonCard.vue';
 import PredictionCard from '../components/ui/PredictionCard.vue';
 import RankingRow from '../components/ui/RankingRow.vue';
 import PoolChatPanel from '../components/ui/PoolChatPanel.vue';
-import { createHorizontalSwipeTracker } from '../utils/horizontalSwipe';
 
 const emit = defineEmits(['set-title']);
 const route = useRoute();
@@ -438,15 +548,18 @@ const auth = useAuthStore();
 const poolId = computed(() => route.params.id);
 const persistedDetailTabKey = computed(() => `pwa_pool_detail_tab_${poolId.value}`);
 
-const mainTabs = [
+const BASE_TABS = [
+    { id: 'info',        label: 'Info',     icon: 'ti-info-circle' },
     { id: 'predictions', label: 'Palpites', icon: 'ti-pencil' },
     { id: 'ranking',     label: 'Ranking',  icon: 'ti-trophy' },
     { id: 'chat',        label: 'Chat',     icon: 'ti-message-circle' },
 ];
+const MANAGE_TAB = { id: 'manage', label: 'Gestão', icon: 'ti-users' };
+const mainTabs = computed(() => canManage.value ? [...BASE_TABS, MANAGE_TAB] : BASE_TABS);
 const routeTab = String(route.query.tab || '').toLowerCase();
 const storedTab = String(localStorage.getItem(persistedDetailTabKey.value) || '').toLowerCase();
 const resolveAllowedTab = (value) => (
-    ['predictions', 'ranking', 'chat'].includes(String(value || '').toLowerCase())
+    ['info', 'predictions', 'ranking', 'chat', 'manage'].includes(String(value || '').toLowerCase())
         ? String(value).toLowerCase()
         : null
 );
@@ -454,13 +567,12 @@ const activeTab = ref(resolveAllowedTab(routeTab) ?? resolveAllowedTab(storedTab
 
 const pool          = ref(null);
 const loadingPool   = ref(true);
-const predictions   = ref([]);
+const predictions        = ref([]);
 const loadingPredictions = ref(true);
-const selectedDayKey = ref('');
-const predictionsPage = ref(1);
-const predictionsTotalPages = ref(1);
-const loadingMorePredictions = ref(false);
-const predictionDrafts = ref({});
+const visibleCount       = ref(15);
+const sentinelEl         = ref(null);
+const predictionDrafts   = ref({});
+let   infiniteObserver   = null;
 const savingBatchPredictions = ref(false);
 const savingBulk     = ref(false);
 const savingApplyAll = ref(false);
@@ -473,6 +585,7 @@ const manageBusyMemberId = ref(null);
 const inviteEmail = ref('');
 const inviteSector = ref('');
 const inviteLoading = ref(false);
+const inviteCodeCopied = ref(false);
 const savingConfig = ref(false);
 const deletingPool = ref(false);
 const newTieBreaker = ref('');
@@ -520,11 +633,6 @@ const enabledTieBreakerOptions = computed(() => {
 const availableTieBreakers = computed(() =>
     enabledTieBreakerOptions.value.filter((o) => !configForm.value.tie_breakers.includes(o.value)),
 );
-const dateStripEl = ref(null);
-const dateSwipe = createHorizontalSwipeTracker({
-    minDistance: 40,
-    minHorizontalRatio: 1.2,
-});
 let wallStartMs = 0;
 let monoStartMs = 0;
 const clockTampered = ref(false);
@@ -532,44 +640,41 @@ let clockGuardTimer = null;
 
 const roleLabel = (r) => ({ owner: 'Dono', manager: 'Gestor', member: 'Membro' }[r] ?? r ?? '');
 
-const openCount = computed(() =>
-    predictions.value.filter(i => !i.lock?.is_locked && ['TIMED', 'SCHEDULED', 'PRE_MATCH'].includes(i.match?.status)).length
-);
-const liveCount = computed(() =>
-    predictions.value.filter(i => ['IN_PLAY', 'PAUSED', 'HALFTIME'].includes(i.match?.status)).length
-);
-const closedCount = computed(() =>
-    predictions.value.filter(i => ['FINISHED', 'AWARDED'].includes(i.match?.status)).length
-);
+const TIE_BREAKER_LABELS = {
+    exact_scores: 'Mais placares exatos',
+    correct_results: 'Mais resultados corretos',
+    correct_home_goals: 'Mais gols do mandante corretos',
+    correct_away_goals: 'Mais gols do visitante corretos',
+    predictions_counted: 'Mais palpites válidos',
+};
+const tieBreakerLabel = (tb) => TIE_BREAKER_LABELS[tb] ?? tb;
 
-const sortedPredictions = computed(() => {
-    return [...predictions.value].sort((a, b) => {
-        const ta = a.match?.local_date ? new Date(a.match.local_date).getTime() : 0;
-        const tb = b.match?.local_date ? new Date(b.match.local_date).getTime() : 0;
-        return ta - tb;
-    });
-});
-const predictionDays = computed(() => {
-    const map = new Map();
-    for (const item of sortedPredictions.value) {
-        const d = item.match?.local_date ? new Date(item.match.local_date) : null;
-        if (!d || Number.isNaN(d.getTime())) continue;
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        if (!map.has(key)) {
-            map.set(key, {
-                key,
-                label: d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }),
-                items: [],
-            });
-        }
-        map.get(key).items.push(item);
-    }
-    return Array.from(map.values());
-});
-const selectedDayItems = computed(() => {
-    const found = predictionDays.value.find((d) => d.key === selectedDayKey.value);
-    return found?.items ?? [];
-});
+let inviteCodeCopiedTimer = null;
+function copyInviteCode() {
+    const code = pool.value?.invite_code;
+    if (!code) return;
+    navigator.clipboard?.writeText(code).catch(() => {});
+    inviteCodeCopied.value = true;
+    if (inviteCodeCopiedTimer) clearTimeout(inviteCodeCopiedTimer);
+    inviteCodeCopiedTimer = setTimeout(() => { inviteCodeCopied.value = false; }, 2000);
+}
+
+// Jogos abertos para palpitar: não bloqueados, status válido, ordenados por data
+const OPEN_STATUSES = ['TIMED', 'SCHEDULED', 'PRE_MATCH'];
+const openPredictions = computed(() =>
+    [...predictions.value]
+        .filter(i => OPEN_STATUSES.includes(i.match?.status) && !i.lock?.is_locked)
+        .sort((a, b) => {
+            const ta = a.match?.local_date ? new Date(a.match.local_date).getTime() : 0;
+            const tb = b.match?.local_date ? new Date(b.match.local_date).getTime() : 0;
+            return ta - tb;
+        })
+);
+const visibleOpenPredictions = computed(() => openPredictions.value.slice(0, visibleCount.value));
+const hasMoreToShow = computed(() => visibleCount.value < openPredictions.value.length);
+
+const openCount = computed(() => openPredictions.value.length);
+
 const predictionEditingBlockedReason = computed(() => {
     if (!navigator.onLine) return 'Sem conexão. O aplicativo exige validação online de horário para salvar palpite.';
     if (clockTampered.value) return 'Relógio do aparelho inconsistente. Ajuste data/hora automáticas para palpitar.';
@@ -796,40 +901,37 @@ async function destroyPool() {
 
 async function loadPredictions() {
     loadingPredictions.value = true;
+    visibleCount.value = 15;
+    const all = [];
     try {
-        predictionsPage.value = 1;
-        const res = await getPoolPredictions(poolId.value, { per_page: 50, page: 1 });
-        predictions.value = res.data.data.items ?? [];
+        // Carrega apenas jogos abertos (open_only=1) em páginas de 200
+        // Isso resolve leagues com muitas rodadas (ex: Brasileirão tem 380 jogos)
+        let page = 1;
+        let totalPages = 1;
+        do {
+            const res = await getPoolPredictions(poolId.value, { per_page: 200, page, open_only: 1 });
+            const items = res.data.data?.items ?? [];
+            all.push(...items);
+            totalPages = Number(res.data.meta?.pagination?.total_pages ?? 1) || 1;
+            page++;
+        } while (page <= totalPages);
+
+        predictions.value = all;
         predictionDrafts.value = {};
-        predictionsTotalPages.value = Number(res.data.meta?.pagination?.total_pages ?? 1) || 1;
-        await ensureInitialDayWithValidPrediction();
     } finally {
         loadingPredictions.value = false;
     }
 }
 
-async function loadMorePredictions() {
-    if (loadingMorePredictions.value) return;
-    if (predictionsPage.value >= predictionsTotalPages.value) return;
-
-    loadingMorePredictions.value = true;
-    try {
-        const nextPage = predictionsPage.value + 1;
-        const res = await getPoolPredictions(poolId.value, { per_page: 50, page: nextPage });
-        const incoming = res.data.data.items ?? [];
-        const seen = new Set(predictions.value.map((i) => i.match?.id));
-        for (const item of incoming) {
-            const id = item.match?.id;
-            if (!seen.has(id)) {
-                predictions.value.push(item);
-                seen.add(id);
-            }
+function setupInfiniteScroll() {
+    if (infiniteObserver) infiniteObserver.disconnect();
+    if (!sentinelEl.value) return;
+    infiniteObserver = new IntersectionObserver((entries) => {
+        if (entries[0]?.isIntersecting && hasMoreToShow.value) {
+            visibleCount.value += 15;
         }
-        predictionsPage.value = nextPage;
-        predictionsTotalPages.value = Number(res.data.meta?.pagination?.total_pages ?? predictionsTotalPages.value) || predictionsTotalPages.value;
-    } finally {
-        loadingMorePredictions.value = false;
-    }
+    }, { rootMargin: '200px' });
+    infiniteObserver.observe(sentinelEl.value);
 }
 
 async function loadRanking() {
@@ -932,75 +1034,6 @@ async function saveBatchPredictions() {
     }
 }
 
-function selectInitialDay() {
-    const all = sortedPredictions.value;
-    const firstNextValid = all.find((i) =>
-        !i.lock?.is_locked && ['TIMED', 'SCHEDULED', 'PRE_MATCH'].includes(i.match?.status)
-    );
-    const sourceDate = firstNextValid?.match?.local_date ?? all[0]?.match?.local_date;
-    if (!sourceDate) {
-        selectedDayKey.value = '';
-        return;
-    }
-    const d = new Date(sourceDate);
-    selectedDayKey.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-async function ensureInitialDayWithValidPrediction() {
-    // Carrega mais páginas até achar pelo menos um jogo válido para palpitar.
-    let hasValid = sortedPredictions.value.some((i) =>
-        !i.lock?.is_locked && ['TIMED', 'SCHEDULED', 'PRE_MATCH'].includes(i.match?.status)
-    );
-
-    while (!hasValid && predictionsPage.value < predictionsTotalPages.value) {
-        await loadMorePredictions();
-        hasValid = sortedPredictions.value.some((i) =>
-            !i.lock?.is_locked && ['TIMED', 'SCHEDULED', 'PRE_MATCH'].includes(i.match?.status)
-        );
-    }
-
-    selectInitialDay();
-}
-
-function onDateTouchStart(e) {
-    dateSwipe.start(e);
-}
-
-function onDateTouchMove(e) {
-    const move = dateSwipe.move(e);
-    if (!move.active) return;
-    if (move.shouldPreventDefault) e.preventDefault();
-}
-
-function onDateTouchEnd(e) {
-    const end = dateSwipe.end(e);
-    if (!end.isSwipe) return;
-
-    const idx = predictionDays.value.findIndex((d) => d.key === selectedDayKey.value);
-    if (idx < 0) return;
-    if (end.direction === 'left' && idx < predictionDays.value.length - 1) {
-        selectedDayKey.value = predictionDays.value[idx + 1].key;
-    } else if (end.direction === 'left' && idx === predictionDays.value.length - 1) {
-        loadMorePredictions();
-    }
-    if (end.direction === 'right' && idx > 0) selectedDayKey.value = predictionDays.value[idx - 1].key;
-}
-
-function onDateStripScroll(e) {
-    const el = e?.target;
-    if (!el) return;
-    const remaining = el.scrollWidth - el.scrollLeft - el.clientWidth;
-    if (remaining < 40) loadMorePredictions();
-}
-
-function centerSelectedDayChip() {
-    const strip = dateStripEl.value;
-    if (!strip || !selectedDayKey.value) return;
-    const chip = strip.querySelector(`[data-day-key="${selectedDayKey.value}"]`);
-    if (!chip) return;
-    const left = chip.offsetLeft - (strip.clientWidth / 2) + (chip.clientWidth / 2);
-    strip.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
-}
 
 function startClockGuard() {
     wallStartMs = Date.now();
@@ -1029,6 +1062,19 @@ async function loadMembers() {
 }
 
 async function approveMember(member) {
+    const { isConfirmed } = await Swal.fire({
+        title: 'Aprovar membro?',
+        html: `Aprovar <strong>${member.user?.name}</strong> no bolão?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Aprovar',
+        cancelButtonText: 'Cancelar',
+        background: '#0f172a',
+        color: '#e2e8f0',
+        confirmButtonColor: '#22c55e',
+        cancelButtonColor: '#334155',
+    });
+    if (!isConfirmed) return;
     manageBusyMemberId.value = member.id;
     try {
         await updatePoolMember(poolId.value, member.id, { status: 'active' });
@@ -1039,9 +1085,23 @@ async function approveMember(member) {
 }
 
 async function promoteManager(member) {
+    const toManager = member.role !== 'manager';
+    const { isConfirmed } = await Swal.fire({
+        title: toManager ? 'Promover a Gestor?' : 'Rebaixar a Membro?',
+        html: `Deseja ${toManager ? 'promover' : 'rebaixar'} <strong>${member.user?.name}</strong>?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Confirmar',
+        cancelButtonText: 'Cancelar',
+        background: '#0f172a',
+        color: '#e2e8f0',
+        confirmButtonColor: '#f59e0b',
+        cancelButtonColor: '#334155',
+    });
+    if (!isConfirmed) return;
     manageBusyMemberId.value = member.id;
     try {
-        await updatePoolMember(poolId.value, member.id, { role: member.role === 'manager' ? 'member' : 'manager' });
+        await updatePoolMember(poolId.value, member.id, { role: toManager ? 'manager' : 'member' });
         await loadMembers();
     } finally {
         manageBusyMemberId.value = null;
@@ -1049,6 +1109,19 @@ async function promoteManager(member) {
 }
 
 async function removeMember(member) {
+    const { isConfirmed } = await Swal.fire({
+        title: 'Remover membro?',
+        html: `Remover <strong>${member.user?.name}</strong> do bolão?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Remover',
+        cancelButtonText: 'Cancelar',
+        background: '#0f172a',
+        color: '#e2e8f0',
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#334155',
+    });
+    if (!isConfirmed) return;
     manageBusyMemberId.value = member.id;
     try {
         await removePoolMember(poolId.value, member.id);
@@ -1095,26 +1168,16 @@ watch(activeTab, (tab) => {
     }
 }, { immediate: true });
 
-watch(predictionDays, (days) => {
-    if (!days.length) {
-        selectedDayKey.value = '';
-        return;
-    }
-    if (!selectedDayKey.value || !days.some((d) => d.key === selectedDayKey.value)) {
-        selectedDayKey.value = days[0].key;
-    }
-}, { deep: true });
-
-watch(selectedDayKey, async () => {
-    await nextTick();
-    centerSelectedDayChip();
+// Liga o IntersectionObserver quando o sentinel estiver disponível no DOM
+watch(sentinelEl, (el) => {
+    if (el) setupInfiniteScroll();
 });
 
 async function openBulkModal() {
     const { value, isConfirmed } = await Swal.fire({
         title: 'Palpite em massa',
         html: `
-            <p style="font-size:13px;color:#94a3b8;margin-bottom:16px">Aplica o mesmo placar a todos os jogos válidos do dia.</p>
+            <p style="font-size:13px;color:#94a3b8;margin-bottom:16px">Aplica o mesmo placar a todos os jogos abertos neste bolão.</p>
             <div style="display:flex;align-items:center;justify-content:center;gap:14px">
                 <input id="bulk-home" type="number" min="0" max="99" value="0"
                     style="width:60px;text-align:center;background:#1b2230;border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:#fff;font-size:30px;font-weight:800;padding:6px 0;font-family:'Barlow Condensed',sans-serif">
@@ -1158,20 +1221,25 @@ async function openApplyAllModal() {
     const competitionId = pool.value?.competition?.id;
     if (!competitionId) return;
 
+    // Apenas palpites em jogos ainda abertos e não bloqueados
     const saved = predictions.value.filter(
-        (i) => ['TIMED', 'SCHEDULED', 'PRE_MATCH'].includes(i.match?.status) && i.prediction != null,
+        (i) => ['TIMED', 'SCHEDULED', 'PRE_MATCH'].includes(i.match?.status)
+            && !i.lock?.is_locked
+            && i.prediction != null,
     );
     if (!saved.length) {
-        await Swal.fire({ icon: 'info', title: 'Nenhum palpite salvo', text: 'Salve palpites neste bolão antes de replicar.', background: '#0f172a', color: '#e2e8f0', confirmButtonColor: '#f59e0b' });
+        await Swal.fire({ icon: 'info', title: 'Nenhum palpite disponível', text: 'Salve palpites em jogos abertos neste bolão antes de replicar.', background: '#0f172a', color: '#e2e8f0', confirmButtonColor: '#f59e0b' });
         return;
     }
 
     const res = await getPools();
     const otherPools = (res.data.data?.member_pools ?? []).filter(
-        (p) => Number(p.id) !== Number(poolId.value) && Number(p.competition?.id) === Number(competitionId),
+        (p) => Number(p.id) !== Number(poolId.value)
+            && Number(p.competition?.id) === Number(competitionId)
+            && p.membership?.status === 'active',
     );
     if (!otherPools.length) {
-        await Swal.fire({ icon: 'info', title: 'Nenhum outro bolão', text: 'Você não participa de outros bolões nesta competição.', background: '#0f172a', color: '#e2e8f0', confirmButtonColor: '#f59e0b' });
+        await Swal.fire({ icon: 'info', title: 'Nenhum outro bolão', text: 'Você não participa de outros bolões ativos nesta competição.', background: '#0f172a', color: '#e2e8f0', confirmButtonColor: '#f59e0b' });
         return;
     }
 
@@ -1179,7 +1247,7 @@ async function openApplyAllModal() {
     const { isConfirmed } = await Swal.fire({
         icon: 'question',
         title: 'Replicar palpites?',
-        html: `Serão replicados <strong>${saved.length} palpite(s)</strong> para:<br><br><span style="color:#94a3b8;font-size:13px">${poolList}</span>`,
+        html: `Serão replicados até <strong>${saved.length} palpite(s)</strong> para:<br><br><span style="color:#94a3b8;font-size:13px">${poolList}</span><br><br><span style="color:#64748b;font-size:12px">Apenas jogos abertos (não bloqueados) em cada bolão serão atualizados.</span>`,
         background: '#0f172a',
         color: '#e2e8f0',
         confirmButtonText: 'Replicar',
@@ -1193,14 +1261,47 @@ async function openApplyAllModal() {
 
     savingApplyAll.value = true;
     try {
-        await Promise.all(
-            otherPools.flatMap((targetPool) =>
-                saved.map((i) => savePrediction(targetPool.id, i.match.id, i.prediction.home_score, i.prediction.away_score)),
-            ),
+        // Para cada bolão destino, carrega suas predições para saber quais jogos estão abertos
+        const targetData = await Promise.all(
+            otherPools.map(async (targetPool) => {
+                try {
+                    // open_only=1 já exclui jogos encerrados/cancelados no servidor
+                    const r = await getPoolPredictions(targetPool.id, { per_page: 200, open_only: 1 });
+                    const items = r.data.data?.items ?? [];
+                    const editableIds = new Set(
+                        items
+                            .filter((i) => !i.lock?.is_locked)
+                            .map((i) => Number(i.match?.id)),
+                    );
+                    return { pool: targetPool, editableIds };
+                } catch {
+                    return { pool: targetPool, editableIds: new Set() };
+                }
+            }),
         );
-        await Swal.fire({ icon: 'success', title: 'Replicado!', text: `Palpites aplicados em ${otherPools.length} bolão(ões).`, background: '#0f172a', color: '#e2e8f0', confirmButtonColor: '#f59e0b', timer: 2500, showConfirmButton: false });
+
+        const saves = targetData.flatMap(({ pool: targetPool, editableIds }) =>
+            saved
+                .filter((i) => editableIds.has(Number(i.match?.id)))
+                .map((i) => savePrediction(targetPool.id, i.match.id, i.prediction.home_score, i.prediction.away_score)),
+        );
+
+        if (!saves.length) {
+            await Swal.fire({ icon: 'info', title: 'Nada para replicar', text: 'Todos os jogos disponíveis já estão bloqueados nos outros bolões.', background: '#0f172a', color: '#e2e8f0', confirmButtonColor: '#f59e0b' });
+            return;
+        }
+
+        const results = await Promise.allSettled(saves);
+        const failCount = results.filter((r) => r.status === 'rejected').length;
+        const okCount = results.length - failCount;
+
+        if (failCount === 0) {
+            await Swal.fire({ icon: 'success', title: 'Replicado!', text: `${okCount} palpite(s) aplicados em ${otherPools.length} bolão(ões).`, background: '#0f172a', color: '#e2e8f0', confirmButtonColor: '#f59e0b', timer: 2500, showConfirmButton: false });
+        } else {
+            await Swal.fire({ icon: 'warning', title: 'Replicado com avisos', text: `${okCount} palpite(s) salvos. ${failCount} não puderam ser salvos (jogos já bloqueados).`, background: '#0f172a', color: '#e2e8f0', confirmButtonColor: '#f59e0b' });
+        }
     } catch {
-        await Swal.fire({ icon: 'error', title: 'Erro ao replicar', text: 'Alguns palpites podem não ter sido salvos.', background: '#0f172a', color: '#e2e8f0', confirmButtonColor: '#f59e0b' });
+        await Swal.fire({ icon: 'error', title: 'Erro ao replicar', text: 'Não foi possível completar a replicação.', background: '#0f172a', color: '#e2e8f0', confirmButtonColor: '#f59e0b' });
     } finally {
         savingApplyAll.value = false;
     }
@@ -1215,6 +1316,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
     if (clockGuardTimer) clearInterval(clockGuardTimer);
+    if (infiniteObserver) infiniteObserver.disconnect();
 });
 </script>
 
@@ -1268,30 +1370,6 @@ onBeforeUnmount(() => {
     border-bottom-color: #f5a623;
 }
 
-.date-strip {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-x;
-}
-.date-chip {
-    flex: 0 0 auto;
-    border-radius: 999px;
-    border: 1px solid rgba(255,255,255,0.1);
-    background: #161c28;
-    color: #8b95a7;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 7px 12px;
-    text-transform: capitalize;
-}
-.date-chip.active {
-    color: #f5a623;
-    border-color: rgba(245,166,35,0.45);
-    background: rgba(245,166,35,0.14);
-    box-shadow: 0 0 0 1px rgba(245,166,35,0.18) inset;
-}
 
 .card-box {
     border-radius: 12px;
@@ -1422,4 +1500,105 @@ onBeforeUnmount(() => {
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.chat-rules-banner {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    border: 1px solid rgba(245,166,35,0.2);
+    border-radius: 12px;
+    background: rgba(245,166,35,0.06);
+    padding: 10px 12px;
+    margin-bottom: 2px;
+}
+
+/* ── Info tab ──────────────────────────────────────────── */
+.info-card {
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    background: #111622;
+    padding: 14px 14px 16px;
+}
+.info-card-label {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: #6b82a4;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 8px;
+}
+.info-card-body {
+    font-size: 14px;
+    color: #c8d8ef;
+    line-height: 1.6;
+}
+.info-score-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 4px;
+}
+.info-score-item {
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    background: rgba(255,255,255,0.03);
+    padding: 10px 6px;
+    text-align: center;
+}
+.info-score-val {
+    display: block;
+    font-size: 22px;
+    font-weight: 900;
+    color: #f5a623;
+    line-height: 1;
+}
+.info-score-lbl {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    color: #6b82a4;
+    margin-top: 4px;
+    line-height: 1.2;
+}
+.info-rule-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.02);
+    padding: 10px 12px;
+    font-size: 13px;
+    color: #c8d8ef;
+}
+.info-rule-row.rule-on { border-color: rgba(245,166,35,0.2); background: rgba(245,166,35,0.04); }
+.invite-code-block {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    border: 1px solid rgba(245,166,35,0.3);
+    border-radius: 12px;
+    background: rgba(245,166,35,0.07);
+    padding: 12px 14px;
+    gap: 8px;
+}
+.invite-code-text {
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: .12em;
+    color: #ffd084;
+}
+.invite-code-copy {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #9fb8d8;
+    transition: color .15s;
+}
 </style>

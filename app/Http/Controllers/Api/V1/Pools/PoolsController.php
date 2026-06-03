@@ -365,6 +365,15 @@ class PoolsController extends Controller
             'visibility' => $pool->visibility,
             'status' => $pool->status,
             'invite_code' => $pool->invite_code,
+            'description' => $pool->description,
+            'instructions' => $pool->instructions,
+            'closed_predictions' => (bool) $pool->closed_predictions,
+            'allow_prediction_changes' => (bool) $pool->allow_prediction_changes,
+            'scoring' => [
+                'points_exact_score' => (int) ($pool->points_exact_score ?? 0),
+                'points_correct_result' => (int) ($pool->points_correct_result ?? 0),
+                'points_correct_goals' => (int) ($pool->points_correct_goals ?? 0),
+            ],
             'competition' => [
                 'id' => $pool->competition?->id,
                 'code' => $pool->competition?->code,
