@@ -474,9 +474,12 @@ class PoolShow extends Component
 
         $currentMatchday = $this->resolveCurrentMatchday($matches);
 
+        $stageMatchIds = $matches->pluck('id')->all();
+
         $predictions = Prediction::query()
             ->where('pool_id', $this->pool->id)
             ->where('user_id', $targetUserId)
+            ->whereIn('football_match_id', $stageMatchIds)
             ->get()
             ->keyBy('football_match_id');
 
