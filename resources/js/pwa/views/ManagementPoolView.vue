@@ -34,6 +34,33 @@
                         <span class="users-meta">{{ pendingMembers.length ? `${pendingMembers.length} pendências` : 'Sem pendências' }}</span>
                     </div>
 
+                    <!-- Pending members section -->
+                    <div v-if="pendingMembers.length" class="pending-section">
+                        <div class="pending-section-head">
+                            <i class="ti ti-clock-hour-4 text-amber-400"></i>
+                            <span>{{ pendingMembers.length }} solicitação(ões) pendente(s)</span>
+                        </div>
+                        <article v-for="member in pendingMembers" :key="member.id" class="member-row-v2 pending">
+                            <div class="member-avatar pending-av">{{ initials(member) }}</div>
+                            <div class="member-main">
+                                <p class="member-name">
+                                    {{ member.user?.name }}
+                                    <span class="role-chip pending-chip">Pendente</span>
+                                </p>
+                                <p class="member-sub">{{ member.user?.email }}</p>
+                                <p v-if="member.sector" class="member-sector">Setor: {{ member.sector }}</p>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <button class="action small approve" :disabled="busyMemberId === member.id" @click="approvePending(member)">
+                                    <i class="ti ti-check text-[11px]"></i> Aprovar
+                                </button>
+                                <button class="action small danger" :disabled="busyMemberId === member.id" @click="rejectPending(member)">
+                                    <i class="ti ti-x text-[11px]"></i> Rejeitar
+                                </button>
+                            </div>
+                        </article>
+                    </div>
+
                     <div class="members-list-card">
                         <article v-if="ownerMember" class="member-row-v2 owner">
                             <div class="member-avatar">{{ initials(ownerMember) }}</div>
@@ -73,9 +100,8 @@
                             </div>
                         </article>
 
-                        <div v-if="pendingMembers.length" class="pending-strip">
-                            <span>{{ pendingMembers.length }} pendente(s)</span>
-                            <button class="action small" @click="approveAllPending">Aprovar todos</button>
+                        <div v-if="!ownerMember && !nonOwnerActiveMembers.length" class="p-3 text-center text-[12px] text-bolao-muted">
+                            Nenhum membro ativo ainda.
                         </div>
                     </div>
                 </section>
@@ -250,6 +276,7 @@ const inviteLoading = ref(false);
 const inviteEmail = ref('');
 const inviteSector = ref('');
 const memberMenuId = ref(null);
+const busyMemberId = ref(null);
 const newTieBreaker = ref('');
 const newSector = ref('');
 const draggingTieCriterion = ref(null);
@@ -376,28 +403,89 @@ async function sendInvite() {
     }
 }
 
-async function updateStatus(member, status) {
-    memberMenuId.value = null;
-    await updatePoolMember(poolId.value, member.id, { status });
-    await load();
+async function approvePending(member) {
+    const { isConfirmed } = await Swal.fire({
+        title: 'Aprovar membro?',
+        html: `Deseja aprovar <strong>${member.user?.name}</strong> para o bolão?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Aprovar',
+        cancelButtonText: 'Cancelar',
+        background: '#0f172a',
+        color: '#e2e8f0',
+        confirmButtonColor: '#22c55e',
+        cancelButtonColor: '#334155',
+    });
+    if (!isConfirmed) return;
+    busyMemberId.value = member.id;
+    try {
+        await updatePoolMember(poolId.value, member.id, { status: 'active' });
+        await load();
+    } finally {
+        busyMemberId.value = null;
+    }
+}
+
+async function rejectPending(member) {
+    const { isConfirmed } = await Swal.fire({
+        title: 'Rejeitar solicitação?',
+        html: `Deseja rejeitar a entrada de <strong>${member.user?.name}</strong>?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Rejeitar',
+        cancelButtonText: 'Cancelar',
+        background: '#0f172a',
+        color: '#e2e8f0',
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#334155',
+    });
+    if (!isConfirmed) return;
+    busyMemberId.value = member.id;
+    try {
+        await removePoolMember(poolId.value, member.id);
+        await load();
+    } finally {
+        busyMemberId.value = null;
+    }
 }
 
 async function toggleRole(member) {
+    const toManager = member.role !== 'manager';
+    const { isConfirmed } = await Swal.fire({
+        title: toManager ? 'Promover a Gestor?' : 'Rebaixar a Membro?',
+        html: `Deseja ${toManager ? 'promover' : 'rebaixar'} <strong>${member.user?.name}</strong>?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Confirmar',
+        cancelButtonText: 'Cancelar',
+        background: '#0f172a',
+        color: '#e2e8f0',
+        confirmButtonColor: '#f59e0b',
+        cancelButtonColor: '#334155',
+    });
+    if (!isConfirmed) return;
     memberMenuId.value = null;
-    await updatePoolMember(poolId.value, member.id, { role: member.role === 'manager' ? 'member' : 'manager' });
+    await updatePoolMember(poolId.value, member.id, { role: toManager ? 'manager' : 'member' });
     await load();
 }
 
 async function remove(member) {
+    const { isConfirmed } = await Swal.fire({
+        title: 'Remover membro?',
+        html: `Deseja remover <strong>${member.user?.name}</strong> do bolão?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Remover',
+        cancelButtonText: 'Cancelar',
+        background: '#0f172a',
+        color: '#e2e8f0',
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#334155',
+    });
+    if (!isConfirmed) return;
     memberMenuId.value = null;
     await removePoolMember(poolId.value, member.id);
     await load();
-}
-
-async function approveAllPending() {
-    for (const member of pendingMembers.value) {
-        await updateStatus(member, 'active');
-    }
 }
 
 function addSector() {
@@ -601,7 +689,13 @@ async function finalizePoolNow() {
 .member-menu-item { width:100%; border:0; background:transparent; color:#dce7f7; font-size:14px; padding:10px 12px; display:flex; align-items:center; gap:8px; text-align:left; font-weight:700; }
 .member-menu-item + .member-menu-item { border-top:1px solid rgba(255,255,255,.08); }
 .member-menu-item.danger { color:#ff8c97; }
-.pending-strip { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px; border-top:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.02); color:#ff8b93; font-size:12px; font-weight:700; }
+.pending-section { border:1px solid rgba(251,191,36,.25); border-radius:16px; background:rgba(251,191,36,.05); overflow:hidden; margin-bottom:0; }
+.pending-section-head { display:flex; align-items:center; gap:8px; padding:10px 12px; font-size:12px; font-weight:800; color:#fbbf24; border-bottom:1px solid rgba(251,191,36,.15); }
+.member-row-v2.pending { border-bottom:1px solid rgba(251,191,36,.1); }
+.member-row-v2.pending:last-of-type { border-bottom:0; }
+.member-avatar.pending-av { background:rgba(251,191,36,.13); border-color:rgba(251,191,36,.28); color:#fbbf24; }
+.role-chip.pending-chip { border-color:rgba(251,191,36,.35); color:#fbbf24; background:rgba(251,191,36,.1); }
+.action.approve { border-color:rgba(34,197,94,.35); background:rgba(34,197,94,.1); color:#86efac; }
 .tie-row { transition: transform .18s ease, border-color .18s ease, background-color .18s ease, box-shadow .18s ease; touch-action: none; }
 .tie-row.dragging { border-color: rgba(245,166,35,.45); background: rgba(245,166,35,.1); box-shadow: 0 8px 18px rgba(0,0,0,.3); transform: scale(1.01); }
 .tie-row.drop-target { border-color: rgba(103,160,255,.45); background: rgba(103,160,255,.1); }
