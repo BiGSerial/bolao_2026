@@ -20,15 +20,17 @@ class CustomVerifyEmailNotification extends VerifyEmail implements ShouldQueue
 
     protected function verificationUrl($notifiable): string
     {
-        return URL::temporarySignedRoute(
+        $path = URL::temporarySignedRoute(
             'verification.verify',
             Carbon::now()->addMinutes(60),
             [
                 'id' => $notifiable->getKey(),
                 'hash' => sha1($notifiable->getEmailForVerification()),
             ],
-            absolute: true
+            absolute: false
         );
+
+        return URL::to($path);
     }
 
     public function toMail($notifiable): MailMessage

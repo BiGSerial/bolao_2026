@@ -42,8 +42,6 @@ class KingHostApiTransport extends AbstractTransport
 
         $fromAddress = $this->firstAddress($email->getFrom(), null)
             ?? trim((string) ($config['from_address'] ?? ''));
-        $fromName = $this->firstName($email->getFrom())
-            ?? trim((string) ($config['from_name'] ?? ''));
         $subject = (string) $email->getSubject();
         $body = (string) ($email->getHtmlBody() ?: $email->getTextBody() ?: '');
 
@@ -54,7 +52,7 @@ class KingHostApiTransport extends AbstractTransport
         $this->guardMonthlyLimit((int) ($config['monthly_limit'] ?? 0));
 
         $payload = [
-            'from' => $fromName !== '' ? sprintf('%s <%s>', $fromName, $fromAddress) : $fromAddress,
+            'from' => $fromAddress,
             'to' => $to,
             'subject' => $subject,
             'body' => $body,
@@ -163,17 +161,6 @@ class KingHostApiTransport extends AbstractTransport
         return null;
     }
 
-    /**
-     * @param array<int, Address> $addresses
-     */
-    private function firstName(array $addresses): ?string
-    {
-        if (count($addresses) === 0) return null;
-        $name = trim((string) $addresses[0]->getName());
-
-        return $name !== '' ? $name : null;
-    }
-
     private function guardMonthlyLimit(int $limit): void
     {
         if ($limit <= 0) return;
@@ -193,4 +180,3 @@ class KingHostApiTransport extends AbstractTransport
         }
     }
 }
-
