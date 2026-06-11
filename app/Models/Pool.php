@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -76,5 +77,33 @@ class Pool extends Model
     public function predictionLockMinutes(): int
     {
         return max(10, (int) $this->prediction_lock_minutes);
+    }
+
+    public function closedPredictionsLockTime(): ?Carbon
+    {
+        if (! $this->closed_predictions) {
+            return null;
+        }
+
+        $firstMatch = FootballMatch::query()
+            ->where('competition_id', $this->competition_id)
+            ->where('competition_season_id', $this->competition_season_id)
+            ->where('stage', $this->stage)
+            ->orderBy('utc_date')
+            ->first(['id', 'utc_date']);
+
+        return $firstMatch?->predictionLockTimeFor($this);
+    }
+
+    public function areClosedPredictionsLocked(): bool
+    {
+        $lockTime = $this->closedPredictionsLockTime();
+
+        return $lockTime !== null && now()->utc()->greaterThanOrEqualTo($lockTime);
+    }
+
+    public function isPredictionLockedFor(FootballMatch $match): bool
+    {
+        return $match->isPredictionLockedFor($this) || $this->areClosedPredictionsLocked();
     }
 }

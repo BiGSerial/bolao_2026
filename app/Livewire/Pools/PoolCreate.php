@@ -28,6 +28,7 @@ class PoolCreate extends Component
     public string $instructions = '';
     public string $visibility = 'invite_only';
     public bool $allow_prediction_changes = true;
+    public bool $closed_predictions = false;
     public int $prediction_lock_minutes = 10;
     public bool $allow_pending_member_predictions = true;
     public int $points_exact_score = 5;
@@ -163,6 +164,7 @@ class PoolCreate extends Component
             'instructions' => ['nullable', 'string', 'max:3000'],
             'visibility' => ['required', 'in:private,invite_only,public'],
             'allow_prediction_changes' => ['boolean'],
+            'closed_predictions' => ['boolean'],
             'prediction_lock_minutes' => ['required', 'integer', 'min:10'],
             'allow_pending_member_predictions' => ['boolean'],
             'points_exact_score' => ['required', 'integer', 'min:0', 'max:20'],
@@ -201,6 +203,7 @@ class PoolCreate extends Component
                 'status' => 'active',
                 'invite_code' => $this->makeUniqueInviteCode(),
                 'allow_prediction_changes' => $data['allow_prediction_changes'],
+                'closed_predictions' => $data['closed_predictions'],
                 'prediction_lock_minutes' => $data['prediction_lock_minutes'],
                 'allow_pending_member_predictions' => $data['allow_pending_member_predictions'],
                 'points_exact_score' => $data['points_exact_score'],

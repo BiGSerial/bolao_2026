@@ -6,7 +6,6 @@ use App\Models\FootballMatch;
 use App\Models\Pool;
 use App\Models\Prediction;
 use App\Models\User;
-use Carbon\Carbon;
 use DomainException;
 
 class PredictionService
@@ -42,8 +41,8 @@ class PredictionService
             throw new DomainException('Palpite bloqueado para este jogo.');
         }
 
-        if ($pool->closed_predictions && $this->isClosedPredictionsWindowLocked($pool)) {
-            throw new DomainException('Este bolão está com palpites fechados desde o início da primeira partida.');
+        if ($pool->areClosedPredictionsLocked()) {
+            throw new DomainException('Este bolão está com todos os palpites fechados.');
         }
 
         $existing = Prediction::query()->where('pool_id', $pool->id)->where('football_match_id', $match->id)->where('user_id', $user->id)->first();
@@ -64,29 +63,5 @@ class PredictionService
         ]);
 
         return $prediction;
-    }
-
-    private function isClosedPredictionsWindowLocked(Pool $pool): bool
-    {
-        $firstKickoff = $this->firstKickoffForPool($pool);
-        if (! $firstKickoff) {
-            return false;
-        }
-
-        $lockTime = $firstKickoff->copy()->subMinutes($pool->predictionLockMinutes());
-
-        return now()->greaterThanOrEqualTo($lockTime);
-    }
-
-    private function firstKickoffForPool(Pool $pool): ?Carbon
-    {
-        $firstMatch = FootballMatch::query()
-            ->where('competition_id', $pool->competition_id)
-            ->where('competition_season_id', $pool->competition_season_id)
-            ->where('stage', $pool->stage)
-            ->orderBy('utc_date')
-            ->first(['local_date']);
-
-        return $firstMatch?->local_date;
     }
 }
