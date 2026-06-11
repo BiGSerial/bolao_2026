@@ -41,7 +41,10 @@ class ApiFootballConnector
     public function resolveFixtureIds(Collection $matches, int $leagueId, int $season): array
     {
         $fixtureIdByMatch = [];
-        $groupedByDate = $matches->groupBy(fn (FootballMatch $m) => $m->utc_date?->copy()->utc()->format('Y-m-d'));
+        $groupedByDate = $matches->groupBy(function (FootballMatch $m) {
+            $raw = $m->getRawOriginal('utc_date');
+            return $raw ? Carbon::parse($raw, 'UTC')->format('Y-m-d') : null;
+        });
 
         foreach ($groupedByDate as $date => $dateMatches) {
             if (! is_string($date) || $date === '') {

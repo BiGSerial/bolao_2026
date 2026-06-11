@@ -113,7 +113,7 @@ class PoolShow extends Component
 
         $saved = 0;
         foreach ($matches as $match) {
-            if ($match->isPredictionLockedFor($this->pool)) {
+            if ($this->pool->isPredictionLockedFor($match)) {
                 continue;
             }
             try {
@@ -418,7 +418,7 @@ class PoolShow extends Component
     private function predictionStatusLabel(FootballMatch $match, ?Prediction $prediction): string
     {
         if (! $prediction) {
-            return $match->isPredictionLockedFor($this->pool) ? 'bloqueado' : 'sem_palpite';
+            return $this->pool->isPredictionLockedFor($match) ? 'bloqueado' : 'sem_palpite';
         }
         if (! $prediction->eligible) {
             return 'inelegivel';
@@ -429,7 +429,7 @@ class PoolShow extends Component
         if ($match->isFinished()) {
             return 'finalizado';
         }
-        return $match->isPredictionLockedFor($this->pool) ? 'bloqueado' : 'aberto';
+        return $this->pool->isPredictionLockedFor($match) ? 'bloqueado' : 'aberto';
     }
 
     public function render()
@@ -487,7 +487,7 @@ class PoolShow extends Component
         foreach ($matches as $match) {
             $isVisible = ! $isViewingOtherMember
                 || $canViewOpenPredictionsFromOther
-                || $match->isPredictionLockedFor($this->pool);
+                || $this->pool->isPredictionLockedFor($match);
 
             $predictionVisibility[$match->id] = $isVisible;
             if (! $isVisible) {
@@ -832,7 +832,7 @@ class PoolShow extends Component
             ->where('stage', $this->pool->stage)
             ->orderBy('utc_date')
             ->get()
-            ->filter(fn (FootballMatch $match) => ! $match->isFinished() && ! $match->isPredictionLockedFor($this->pool))
+            ->filter(fn (FootballMatch $match) => ! $match->isFinished() && ! $this->pool->isPredictionLockedFor($match))
             ->pluck('matchday')
             ->filter(fn ($matchday) => $matchday !== null && $matchday !== '')
             ->map(fn ($matchday) => 'matchday:'.((int) $matchday))
@@ -982,7 +982,7 @@ class PoolShow extends Component
         $options = [];
 
         $openMatches = $matches->filter(
-            fn (FootballMatch $match) => ! $match->isFinished() && ! $match->isPredictionLockedFor($this->pool)
+            fn (FootballMatch $match) => ! $match->isFinished() && ! $this->pool->isPredictionLockedFor($match)
         )->values();
 
         if ($openMatches->isNotEmpty()) {

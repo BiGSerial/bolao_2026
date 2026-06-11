@@ -58,6 +58,22 @@ class MyPredictionApiTest extends TestCase
             ->assertJsonPath('error.code', 'PREDICTION_RULE_VIOLATION');
     }
 
+    public function test_closed_predictions_lock_time_is_returned_in_local_timezone(): void
+    {
+        [$user, $pool, $match] = $this->baseScenario(now()->utc()->addMinutes(20));
+        $pool->update(['closed_predictions' => true]);
+        $token = $user->createToken('test-device')->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson("/api/v1/pools/{$pool->id}/matches/{$match->id}/predictions/me");
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.lock.is_locked', true);
+
+        $this->assertStringEndsWith('-03:00', (string) $response->json('data.lock.lock_at'));
+    }
+
     public function test_user_can_list_predictions_by_pool(): void
     {
         [$user, $pool, $match] = $this->baseScenario();

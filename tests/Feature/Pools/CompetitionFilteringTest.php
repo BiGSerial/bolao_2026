@@ -4,6 +4,7 @@ namespace Tests\Feature\Pools;
 
 use App\Livewire\Pools\PoolCreate;
 use App\Livewire\Pools\PoolIndex;
+use App\Livewire\Pools\PoolSettings;
 use App\Models\Competition;
 use App\Models\CompetitionPackage;
 use App\Models\CompetitionPackageItem;
@@ -83,6 +84,7 @@ class CompetitionFilteringTest extends TestCase
             ->set('visibility', 'invite_only')
             ->set('prediction_lock_minutes', 30)
             ->set('allow_prediction_changes', true)
+            ->set('closed_predictions', true)
             ->set('allow_pending_member_predictions', true)
             ->set('points_exact_score', 5)
             ->set('points_correct_result', 3)
@@ -95,6 +97,7 @@ class CompetitionFilteringTest extends TestCase
         $this->assertSame($bsa->id, $pool->competition_id);
         $this->assertSame($bsaSeason->id, $pool->competition_season_id);
         $this->assertSame('REGULAR_SEASON', $pool->stage);
+        $this->assertTrue($pool->closed_predictions);
 
         $this->assertDatabaseHas('pool_members', [
             'pool_id' => $pool->id,
@@ -139,6 +142,28 @@ class CompetitionFilteringTest extends TestCase
             ->test(PoolCreate::class)
             ->assertSee('Copa do Mundo')
             ->assertDontSee('Brasileirao Serie A');
+    }
+
+    public function test_pool_settings_can_enable_closed_predictions(): void
+    {
+        [$competition, $season] = $this->createCompetition('WC', 2000, 2026, 'GROUP_STAGE');
+        $user = User::factory()->create(['status' => 'active', 'subscription_tier' => 2]);
+        $pool = $this->createPool($user->id, $competition->id, $season->id, 'Bolao Fechado', 'GROUP_STAGE');
+
+        $pool->members()->create([
+            'user_id' => $user->id,
+            'role' => 'owner',
+            'status' => 'active',
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(PoolSettings::class, ['pool' => $pool])
+            ->assertSee('Fechar todos os palpites')
+            ->set('closed_predictions', true)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertTrue($pool->fresh()->closed_predictions);
     }
 
     private function createCompetition(string $code, int $externalId, int $year, string $defaultStage): array
