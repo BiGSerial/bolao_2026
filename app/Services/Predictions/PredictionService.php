@@ -68,23 +68,25 @@ class PredictionService
 
     private function isClosedPredictionsWindowLocked(Pool $pool): bool
     {
-        $firstKickoffUtc = $this->firstKickoffUtcForPool($pool);
-        if (! $firstKickoffUtc) {
+        $firstKickoff = $this->firstKickoffForPool($pool);
+        if (! $firstKickoff) {
             return false;
         }
 
-        return now()->utc()->greaterThanOrEqualTo($firstKickoffUtc);
+        $lockTime = $firstKickoff->copy()->subMinutes($pool->predictionLockMinutes());
+
+        return now()->greaterThanOrEqualTo($lockTime);
     }
 
-    private function firstKickoffUtcForPool(Pool $pool): ?Carbon
+    private function firstKickoffForPool(Pool $pool): ?Carbon
     {
         $firstMatch = FootballMatch::query()
             ->where('competition_id', $pool->competition_id)
             ->where('competition_season_id', $pool->competition_season_id)
             ->where('stage', $pool->stage)
             ->orderBy('utc_date')
-            ->first(['utc_date']);
+            ->first(['local_date']);
 
-        return $firstMatch?->utc_date;
+        return $firstMatch?->local_date;
     }
 }

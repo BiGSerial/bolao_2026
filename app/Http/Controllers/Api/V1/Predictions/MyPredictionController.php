@@ -228,13 +228,15 @@ class MyPredictionController extends Controller
             ->where('competition_season_id', $pool->competition_season_id)
             ->where('stage', $pool->stage)
             ->orderBy('utc_date')
-            ->first(['utc_date']);
+            ->first(['local_date']);
 
-        $firstKickoff = $firstMatch?->utc_date;
+        $firstKickoff = $firstMatch?->local_date;
         if (! $firstKickoff) {
             return [false, null];
         }
 
-        return [now()->utc()->greaterThanOrEqualTo($firstKickoff), $firstKickoff];
+        $lockTime = $firstKickoff->copy()->subMinutes($pool->predictionLockMinutes());
+
+        return [now()->greaterThanOrEqualTo($lockTime), $lockTime];
     }
 }
