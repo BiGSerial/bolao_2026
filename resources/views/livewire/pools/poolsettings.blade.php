@@ -146,6 +146,20 @@
 
                         <label class="flex items-center gap-3 cursor-pointer">
                             <div class="relative">
+                                <input type="checkbox" wire:model="closed_predictions" class="sr-only peer">
+                                <div class="h-5 w-9 rounded-full bg-slate-700 peer-checked:bg-emerald-600 transition-colors"></div>
+                                <div class="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></div>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-slate-200">Fechar todos os palpites</p>
+                                <p class="text-xs text-slate-500">
+                                    Bloqueia novos palpites e alterações antes da primeira partida, conforme os minutos configurados, até o fim do bolão
+                                </p>
+                            </div>
+                        </label>
+
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <div class="relative">
                                 <input type="checkbox" wire:model="allow_pending_member_predictions" class="sr-only peer">
                                 <div class="h-5 w-9 rounded-full bg-slate-700 peer-checked:bg-emerald-600 transition-colors"></div>
                                 <div class="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></div>

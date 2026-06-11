@@ -30,7 +30,16 @@ Ao encerrar uma sessão relevante, o agente DEVE salvar handoff completo contend
 - implementação realizada;
 - testes executados;
 - pendências;
-- próximo passo técnico.<!-- ai-memory:start -->
+- próximo passo técnico.
+
+# Regra obrigatória de data e hora
+
+- O sistema pode armazenar e comparar datas internamente em UTC.
+- Toda data e hora apresentada ao usuário deve estar no fuso local configurado pela aplicação, atualmente `America/Sao_Paulo`.
+- APIs destinadas às interfaces devem devolver campos de exibição com o offset local correto.
+- Nunca exibir UTC diretamente ao usuário.
+
+<!-- ai-memory:start -->
 
 
 

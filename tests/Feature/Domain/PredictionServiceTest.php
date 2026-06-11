@@ -67,6 +67,27 @@ class PredictionServiceTest extends TestCase
         app(PredictionService::class)->save($pool, $match, $user, 0, 0);
     }
 
+    public function test_closed_predictions_blocks_all_matches_at_first_match_lock_time(): void
+    {
+        [$user, $pool, $laterMatch] = $this->makeScenario('active', true, true, '+5 hours');
+
+        $pool->update([
+            'closed_predictions' => true,
+            'prediction_lock_minutes' => 120,
+        ]);
+
+        $firstMatch = $laterMatch->replicate();
+        $firstMatch->external_id = 101;
+        $firstMatch->utc_date = now()->utc()->addMinutes(90);
+        $firstMatch->local_date = now('America/Sao_Paulo')->addHours(5);
+        $firstMatch->save();
+
+        $this->expectException(DomainException::class);
+        $this->expectExceptionMessage('palpites fechados');
+
+        app(PredictionService::class)->save($pool->fresh(), $laterMatch, $user, 1, 0);
+    }
+
     public function test_prediction_is_blocked_when_match_is_from_another_competition_or_season(): void
     {
         [$user, $pool] = $this->makeScenario('active', true, true, '+5 hours');
