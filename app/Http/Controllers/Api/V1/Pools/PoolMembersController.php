@@ -7,6 +7,8 @@ use App\Enums\PoolMemberStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Pool;
 use App\Models\PoolMember;
+use App\Models\User;
+use App\Notifications\PoolMemberApprovedNotification;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -72,6 +74,7 @@ class PoolMembersController extends Controller
         if (array_key_exists('sector', $validated)) {
             $updates['sector'] = trim((string) $validated['sector']) !== '' ? trim((string) $validated['sector']) : null;
         }
+        $wasApproved = false;
         if (isset($validated['status'])) {
             $updates['status'] = $validated['status'];
             if ($validated['status'] === PoolMemberStatus::Active->value) {
@@ -79,6 +82,7 @@ class PoolMembersController extends Controller
                 $updates['activated_at'] = now();
                 $updates['deactivated_by'] = null;
                 $updates['deactivated_at'] = null;
+                $wasApproved = (string) $member->status === PoolMemberStatus::Pending->value;
             } elseif (in_array($validated['status'], [PoolMemberStatus::Inactive->value, PoolMemberStatus::Blocked->value], true)) {
                 $updates['deactivated_by'] = $request->user()->id;
                 $updates['deactivated_at'] = now();
@@ -87,6 +91,11 @@ class PoolMembersController extends Controller
 
         if ($updates !== []) {
             $member->update($updates);
+        }
+
+        if ($wasApproved && $member->user_id) {
+            $user = User::query()->find($member->user_id);
+            $user?->notify(new PoolMemberApprovedNotification($pool));
         }
 
         $member->refresh()->load('user:id,name,email');

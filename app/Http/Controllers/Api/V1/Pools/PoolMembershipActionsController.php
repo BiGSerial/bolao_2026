@@ -10,9 +10,12 @@ use App\Jobs\SendWebPushToUsersJob;
 use App\Models\Pool;
 use App\Models\PoolInvite;
 use App\Models\PoolMember;
+use App\Notifications\PoolInviteNotification;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\AnonymousNotifiable;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
 class PoolMembershipActionsController extends Controller
@@ -125,6 +128,8 @@ class PoolMembershipActionsController extends Controller
             'status' => 'pending',
             'expires_at' => now()->addDays(7),
         ]);
+
+        Notification::route('mail', $invite->email)->notify(new PoolInviteNotification($invite));
 
         return ApiResponse::success($request, [
             'pool_id' => $pool->id,

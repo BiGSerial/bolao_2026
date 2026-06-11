@@ -709,6 +709,23 @@ async function savePoolSettings() {
         const res = await updatePool(poolId.value, configForm.value);
         const updatedPool = res?.data?.data?.pool;
         if (updatedPool) applyPoolData(updatedPool);
+        await Swal.fire({
+            icon: 'success',
+            title: 'Configurações salvas',
+            timer: 1400,
+            showConfirmButton: false,
+            background: '#0f172a',
+            color: '#e2e8f0',
+        });
+    } catch {
+        await Swal.fire({
+            icon: 'error',
+            title: 'Erro ao salvar',
+            text: 'Não foi possível salvar as configurações. Tente novamente.',
+            background: '#0f172a',
+            color: '#e2e8f0',
+            confirmButtonColor: '#ef4444',
+        });
     } finally {
         savingConfig.value = false;
     }
@@ -1033,6 +1050,7 @@ async function saveBatchPredictions() {
             color: '#e2e8f0',
         });
     } catch (err) {
+        await loadPredictions();
         const code = err.response?.data?.error?.code;
         const message = code === 'PREDICTION_RULE_VIOLATION'
             ? (err.response?.data?.error?.message ?? 'Envio bloqueado por regra do bolão.')
@@ -1155,8 +1173,30 @@ async function sendInvite() {
             email: inviteEmail.value.trim(),
             sector: inviteSector.value.trim() || null,
         });
+        const sentEmail = inviteEmail.value.trim();
         inviteEmail.value = '';
         inviteSector.value = '';
+        await Swal.fire({
+            icon: 'success',
+            title: 'Convite enviado',
+            text: `Um e-mail de convite foi enviado para ${sentEmail}.`,
+            timer: 2500,
+            showConfirmButton: false,
+            background: '#0f172a',
+            color: '#e2e8f0',
+        });
+    } catch (err) {
+        const message = err?.response?.data?.error?.message
+            ?? err?.response?.data?.message
+            ?? 'Não foi possível enviar o convite. Tente novamente.';
+        await Swal.fire({
+            icon: 'error',
+            title: 'Erro ao enviar convite',
+            text: message,
+            background: '#0f172a',
+            color: '#e2e8f0',
+            confirmButtonColor: '#ef4444',
+        });
     } finally {
         inviteLoading.value = false;
     }
@@ -1216,8 +1256,11 @@ async function openBulkModal() {
     });
     if (!isConfirmed || !value) return;
 
+    const allowChanges = !!pool.value?.allow_prediction_changes;
     const editable = predictions.value.filter(
-        (i) => ['TIMED', 'SCHEDULED', 'PRE_MATCH'].includes(i.match?.status) && !i.lock?.is_locked,
+        (i) => ['TIMED', 'SCHEDULED', 'PRE_MATCH'].includes(i.match?.status)
+            && !i.lock?.is_locked
+            && (allowChanges || i.prediction == null),
     );
     if (!editable.length) {
         await Swal.fire({ icon: 'info', title: 'Sem jogos disponíveis', text: 'Nenhum jogo aberto para palpite.', background: '#0f172a', color: '#e2e8f0', confirmButtonColor: '#f59e0b' });
@@ -1228,6 +1271,8 @@ async function openBulkModal() {
     try {
         await Promise.all(editable.map((i) => savePrediction(poolId.value, i.match.id, value.home, value.away)));
         await loadPredictions();
+    } catch {
+        loadPredictions();
     } finally {
         savingBulk.value = false;
     }

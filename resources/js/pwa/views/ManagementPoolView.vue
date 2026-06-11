@@ -396,8 +396,30 @@ async function sendInvite() {
     inviteLoading.value = true;
     try {
         await inviteToPool(poolId.value, { email: inviteEmail.value.trim(), sector: inviteSector.value.trim() || null });
+        const sentEmail = inviteEmail.value.trim();
         inviteEmail.value = '';
         inviteSector.value = '';
+        await Swal.fire({
+            icon: 'success',
+            title: 'Convite enviado',
+            text: `Um e-mail de convite foi enviado para ${sentEmail}.`,
+            timer: 2500,
+            showConfirmButton: false,
+            background: '#0f172a',
+            color: '#e2e8f0',
+        });
+    } catch (err) {
+        const message = err?.response?.data?.error?.message
+            ?? err?.response?.data?.message
+            ?? 'Não foi possível enviar o convite. Tente novamente.';
+        await Swal.fire({
+            icon: 'error',
+            title: 'Erro ao enviar convite',
+            text: message,
+            background: '#0f172a',
+            color: '#e2e8f0',
+            confirmButtonColor: '#ef4444',
+        });
     } finally {
         inviteLoading.value = false;
     }
@@ -612,6 +634,23 @@ async function saveConfig() {
     try {
         await updatePool(poolId.value, configForm.value);
         await load();
+        await Swal.fire({
+            icon: 'success',
+            title: 'Configurações salvas',
+            timer: 1400,
+            showConfirmButton: false,
+            background: '#0f172a',
+            color: '#e2e8f0',
+        });
+    } catch {
+        await Swal.fire({
+            icon: 'error',
+            title: 'Erro ao salvar',
+            text: 'Não foi possível salvar as configurações. Tente novamente.',
+            background: '#0f172a',
+            color: '#e2e8f0',
+            confirmButtonColor: '#ef4444',
+        });
     } finally {
         savingConfig.value = false;
     }

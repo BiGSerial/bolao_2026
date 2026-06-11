@@ -8,6 +8,7 @@ use App\Enums\PoolMemberStatus;
 use App\Models\Pool;
 use App\Models\PoolMember;
 use App\Models\User;
+use App\Notifications\PoolMemberApprovedNotification;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
@@ -16,8 +17,14 @@ class PoolMembershipService
     public function activate(Pool $pool, PoolMember $member, User $actor): void
     {
         $this->assertCanManage($pool, $actor);
+        $wasPending = (string) $member->status === PoolMemberStatus::Pending->value;
         $member->activate($actor);
         PoolMembersUpdated::dispatch($pool);
+
+        if ($wasPending && $member->user_id) {
+            $user = $member->user instanceof User ? $member->user : User::query()->find($member->user_id);
+            $user?->notify(new PoolMemberApprovedNotification($pool));
+        }
     }
 
     public function deactivate(Pool $pool, PoolMember $member, User $actor): void

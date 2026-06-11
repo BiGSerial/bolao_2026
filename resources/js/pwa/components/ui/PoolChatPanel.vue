@@ -163,6 +163,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import Swal from 'sweetalert2';
 import { deleteChatMessage, getChatMessages, getChatParticipants, markChatRead, sendChatMessage, setChatTyping, toggleChatReaction, updateChatMessage } from '../../api/chat';
 import { useEcho } from '../../composables/useEcho';
 
@@ -475,6 +476,20 @@ function cancelEdit() {
 
 async function removeMessage(item) {
     if (!item || !isMine(item) || item.deleted_at) return;
+    const { isConfirmed } = await Swal.fire({
+        title: 'Excluir mensagem?',
+        text: 'Esta ação não pode ser desfeita.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Excluir',
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true,
+        background: '#0f172a',
+        color: '#e2e8f0',
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#334155',
+    });
+    if (!isConfirmed) return;
     await deleteChatMessage(props.poolId, item.id).catch(() => {});
 }
 

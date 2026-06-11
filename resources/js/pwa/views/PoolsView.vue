@@ -237,6 +237,7 @@
 <script setup>
 import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import Swal from 'sweetalert2';
 import { getPools, joinPool as apiJoinPool, leavePool as apiLeavePool, lookupPoolByCode as apiLookupPoolByCode } from '../api/pools';
 import SkeletonCard from '../components/ui/SkeletonCard.vue';
 
@@ -452,6 +453,21 @@ async function doJoinLookupPool() {
 }
 
 async function doLeave(pool) {
+    const { isConfirmed } = await Swal.fire({
+        title: 'Sair do bolão?',
+        html: `Deseja sair de <strong>${pool.name}</strong>? Você precisará solicitar entrada novamente.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sair',
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true,
+        background: '#0f172a',
+        color: '#e2e8f0',
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#334155',
+    });
+    if (!isConfirmed) return;
+
     leaving.value = pool.id;
     try {
         const res = await apiLeavePool(pool.id);
