@@ -6,6 +6,8 @@ use App\Models\FootballMatch;
 use App\Models\Pool;
 use App\Models\PoolMember;
 use App\Services\Pools\LivePoolRankingService;
+use App\Support\Teams\TeamNameMatcher;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -14,6 +16,7 @@ use Livewire\Component;
 class MatchShow extends Component
 {
     public FootballMatch $match;
+
     public ?int $sidebarPoolId = null;
 
     public function mount(FootballMatch $match): void
@@ -125,6 +128,7 @@ class MatchShow extends Component
             ->sortByDesc(function (array $e): int {
                 $minute = (int) ($e['minute'] ?? 0);
                 $extra = (int) ($e['extra_minute'] ?? 0);
+
                 return ($minute * 100) + $extra;
             })
             ->values()
@@ -212,8 +216,8 @@ class MatchShow extends Component
     /**
      * @return array{
      *   pool:?Pool,
-        *   ranking:?object,
-     *   top_rankings:\Illuminate\Support\Collection,
+     *   ranking:?object,
+     *   top_rankings:Collection,
      *   member_count:int
      * }
      */
@@ -275,7 +279,7 @@ class MatchShow extends Component
     }
 
     /**
-     * @return array{live:\Illuminate\Support\Collection,liveMinutes:array<int,int|null>,liveMatchStats:array<int,array<string,int|null>>}
+     * @return array{live:Collection,liveMinutes:array<int,int|null>,liveMatchStats:array<int,array<string,int|null>>}
      */
     public function sidebarLiveContext(): array
     {
@@ -364,6 +368,7 @@ class MatchShow extends Component
         return collect($bench)
             ->reject(function (array $player) use ($enteredNames): bool {
                 $name = mb_strtolower(trim((string) ($player['name'] ?? '')));
+
                 return $name !== '' && in_array($name, $enteredNames, true);
             })
             ->values()
@@ -371,7 +376,7 @@ class MatchShow extends Component
     }
 
     /**
-     * @param array<int, array<string, mixed>> $lineup
+     * @param  array<int, array<string, mixed>>  $lineup
      * @return array<int, array<string, mixed>>
      */
     private function applyLiveSubstitutionsToLineup(array $lineup, string $side): array
@@ -484,13 +489,7 @@ class MatchShow extends Component
 
     private function teamNameMatches(string $left, string $right): bool
     {
-        $a = $this->teamAliasKey($left);
-        $b = $this->teamAliasKey($right);
-        if ($a !== null && $b !== null) {
-            return $a === $b;
-        }
-
-        return $this->normalizeTeam($left) === $this->normalizeTeam($right);
+        return TeamNameMatcher::matches($left, $right);
     }
 
     private function resolveLiveMinuteForMatch(FootballMatch $match): ?int
@@ -551,56 +550,6 @@ class MatchShow extends Component
         ];
     }
 
-    private function normalizeTeam(string $value): string
-    {
-        $value = mb_strtoupper(\Illuminate\Support\Str::ascii($value));
-        $value = preg_replace('/[^A-Z0-9 ]/u', '', $value) ?? '';
-        $value = preg_replace('/\s+/', ' ', trim($value)) ?? '';
-
-        return $value;
-    }
-
-    private function teamAliasKey(string $value): ?string
-    {
-        $compact = preg_replace('/[^A-Z0-9]/', '', $this->normalizeTeam($value)) ?? '';
-        if ($compact === '') {
-            return null;
-        }
-
-        $aliases = [
-            'ATLETICO_MG' => ['ATLETICOMG', 'ATLETICOMINEIRO', 'CAMINEIRO', 'MINEIRO'],
-            'ATLETICO_PR' => ['ATLETICOPARANAENSE', 'CAPARANAENSE', 'CAP', 'ATHLETICOPR', 'ATHLETICOPARANAENSE'],
-            'BAHIA' => ['BAHIA', 'ECBAHIA'],
-            'BOTAFOGO' => ['BOTAFOGO', 'BOTAFOGOFR'],
-            'CHAPECOENSE' => ['CHAPECOENSE', 'CHAPECOENSESC', 'CHAPECOENSEAF'],
-            'CORINTHIANS' => ['CORINTHIANS', 'SCCORINTHIANSPAULISTA', 'CORINTHIANSPAULISTA'],
-            'CORITIBA' => ['CORITIBA', 'CORITIBAFBC'],
-            'CRUZEIRO' => ['CRUZEIRO', 'CRUZEIROEC'],
-            'FLAMENGO' => ['FLAMENGO', 'CRFLAMENGO'],
-            'FLUMINENSE' => ['FLUMINENSE', 'FLUMINENSEFC'],
-            'GREMIO' => ['GREMIO', 'GREMIOFBPA'],
-            'INTERNACIONAL' => ['INTERNACIONAL', 'SCINTERNACIONAL'],
-            'MIRASSOL' => ['MIRASSOL', 'MIRASSOLFC'],
-            'PALMEIRAS' => ['PALMEIRAS', 'SEPALMEIRAS'],
-            'RB_BRAGANTINO' => ['RBBRAGANTINO', 'REDBULLBRAGANTINO', 'BRAGANTINO'],
-            'REMO' => ['REMO', 'CLUBEDOREMO'],
-            'SANTOS' => ['SANTOS', 'SANTOSFC'],
-            'SAO_PAULO' => ['SAOPAULO', 'SAOPAULOFC'],
-            'VASCO' => ['VASCODAGAMA', 'CRVASCODAGAMA', 'VASCO'],
-            'VITORIA' => ['VITORIA', 'ECVITORIA'],
-        ];
-
-        foreach ($aliases as $key => $group) {
-            foreach ($group as $alias) {
-                if ($compact === $alias || str_contains($compact, $alias) || str_contains($alias, $compact)) {
-                    return $key;
-                }
-            }
-        }
-
-        return null;
-    }
-
     private function formatStatValue(mixed $value, string $key): string
     {
         if ($value === null || $value === '') {
@@ -615,7 +564,7 @@ class MatchShow extends Component
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      * @return array<int, array<string, string>>
      */
     private function rowsFromLegacyStatistics(array $payload): array
@@ -652,7 +601,7 @@ class MatchShow extends Component
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      * @return array<int, array<string, string>>
      */
     private function rowsFromApiFootballStatistics(array $payload): array
@@ -668,6 +617,7 @@ class MatchShow extends Component
                 if ($type === '') {
                     return [];
                 }
+
                 return [$type => data_get($item, 'value')];
             });
 
@@ -677,6 +627,7 @@ class MatchShow extends Component
                 if ($type === '') {
                     return [];
                 }
+
                 return [$type => data_get($item, 'value')];
             });
 
@@ -707,6 +658,7 @@ class MatchShow extends Component
 
         $types = $types->sortBy(function (string $type) use ($preferredOrder): int {
             $idx = array_search($type, $preferredOrder, true);
+
             return $idx === false ? 999 : $idx;
         })->values();
 
@@ -772,7 +724,7 @@ class MatchShow extends Component
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      * @return array<int, array<string, string>>
      */
     private function fallbackStatsRowsFromScorePayload(array $payload): array
@@ -803,5 +755,4 @@ class MatchShow extends Component
             ['label' => 'Cartões', 'home' => (string) $homeCards, 'away' => (string) $awayCards],
         ];
     }
-
 }

@@ -3,7 +3,8 @@
 namespace App\Support\Api;
 
 use App\Models\FootballMatch;
-use Illuminate\Support\Str;
+use App\Support\Teams\TeamNameMatcher;
+use Illuminate\Support\Collection;
 
 class MatchDetailPayload
 {
@@ -17,37 +18,37 @@ class MatchDetailPayload
         $base = MatchPayload::fromModel($match);
 
         $base['score'] = [
-            'home'      => $match->home_score_full_time,
-            'away'      => $match->away_score_full_time,
+            'home' => $match->home_score_full_time,
+            'away' => $match->away_score_full_time,
             'home_half' => $match->home_score_half_time,
             'away_half' => $match->away_score_half_time,
         ];
 
         return array_merge($base, [
             'has_detail' => $match->detail !== null,
-            'lineups'    => $instance->lineups(),
-            'stats'      => $instance->statsRows(),
-            'events'     => $instance->allEvents(),
+            'lineups' => $instance->lineups(),
+            'stats' => $instance->statsRows(),
+            'events' => $instance->allEvents(),
         ]);
     }
 
     private function lineups(): array
     {
-        $payload    = $this->match->detail?->payload ?? [];
+        $payload = $this->match->detail?->payload ?? [];
         $apiLineups = (array) data_get($payload, '_api_football.lineups', []);
 
         return [
             'home' => [
                 'formation' => (string) data_get($apiLineups, '0.formation', ''),
-                'coach'     => (string) data_get($apiLineups, '0.coach.name', ''),
-                'starters'  => $this->normalizedLineup('home'),
-                'bench'     => $this->normalizedBench('home'),
+                'coach' => (string) data_get($apiLineups, '0.coach.name', ''),
+                'starters' => $this->normalizedLineup('home'),
+                'bench' => $this->normalizedBench('home'),
             ],
             'away' => [
                 'formation' => (string) data_get($apiLineups, '1.formation', ''),
-                'coach'     => (string) data_get($apiLineups, '1.coach.name', ''),
-                'starters'  => $this->normalizedLineup('away'),
-                'bench'     => $this->normalizedBench('away'),
+                'coach' => (string) data_get($apiLineups, '1.coach.name', ''),
+                'starters' => $this->normalizedLineup('away'),
+                'bench' => $this->normalizedBench('away'),
             ],
         ];
     }
@@ -55,17 +56,17 @@ class MatchDetailPayload
     private function normalizedLineup(string $side): array
     {
         $payload = $this->match->detail?->payload ?? [];
-        $items   = data_get($payload, "{$side}Team.lineup", []);
+        $items = data_get($payload, "{$side}Team.lineup", []);
 
         if (empty($items)) {
             $apiLineups = (array) data_get($payload, '_api_football.lineups', []);
-            $index      = $side === 'home' ? 0 : 1;
-            $items      = (array) data_get($apiLineups, "{$index}.startXI", []);
+            $index = $side === 'home' ? 0 : 1;
+            $items = (array) data_get($apiLineups, "{$index}.startXI", []);
         }
 
         $lineup = collect($items)->map(fn ($p) => [
-            'name'     => (string) data_get($p, 'name', data_get($p, 'player.name', 'Jogador')),
-            'number'   => data_get($p, 'shirtNumber', data_get($p, 'player.number')),
+            'name' => (string) data_get($p, 'name', data_get($p, 'player.name', 'Jogador')),
+            'number' => data_get($p, 'shirtNumber', data_get($p, 'player.number')),
             'position' => (string) data_get($p, 'position', data_get($p, 'player.pos', '?')),
         ])->values()->all();
 
@@ -75,17 +76,17 @@ class MatchDetailPayload
     private function normalizedBench(string $side): array
     {
         $payload = $this->match->detail?->payload ?? [];
-        $items   = data_get($payload, "{$side}Team.bench", []);
+        $items = data_get($payload, "{$side}Team.bench", []);
 
         if (empty($items)) {
             $apiLineups = (array) data_get($payload, '_api_football.lineups', []);
-            $index      = $side === 'home' ? 0 : 1;
-            $items      = (array) data_get($apiLineups, "{$index}.substitutes", []);
+            $index = $side === 'home' ? 0 : 1;
+            $items = (array) data_get($apiLineups, "{$index}.substitutes", []);
         }
 
         $bench = collect($items)->map(fn ($p) => [
-            'name'     => (string) data_get($p, 'name', data_get($p, 'player.name', 'Reserva')),
-            'number'   => data_get($p, 'shirtNumber', data_get($p, 'player.number')),
+            'name' => (string) data_get($p, 'name', data_get($p, 'player.name', 'Reserva')),
+            'number' => data_get($p, 'shirtNumber', data_get($p, 'player.number')),
             'position' => (string) data_get($p, 'position', data_get($p, 'player.pos', '?')),
         ])->values()->all();
 
@@ -103,6 +104,7 @@ class MatchDetailPayload
         return collect($bench)
             ->reject(function (array $player) use ($enteredNames): bool {
                 $name = mb_strtolower(trim((string) ($player['name'] ?? '')));
+
                 return $name !== '' && in_array($name, $enteredNames, true);
             })
             ->values()
@@ -121,19 +123,19 @@ class MatchDetailPayload
 
         foreach ($subEvents as $subEvent) {
             $outNorm = $normalize((string) ($subEvent['out'] ?? ''));
-            $inName  = (string) ($subEvent['in'] ?? '');
+            $inName = (string) ($subEvent['in'] ?? '');
 
             foreach ($lineup as $idx => $player) {
                 if ($normalize((string) ($player['name'] ?? '')) === $outNorm) {
-                    $lineup[$idx]['sub_out']     = true;
+                    $lineup[$idx]['sub_out'] = true;
                     $lineup[$idx]['replaced_by'] = $inName;
-                    $lineup[$idx]['sub_minute']  = $subEvent['minute'] ?? null;
+                    $lineup[$idx]['sub_minute'] = $subEvent['minute'] ?? null;
 
                     array_splice($lineup, $idx, 0, [[
-                        'name'       => $inName,
-                        'number'     => $this->findPlayerNumberByName($inName, $side),
-                        'position'   => (string) ($player['position'] ?? '?'),
-                        'sub_in'     => true,
+                        'name' => $inName,
+                        'number' => $this->findPlayerNumberByName($inName, $side),
+                        'position' => (string) ($player['position'] ?? '?'),
+                        'sub_in' => true,
                         'sub_minute' => $subEvent['minute'] ?? null,
                     ]]);
                     break;
@@ -147,15 +149,15 @@ class MatchDetailPayload
     /** @return array<int, array{out:string,in:string,minute:int|null}> */
     private function substitutionEventsForSide(string $side): array
     {
-        $events   = (array) data_get($this->match->detail?->payload, '_api_football.events', []);
+        $events = (array) data_get($this->match->detail?->payload, '_api_football.events', []);
         $teamName = $side === 'home'
             ? (string) ($this->match->homeTeam?->name ?? '')
             : (string) ($this->match->awayTeam?->name ?? '');
 
         $rows = [];
         foreach ($events as $event) {
-            $type      = mb_strtolower((string) data_get($event, 'type', ''));
-            $detail    = mb_strtolower((string) data_get($event, 'detail', ''));
+            $type = mb_strtolower((string) data_get($event, 'type', ''));
+            $detail = mb_strtolower((string) data_get($event, 'detail', ''));
             $eventTeam = (string) data_get($event, 'team.name', '');
 
             $isSub = str_contains($type, 'subst') || str_contains($detail, 'substitution');
@@ -164,15 +166,15 @@ class MatchDetailPayload
             }
 
             $outName = (string) data_get($event, 'player.name', '');
-            $inName  = (string) data_get($event, 'assist.name', '');
+            $inName = (string) data_get($event, 'assist.name', '');
             if ($outName === '' || $inName === '') {
                 continue;
             }
 
             $minute = data_get($event, 'time.elapsed');
             $rows[] = [
-                'out'    => $outName,
-                'in'     => $inName,
+                'out' => $outName,
+                'in' => $inName,
                 'minute' => is_numeric($minute) ? (int) $minute : null,
             ];
         }
@@ -182,28 +184,28 @@ class MatchDetailPayload
 
     private function findPlayerNumberByName(string $name, string $side): int|string|null
     {
-        $payload    = $this->match->detail?->payload ?? [];
+        $payload = $this->match->detail?->payload ?? [];
         $apiLineups = (array) data_get($payload, '_api_football.lineups', []);
-        $index      = $side === 'home' ? 0 : 1;
-        $subs       = (array) data_get($apiLineups, "{$index}.substitutes", []);
+        $index = $side === 'home' ? 0 : 1;
+        $subs = (array) data_get($apiLineups, "{$index}.substitutes", []);
 
-        $normalized        = mb_strtolower(trim($name));
+        $normalized = mb_strtolower(trim($name));
         $normalizedCompact = preg_replace('/[^\p{L}\p{N}]/u', '', $normalized) ?? $normalized;
-        $nameTokens        = array_values(array_filter(preg_split('/\s+/u', preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $normalized) ?? $normalized)));
-        $nameInitial       = $nameTokens !== [] ? mb_substr($nameTokens[0], 0, 1) : '';
-        $nameLast          = $nameTokens !== [] ? end($nameTokens) : '';
+        $nameTokens = array_values(array_filter(preg_split('/\s+/u', preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $normalized) ?? $normalized)));
+        $nameInitial = $nameTokens !== [] ? mb_substr($nameTokens[0], 0, 1) : '';
+        $nameLast = $nameTokens !== [] ? end($nameTokens) : '';
 
         foreach ($subs as $player) {
-            $pName    = mb_strtolower(trim((string) data_get($player, 'player.name', '')));
+            $pName = mb_strtolower(trim((string) data_get($player, 'player.name', '')));
             $pCompact = preg_replace('/[^\p{L}\p{N}]/u', '', $pName) ?? $pName;
 
             if ($pName === $normalized || $pCompact === $normalizedCompact) {
                 return data_get($player, 'player.number');
             }
 
-            $pTokens  = array_values(array_filter(preg_split('/\s+/u', preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $pName) ?? $pName)));
+            $pTokens = array_values(array_filter(preg_split('/\s+/u', preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $pName) ?? $pName)));
             $pInitial = $pTokens !== [] ? mb_substr($pTokens[0], 0, 1) : '';
-            $pLast    = $pTokens !== [] ? end($pTokens) : '';
+            $pLast = $pTokens !== [] ? end($pTokens) : '';
 
             if ($nameLast !== '' && $pLast !== '' && $nameLast === $pLast) {
                 if ($nameInitial === '' || $pInitial === '' || $nameInitial === $pInitial) {
@@ -243,28 +245,28 @@ class MatchDetailPayload
         }
 
         $map = [
-            'shots'            => 'Chutes',
-            'shots_on_goal'    => 'Chutes a gol',
-            'ball_possession'  => 'Posse de bola',
-            'passes'           => 'Passes',
+            'shots' => 'Chutes',
+            'shots_on_goal' => 'Chutes a gol',
+            'ball_possession' => 'Posse de bola',
+            'passes' => 'Passes',
             'passing_accuracy' => 'Precisão de passe',
-            'fouls'            => 'Faltas',
-            'yellow_cards'     => 'Amarelos',
-            'red_cards'        => 'Vermelhos',
-            'offsides'         => 'Impedimentos',
-            'corner_kicks'     => 'Escanteios',
+            'fouls' => 'Faltas',
+            'yellow_cards' => 'Amarelos',
+            'red_cards' => 'Vermelhos',
+            'offsides' => 'Impedimentos',
+            'corner_kicks' => 'Escanteios',
         ];
 
         $rows = [];
         $pctKeys = ['ball_possession', 'passing_accuracy'];
         foreach ($map as $key => $label) {
-            $hv  = data_get($home, $key);
-            $av  = data_get($away, $key);
+            $hv = data_get($home, $key);
+            $av = data_get($away, $key);
             $pct = in_array($key, $pctKeys, true);
             $rows[] = [
                 'label' => $label,
-                'home'  => ($hv === null || $hv === '') ? '-' : ((string) $hv . ($pct ? '%' : '')),
-                'away'  => ($av === null || $av === '') ? '-' : ((string) $av . ($pct ? '%' : '')),
+                'home' => ($hv === null || $hv === '') ? '-' : ((string) $hv.($pct ? '%' : '')),
+                'away' => ($av === null || $av === '') ? '-' : ((string) $av.($pct ? '%' : '')),
             ];
         }
 
@@ -279,7 +281,7 @@ class MatchDetailPayload
             return [];
         }
 
-        $toMap = fn (array $list): \Illuminate\Support\Collection => collect($list)
+        $toMap = fn (array $list): Collection => collect($list)
             ->mapWithKeys(fn ($item): array => ($t = trim((string) data_get($item, 'type', ''))) === '' ? [] : [$t => data_get($item, 'value')]);
 
         $homeStats = $toMap((array) data_get($stats, '0.statistics', []));
@@ -308,8 +310,8 @@ class MatchDetailPayload
             }
             $rows[] = [
                 'label' => $this->translateApiStatLabel($type),
-                'home'  => $this->normalizeStatValue($hv),
-                'away'  => $this->normalizeStatValue($av),
+                'home' => $this->normalizeStatValue($hv),
+                'away' => $this->normalizeStatValue($av),
             ];
         }
 
@@ -332,21 +334,21 @@ class MatchDetailPayload
         }
 
         $homeName = (string) ($this->match->homeTeam?->name ?? '');
-        $result   = [];
+        $result = [];
 
         foreach ($events as $event) {
-            $type        = mb_strtolower((string) data_get($event, 'type', ''));
-            $detail      = (string) data_get($event, 'detail', '');
+            $type = mb_strtolower((string) data_get($event, 'type', ''));
+            $detail = (string) data_get($event, 'detail', '');
             $detailLower = mb_strtolower($detail);
-            $teamName    = (string) data_get($event, 'team.name', '');
-            $playerName  = (string) data_get($event, 'player.name', '');
-            $assistName  = (string) data_get($event, 'assist.name', '');
-            $minute      = data_get($event, 'time.elapsed');
-            $extra       = data_get($event, 'time.extra');
-            $isHome      = $this->teamNameMatches($teamName, $homeName);
+            $teamName = (string) data_get($event, 'team.name', '');
+            $playerName = (string) data_get($event, 'player.name', '');
+            $assistName = (string) data_get($event, 'assist.name', '');
+            $minute = data_get($event, 'time.elapsed');
+            $extra = data_get($event, 'time.extra');
+            $isHome = $this->teamNameMatches($teamName, $homeName);
 
             $mappedType = null;
-            $subtype    = '';
+            $subtype = '';
 
             if ($type === 'goal') {
                 if (str_contains($detailLower, 'disallow') || str_contains($detailLower, 'cancel')
@@ -354,15 +356,15 @@ class MatchDetailPayload
                     continue;
                 }
                 $mappedType = 'goal';
-                $subtype    = str_contains($detailLower, 'own') ? 'own_goal'
+                $subtype = str_contains($detailLower, 'own') ? 'own_goal'
                     : (str_contains($detailLower, 'penalty') ? 'penalty' : 'normal');
             } elseif ($type === 'card') {
                 $mappedType = 'card';
-                $subtype    = str_contains($detailLower, 'red') ? 'red'
+                $subtype = str_contains($detailLower, 'red') ? 'red'
                     : (str_contains($detailLower, 'second') ? 'yellow_red' : 'yellow');
             } elseif (str_contains($type, 'subst')) {
                 $mappedType = 'substitution';
-                $subtype    = 'normal';
+                $subtype = 'normal';
             }
 
             if ($mappedType === null) {
@@ -370,19 +372,18 @@ class MatchDetailPayload
             }
 
             $result[] = [
-                'type'         => $mappedType,
-                'subtype'      => $subtype,
-                'minute'       => is_numeric($minute) ? (int) $minute : null,
+                'type' => $mappedType,
+                'subtype' => $subtype,
+                'minute' => is_numeric($minute) ? (int) $minute : null,
                 'extra_minute' => is_numeric($extra) ? (int) $extra : null,
-                'is_home'      => $isHome,
-                'team'         => $teamName,
-                'player'       => $playerName !== '' ? $playerName : 'Jogador',
-                'secondary'    => $assistName,
+                'is_home' => $isHome,
+                'team' => $teamName,
+                'player' => $playerName !== '' ? $playerName : 'Jogador',
+                'secondary' => $assistName,
             ];
         }
 
-        usort($result, fn (array $a, array $b): int =>
-            (($b['minute'] ?? 0) * 100 + ($b['extra_minute'] ?? 0)) - (($a['minute'] ?? 0) * 100 + ($a['extra_minute'] ?? 0))
+        usort($result, fn (array $a, array $b): int => (($b['minute'] ?? 0) * 100 + ($b['extra_minute'] ?? 0)) - (($a['minute'] ?? 0) * 100 + ($a['extra_minute'] ?? 0))
         );
 
         return $result;
@@ -396,87 +397,35 @@ class MatchDetailPayload
         if (is_bool($value)) {
             return $value ? 'Sim' : 'Não';
         }
+
         return trim((string) $value) !== '' ? (string) $value : '-';
     }
 
     private function translateApiStatLabel(string $type): string
     {
         return [
-            'Shots on Goal'    => 'Chutes no gol',
-            'Shots off Goal'   => 'Chutes para fora',
-            'Total Shots'      => 'Total de chutes',
-            'Blocked Shots'    => 'Chutes bloqueados',
-            'Shots insidebox'  => 'Chutes na área',
+            'Shots on Goal' => 'Chutes no gol',
+            'Shots off Goal' => 'Chutes para fora',
+            'Total Shots' => 'Total de chutes',
+            'Blocked Shots' => 'Chutes bloqueados',
+            'Shots insidebox' => 'Chutes na área',
             'Shots outsidebox' => 'Chutes fora da área',
-            'Fouls'            => 'Faltas',
-            'Corner Kicks'     => 'Escanteios',
-            'Offsides'         => 'Impedimentos',
-            'Ball Possession'  => 'Posse de bola',
-            'Yellow Cards'     => 'Amarelos',
-            'Red Cards'        => 'Vermelhos',
+            'Fouls' => 'Faltas',
+            'Corner Kicks' => 'Escanteios',
+            'Offsides' => 'Impedimentos',
+            'Ball Possession' => 'Posse de bola',
+            'Yellow Cards' => 'Amarelos',
+            'Red Cards' => 'Vermelhos',
             'Goalkeeper Saves' => 'Defesas do goleiro',
-            'Total passes'     => 'Passes totais',
-            'Passes accurate'  => 'Passes certos',
-            'Passes %'         => 'Precisão de passe',
-            'expected_goals'   => 'xG',
+            'Total passes' => 'Passes totais',
+            'Passes accurate' => 'Passes certos',
+            'Passes %' => 'Precisão de passe',
+            'expected_goals' => 'xG',
         ][$type] ?? $type;
     }
 
     private function teamNameMatches(string $left, string $right): bool
     {
-        $a = $this->teamAliasKey($left);
-        $b = $this->teamAliasKey($right);
-        if ($a !== null && $b !== null) {
-            return $a === $b;
-        }
-        return $this->normalizeTeam($left) === $this->normalizeTeam($right);
-    }
-
-    private function normalizeTeam(string $value): string
-    {
-        $value = mb_strtoupper(Str::ascii($value));
-        $value = preg_replace('/[^A-Z0-9 ]/u', '', $value) ?? '';
-        return preg_replace('/\s+/', ' ', trim($value)) ?? '';
-    }
-
-    private function teamAliasKey(string $value): ?string
-    {
-        $compact = preg_replace('/[^A-Z0-9]/', '', $this->normalizeTeam($value)) ?? '';
-        if ($compact === '') {
-            return null;
-        }
-
-        $aliases = [
-            'ATLETICO_MG'   => ['ATLETICOMG', 'ATLETICOMINEIRO', 'CAMINEIRO', 'MINEIRO'],
-            'ATLETICO_PR'   => ['ATLETICOPARANAENSE', 'CAPARANAENSE', 'CAP', 'ATHLETICOPR', 'ATHLETICOPARANAENSE'],
-            'BAHIA'         => ['BAHIA', 'ECBAHIA'],
-            'BOTAFOGO'      => ['BOTAFOGO', 'BOTAFOGOFR'],
-            'CHAPECOENSE'   => ['CHAPECOENSE', 'CHAPECOENSESC', 'CHAPECOENSEAF'],
-            'CORINTHIANS'   => ['CORINTHIANS', 'SCCORINTHIANSPAULISTA', 'CORINTHIANSPAULISTA'],
-            'CORITIBA'      => ['CORITIBA', 'CORITIBAFBC'],
-            'CRUZEIRO'      => ['CRUZEIRO', 'CRUZEIROEC'],
-            'FLAMENGO'      => ['FLAMENGO', 'CRFLAMENGO'],
-            'FLUMINENSE'    => ['FLUMINENSE', 'FLUMINENSEFC'],
-            'GREMIO'        => ['GREMIO', 'GREMIOFBPA'],
-            'INTERNACIONAL' => ['INTERNACIONAL', 'SCINTERNACIONAL'],
-            'MIRASSOL'      => ['MIRASSOL', 'MIRASSOLFC'],
-            'PALMEIRAS'     => ['PALMEIRAS', 'SEPALMEIRAS'],
-            'RB_BRAGANTINO' => ['RBBRAGANTINO', 'REDBULLBRAGANTINO', 'BRAGANTINO'],
-            'REMO'          => ['REMO', 'CLUBEDOREMO'],
-            'SANTOS'        => ['SANTOS', 'SANTOSFC'],
-            'SAO_PAULO'     => ['SAOPAULO', 'SAOPAULOFC'],
-            'VASCO'         => ['VASCODAGAMA', 'CRVASCODAGAMA', 'VASCO'],
-            'VITORIA'       => ['VITORIA', 'ECVITORIA'],
-        ];
-
-        foreach ($aliases as $key => $group) {
-            foreach ($group as $alias) {
-                if ($compact === $alias || str_contains($compact, $alias) || str_contains($alias, $compact)) {
-                    return $key;
-                }
-            }
-        }
-
-        return null;
+        return TeamNameMatcher::matches($left, $right);
     }
 }

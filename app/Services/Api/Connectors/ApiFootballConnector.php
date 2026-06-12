@@ -4,6 +4,7 @@ namespace App\Services\Api\Connectors;
 
 use App\Models\FootballMatch;
 use App\Services\ApiFootball\ApiFootballClient;
+use App\Support\Teams\TeamNameMatcher;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -11,11 +12,10 @@ use Illuminate\Support\Str;
 class ApiFootballConnector
 {
     private int $requestCount = 0;
+
     private int $failureCount = 0;
 
-    public function __construct(private readonly ApiFootballClient $client)
-    {
-    }
+    public function __construct(private readonly ApiFootballClient $client) {}
 
     public function resetMetrics(): void
     {
@@ -35,7 +35,7 @@ class ApiFootballConnector
     }
 
     /**
-     * @param Collection<int, FootballMatch> $matches
+     * @param  Collection<int, FootballMatch>  $matches
      * @return array<int, int>
      */
     public function resolveFixtureIds(Collection $matches, int $leagueId, int $season): array
@@ -43,6 +43,7 @@ class ApiFootballConnector
         $fixtureIdByMatch = [];
         $groupedByDate = $matches->groupBy(function (FootballMatch $m) {
             $raw = $m->getRawOriginal('utc_date');
+
             return $raw ? Carbon::parse($raw, 'UTC')->format('Y-m-d') : null;
         });
 
@@ -72,10 +73,10 @@ class ApiFootballConnector
                     $responseItems = (array) data_get($prevFixtures, 'response', []);
                     if ($responseItems !== []) {
                         logger()->info('[af-resolver] fallback to previous day', [
-                            'league_id'  => $leagueId,
-                            'queried'    => $date,
-                            'fallback'   => $prevDate,
-                            'found'      => count($responseItems),
+                            'league_id' => $leagueId,
+                            'queried' => $date,
+                            'fallback' => $prevDate,
+                            'found' => count($responseItems),
                         ]);
                     }
                 } catch (\Throwable $e) {
@@ -88,6 +89,7 @@ class ApiFootballConnector
                 $id = $this->resolveFixtureIdForMatch($match, $responseItems);
                 if ($id > 0) {
                     $fixtureIdByMatch[(int) $match->id] = $id;
+
                     continue;
                 }
 
@@ -103,9 +105,9 @@ class ApiFootballConnector
                         if ($prevDateItems !== []) {
                             logger()->info('[af-resolver] per-match fallback to previous day', [
                                 'league_id' => $leagueId,
-                                'queried'   => $date,
-                                'fallback'  => $prevDate,
-                                'found'     => count($prevDateItems),
+                                'queried' => $date,
+                                'fallback' => $prevDate,
+                                'found' => count($prevDateItems),
                             ]);
                         }
                     } catch (\Throwable $e) {
@@ -127,7 +129,7 @@ class ApiFootballConnector
     }
 
     /**
-     * @param array<int, int> $fixtureIds
+     * @param  array<int, int>  $fixtureIds
      * @return array<int, array>
      */
     public function fetchFixtureDetailsByIds(array $fixtureIds): array
@@ -160,7 +162,7 @@ class ApiFootballConnector
         $away = $this->normalize((string) ($match->awayTeam?->name ?? $match->awayTeam?->short_name ?? $match->awayTeam?->tla ?? ''));
         $homeCanonical = $this->canonicalClubName($home);
         $awayCanonical = $this->canonicalClubName($away);
-        $kickoff = $match->utc_date?->copy()->utc();
+        $kickoff = $match->kickoffAtUtc();
 
         foreach ($fixtures as $fixture) {
             $fixtureHome = $this->normalize((string) data_get($fixture, 'teams.home.name', ''));
@@ -174,21 +176,23 @@ class ApiFootballConnector
 
             if (! $homeMatch || ! $awayMatch) {
                 logger()->debug('[af-resolver] candidate rejected (name mismatch)', [
-                    'match_id'       => $match->id,
-                    'fd_home'        => $home,
-                    'fd_away'        => $away,
-                    'af_home'        => $fixtureHome,
-                    'af_away'        => $fixtureAway,
-                    'af_fixture_id'  => $fixtureId,
-                    'home_match'     => $homeMatch,
-                    'away_match'     => $awayMatch,
+                    'match_id' => $match->id,
+                    'fd_home' => $home,
+                    'fd_away' => $away,
+                    'af_home' => $fixtureHome,
+                    'af_away' => $fixtureAway,
+                    'af_fixture_id' => $fixtureId,
+                    'home_match' => $homeMatch,
+                    'away_match' => $awayMatch,
                 ]);
+
                 continue;
             }
 
             $fixtureDate = data_get($fixture, 'fixture.date');
             if (! is_string($fixtureDate) || ! $kickoff) {
                 logger()->info('[af-resolver] resolved (no date check)', ['match_id' => $match->id, 'fixture_id' => $fixtureId]);
+
                 return $fixtureId;
             }
 
@@ -197,25 +201,26 @@ class ApiFootballConnector
 
             if ($diffMin <= 180) {
                 logger()->info('[af-resolver] resolved', ['match_id' => $match->id, 'fixture_id' => $fixtureId, 'diff_min' => $diffMin]);
+
                 return $fixtureId;
             }
 
             logger()->debug('[af-resolver] candidate rejected (date mismatch)', [
-                'match_id'      => $match->id,
-                'fd_home'       => $home,
-                'fd_away'       => $away,
+                'match_id' => $match->id,
+                'fd_home' => $home,
+                'fd_away' => $away,
                 'af_fixture_id' => $fixtureId,
-                'kickoff_utc'   => $kickoff->toIso8601String(),
-                'fixture_utc'   => $candidate->toIso8601String(),
-                'diff_min'      => $diffMin,
+                'kickoff_utc' => $kickoff->toIso8601String(),
+                'fixture_utc' => $candidate->toIso8601String(),
+                'diff_min' => $diffMin,
             ]);
         }
 
         logger()->warning('[af-resolver] no fixture found', [
-            'match_id'         => $match->id,
-            'fd_home'          => $home,
-            'fd_away'          => $away,
-            'kickoff_utc'      => $kickoff?->toIso8601String(),
+            'match_id' => $match->id,
+            'fd_home' => $home,
+            'fd_away' => $away,
+            'kickoff_utc' => $kickoff?->toIso8601String(),
             'candidates_count' => count($fixtures),
         ]);
 
@@ -299,6 +304,7 @@ class ApiFootballConnector
                     $n = str_replace($from, $to, $n);
                 }
             }
+
             return trim($n);
         };
 
@@ -323,45 +329,7 @@ class ApiFootballConnector
 
     private function teamAliasKey(string $raw, string $canonical): ?string
     {
-        $value = trim($canonical !== '' ? $canonical : $raw);
-        if ($value === '') {
-            return null;
-        }
-
-        $value = preg_replace('/\s+/', ' ', $value) ?? $value;
-        $compact = preg_replace('/[^A-Z0-9]/', '', $value) ?? $value;
-
-        $aliases = [
-            'ATLETICO_MG' => ['ATLETICOMG', 'ATLETICOMINEIRO', 'CAMINEIRO', 'MINEIRO'],
-            'ATLETICO_PR' => ['ATLETICOPARANAENSE', 'CAPARANAENSE', 'CAP', 'ATHLETICOPR', 'ATHLETICOPARANAENSE'],
-            'BAHIA' => ['BAHIA', 'ECBAHIA'],
-            'BOTAFOGO' => ['BOTAFOGO', 'BOTAFOGOFR'],
-            'CHAPECOENSE' => ['CHAPECOENSE', 'CHAPECOENSESC', 'CHAPECOENSEAF'],
-            'CORINTHIANS' => ['CORINTHIANS', 'SCCORINTHIANSPAULISTA', 'CORINTHIANSPAULISTA'],
-            'CORITIBA' => ['CORITIBA', 'CORITIBAFBC'],
-            'CRUZEIRO' => ['CRUZEIRO', 'CRUZEIROEC'],
-            'FLAMENGO' => ['FLAMENGO', 'CRFLAMENGO'],
-            'FLUMINENSE' => ['FLUMINENSE', 'FLUMINENSEFC'],
-            'GREMIO' => ['GREMIO', 'GREMIOFBPA'],
-            'INTERNACIONAL' => ['INTERNACIONAL', 'SCINTERNACIONAL'],
-            'MIRASSOL' => ['MIRASSOL', 'MIRASSOLFC'],
-            'PALMEIRAS' => ['PALMEIRAS', 'SEPALMEIRAS'],
-            'RB_BRAGANTINO' => ['RBBRAGANTINO', 'REDBULLBRAGANTINO', 'BRAGANTINO'],
-            'REMO' => ['REMO', 'CLUBEDOREMO'],
-            'SANTOS' => ['SANTOS', 'SANTOSFC'],
-            'SAO_PAULO' => ['SAOPAULO', 'SAOPAULOFC'],
-            'VASCO' => ['VASCODAGAMA', 'CRVASCODAGAMA', 'VASCO'],
-            'VITORIA' => ['VITORIA', 'ECVITORIA'],
-        ];
-
-        foreach ($aliases as $key => $group) {
-            foreach ($group as $alias) {
-                if ($compact === $alias || str_contains($compact, $alias) || str_contains($alias, $compact)) {
-                    return $key;
-                }
-            }
-        }
-
-        return null;
+        return TeamNameMatcher::aliasKey($canonical)
+            ?? TeamNameMatcher::aliasKey($raw);
     }
 }

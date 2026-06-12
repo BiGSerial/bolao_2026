@@ -48,7 +48,8 @@ Schedule::call(function (): void {
         $code   = (string) $ctx['code'];
         $season = (int)    $ctx['season'];
         $stage  = (string) $ctx['stage'];
-        $now    = now(); // America/Sao_Paulo — corresponde a local_date no banco
+        $now = now('America/Sao_Paulo');
+        $nowUtc = $now->copy()->utc();
 
         $base = FootballMatch::query()
             ->whereHas('competition', fn ($q) => $q->where('code', $code))
@@ -60,36 +61,36 @@ Schedule::call(function (): void {
             ->count();
         $hasLive = $liveCount > 0;
 
-        // ── Detecção temporal (local_date = horário SP no banco) ────────────
+        // ── Detecção temporal por instante UTC ──────────────────────────────
 
         // Partidas que começam nos próximos 15 min (pré-jogo imediato)
         $hasPreMatchWindow = (clone $base)
             ->whereNotIn('status', ['FINISHED', 'CANCELLED', 'POSTPONED', 'SUSPENDED'])
-            ->whereBetween('local_date', [$now, $now->copy()->addMinutes(15)])
+            ->whereBetween('utc_date', [$nowUtc, $nowUtc->copy()->addMinutes(15)])
             ->exists();
 
         // Partidas que começam entre 15 min e 60 min (aviso antecipado)
         $hasSoon = ! $hasLive && ! $hasPreMatchWindow && (clone $base)
             ->whereNotIn('status', ['FINISHED', 'CANCELLED', 'POSTPONED', 'SUSPENDED'])
-            ->whereBetween('local_date', [$now->copy()->addMinutes(15), $now->copy()->addHour()])
+            ->whereBetween('utc_date', [$nowUtc->copy()->addMinutes(15), $nowUtc->copy()->addHour()])
             ->exists();
 
         // Partidas que já deveriam estar ao vivo pelo horário (kickoff nas últimas 3h)
         $hasLikelyInProgressByKickoffWindow = ! $hasLive && (clone $base)
             ->whereNotIn('status', ['FINISHED', 'POSTPONED', 'CANCELLED', 'SUSPENDED'])
-            ->whereBetween('local_date', [$now->copy()->subHours(3), $now])
+            ->whereBetween('utc_date', [$nowUtc->copy()->subHours(3), $nowUtc])
             ->exists();
 
         // Partidas finalizadas há menos de 30 min (pós-jogo confirmado)
         $hasPostFinishWindow = (clone $base)
-            ->where('finished_at', '>=', $now->copy()->subMinutes(30))
+            ->where('finished_at', '>=', $nowUtc->copy()->subMinutes(30))
             ->exists();
 
         // Fallback: partidas que provavelmente terminaram mas finished_at ainda é null
         // (kickoff entre 90 e 210 min atrás, sem status final)
         $hasPostMatchFallbackWindow = ! $hasPostFinishWindow && (clone $base)
             ->whereNotIn('status', ['FINISHED', 'CANCELLED', 'POSTPONED', 'SUSPENDED'])
-            ->whereBetween('local_date', [$now->copy()->subMinutes(210), $now->copy()->subMinutes(90)])
+            ->whereBetween('utc_date', [$nowUtc->copy()->subMinutes(210), $nowUtc->copy()->subMinutes(90)])
             ->exists();
 
         $detailsLimit = max(15, min(60, $liveCount + 6));

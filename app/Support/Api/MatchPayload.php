@@ -3,7 +3,7 @@
 namespace App\Support\Api;
 
 use App\Models\FootballMatch;
-use Illuminate\Support\Str;
+use App\Support\Teams\TeamNameMatcher;
 
 class MatchPayload
 {
@@ -132,73 +132,17 @@ class MatchPayload
 
     private static function teamNameMatches(string $left, string $right): bool
     {
-        $a = self::teamAliasKey($left);
-        $b = self::teamAliasKey($right);
-        if ($a !== null && $b !== null) {
-            return $a === $b;
-        }
-
-        return self::normalizeTeam($left) === self::normalizeTeam($right);
-    }
-
-    private static function normalizeTeam(string $value): string
-    {
-        $value = mb_strtoupper(Str::ascii($value));
-        $value = preg_replace('/[^A-Z0-9 ]/u', '', $value) ?? '';
-        $value = preg_replace('/\s+/', ' ', trim($value)) ?? '';
-
-        return $value;
-    }
-
-    private static function teamAliasKey(string $value): ?string
-    {
-        $compact = preg_replace('/[^A-Z0-9]/', '', self::normalizeTeam($value)) ?? '';
-        if ($compact === '') {
-            return null;
-        }
-
-        $aliases = [
-            'ATLETICO_MG' => ['ATLETICOMG', 'ATLETICOMINEIRO', 'CAMINEIRO', 'MINEIRO'],
-            'ATLETICO_PR' => ['ATLETICOPARANAENSE', 'CAPARANAENSE', 'CAP', 'ATHLETICOPR', 'ATHLETICOPARANAENSE'],
-            'BAHIA' => ['BAHIA', 'ECBAHIA'],
-            'BOTAFOGO' => ['BOTAFOGO', 'BOTAFOGOFR'],
-            'CHAPECOENSE' => ['CHAPECOENSE', 'CHAPECOENSESC', 'CHAPECOENSEAF'],
-            'CORINTHIANS' => ['CORINTHIANS', 'SCCORINTHIANSPAULISTA', 'CORINTHIANSPAULISTA'],
-            'CORITIBA' => ['CORITIBA', 'CORITIBAFBC'],
-            'CRUZEIRO' => ['CRUZEIRO', 'CRUZEIROEC'],
-            'FLAMENGO' => ['FLAMENGO', 'CRFLAMENGO'],
-            'FLUMINENSE' => ['FLUMINENSE', 'FLUMINENSEFC'],
-            'GREMIO' => ['GREMIO', 'GREMIOFBPA'],
-            'INTERNACIONAL' => ['INTERNACIONAL', 'SCINTERNACIONAL'],
-            'MIRASSOL' => ['MIRASSOL', 'MIRASSOLFC'],
-            'PALMEIRAS' => ['PALMEIRAS', 'SEPALMEIRAS'],
-            'RB_BRAGANTINO' => ['RBBRAGANTINO', 'REDBULLBRAGANTINO', 'BRAGANTINO'],
-            'REMO' => ['REMO', 'CLUBEDOREMO'],
-            'SANTOS' => ['SANTOS', 'SANTOSFC'],
-            'SAO_PAULO' => ['SAOPAULO', 'SAOPAULOFC'],
-            'VASCO' => ['VASCODAGAMA', 'CRVASCODAGAMA', 'VASCO'],
-            'VITORIA' => ['VITORIA', 'ECVITORIA'],
-        ];
-
-        foreach ($aliases as $key => $group) {
-            foreach ($group as $alias) {
-                if ($compact === $alias || str_contains($compact, $alias) || str_contains($alias, $compact)) {
-                    return $key;
-                }
-            }
-        }
-
-        return null;
+        return TeamNameMatcher::matches($left, $right);
     }
 
     /**
-     * @param array<int, array<string, mixed>> $goalEvents
+     * @param  array<int, array<string, mixed>>  $goalEvents
      * @return array<int, array<string, mixed>>
      */
     private static function goalScorersBySide(array $goalEvents, bool $home): array
     {
         return collect($goalEvents)
-            ->filter(fn (array $event) => $home ? !empty($event['is_home']) : !empty($event['is_away']))
+            ->filter(fn (array $event) => $home ? ! empty($event['is_home']) : ! empty($event['is_away']))
             ->map(fn (array $event): array => [
                 'number' => is_numeric($event['player_number'] ?? null) ? (int) $event['player_number'] : null,
                 'name' => (string) ($event['player_name'] ?? 'Jogador'),

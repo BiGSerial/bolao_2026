@@ -65,7 +65,7 @@ class FootballMatch extends Model
 
     public function predictionLockTimeFor(Pool $pool): Carbon
     {
-        $utcKickoff = $this->utcDateAsUtc() ?? $this->utc_date?->copy()->utc();
+        $utcKickoff = $this->kickoffAtUtc() ?? $this->utc_date?->copy()->utc();
 
         if (! $utcKickoff) {
             return now()->utc();
@@ -81,7 +81,7 @@ class FootballMatch extends Model
 
     public function kickoffAtBrazil(): ?Carbon
     {
-        if ($utcKickoff = $this->utcDateAsUtc()) {
+        if ($utcKickoff = $this->kickoffAtUtc()) {
             return $utcKickoff->copy()->timezone('America/Sao_Paulo');
         }
 
@@ -93,7 +93,7 @@ class FootballMatch extends Model
         return null;
     }
 
-    private function utcDateAsUtc(): ?Carbon
+    public function kickoffAtUtc(): ?Carbon
     {
         $rawUtcDate = $this->getRawOriginal('utc_date');
         if (! $rawUtcDate) {

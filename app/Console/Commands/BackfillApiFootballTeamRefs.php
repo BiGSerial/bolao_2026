@@ -6,6 +6,7 @@ use App\Models\FootballMatch;
 use App\Models\Team;
 use App\Models\TeamProviderRef;
 use App\Services\ApiFootball\ApiFootballClient;
+use App\Support\Teams\TeamNameMatcher;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -47,6 +48,7 @@ class BackfillApiFootballTeamRefs extends Command
             $localTeams = $this->competitionTeams($code, $season);
             if ($localTeams->isEmpty()) {
                 $this->warn("  Sem times locais para {$code}/{$season}. Pulando.");
+
                 continue;
             }
 
@@ -54,6 +56,7 @@ class BackfillApiFootballTeamRefs extends Command
             $apiTeams = collect((array) data_get($payload, 'response', []));
             if ($apiTeams->isEmpty()) {
                 $this->warn("  API-Football retornou 0 times para {$code}/{$season}.");
+
                 continue;
             }
 
@@ -73,12 +76,14 @@ class BackfillApiFootballTeamRefs extends Command
                 if ($match['status'] === 'ambiguous') {
                     $totalAmbiguous++;
                     $this->warn("  Ambiguo: api_id={$apiId} {$apiName} => ".$match['label']);
+
                     continue;
                 }
 
                 if ($match['status'] === 'not_found') {
                     $totalSkipped++;
                     $this->warn("  Sem match: api_id={$apiId} {$apiName}");
+
                     continue;
                 }
 
@@ -87,12 +92,14 @@ class BackfillApiFootballTeamRefs extends Command
 
                 if ($ref && (int) $ref->team_id === (int) $team->id) {
                     $totalSkipped++;
+
                     continue;
                 }
 
                 if ($ref && ! $force) {
                     $totalSkipped++;
                     $this->warn("  Ja mapeado (use --force p/ atualizar): api_id={$apiId} {$apiName}");
+
                     continue;
                 }
 
@@ -173,7 +180,7 @@ class BackfillApiFootballTeamRefs extends Command
     }
 
     /**
-     * @param Collection<int, Team> $teams
+     * @param  Collection<int, Team>  $teams
      * @return array{status:'ok'|'not_found'|'ambiguous',team?:Team,label?:string}
      */
     private function resolveLocalTeam(Collection $teams, string $apiName): array
@@ -181,7 +188,7 @@ class BackfillApiFootballTeamRefs extends Command
         $apiRaw = $this->normalize($apiName);
         $apiCanonical = $this->canonicalClubName($apiRaw);
 
-        $exactCandidates = $teams->filter(function (Team $team) use ($apiRaw, $apiCanonical): bool {
+        $exactCandidates = $teams->filter(function (Team $team) use ($apiName, $apiRaw, $apiCanonical): bool {
             $names = array_filter([
                 $team->name,
                 $team->short_name,
@@ -193,7 +200,9 @@ class BackfillApiFootballTeamRefs extends Command
                 $raw = $this->normalize((string) $name);
                 $canonical = $this->canonicalClubName($raw);
 
-                if ($raw === $apiRaw || $canonical === $apiCanonical) {
+                if ($raw === $apiRaw
+                    || $canonical === $apiCanonical
+                    || TeamNameMatcher::matches((string) $name, $apiName)) {
                     return true;
                 }
             }

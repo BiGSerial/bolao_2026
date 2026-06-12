@@ -661,7 +661,7 @@ class SyncWorldCupMatchDetailsService
                 'has_statistics' => ! empty(data_get($apiFootballPayload, 'statistics')),
                 'has_players' => ! empty(data_get($apiFootballPayload, 'players')),
             ],
-            'primary' => 'football_data',
+            'primary' => 'api_football',
         ];
 
         $footballDataPayload['_api_football'] = $apiFootballPayload;

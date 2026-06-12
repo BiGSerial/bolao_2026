@@ -23,13 +23,7 @@ class ApiIntegrationPipelineTest extends TestCase
     {
         parent::setUp();
 
-        config()->set('database.default', 'mysql');
-        config()->set('database.connections.mysql.host', env('DB_HOST', 'mysql'));
-        config()->set('database.connections.mysql.port', (int) env('DB_PORT', 3306));
-        config()->set('database.connections.mysql.database', 'bolao');
-        config()->set('database.connections.mysql.username', 'bolao');
-        config()->set('database.connections.mysql.password', 'bolao123');
-
+        config()->set('push-notifications.match_score_enabled', false);
         $this->rebuildMinimalSchema();
     }
 
@@ -54,6 +48,8 @@ class ApiIntegrationPipelineTest extends TestCase
             ]);
 
         $apiFootballConnector = Mockery::mock(ApiFootballConnector::class);
+        $apiFootballConnector->shouldReceive('resetMetrics')->once();
+        $apiFootballConnector->shouldReceive('metrics')->once()->andReturn(['requests' => 0, 'failures' => 0]);
         $apiFootballConnector->shouldNotReceive('resolveFixtureIds');
         $apiFootballConnector->shouldNotReceive('fetchFixtureDetailsByIds');
 
@@ -62,6 +58,11 @@ class ApiIntegrationPipelineTest extends TestCase
 
         $result = app(SyncWorldCupMatchDetailsService::class)->syncBatch(1, 'BSA', 2026, 'REGULAR_SEASON');
 
+        $this->assertSame(
+            0,
+            $result['errors'],
+            (string) FootballMatchDetail::query()->where('football_match_id', $match->id)->value('last_error')
+        );
         $this->assertSame(1, $result['updated']);
         $this->assertSame(0, $result['errors']);
         $this->assertSame(0, $result['enriched']);
@@ -91,15 +92,17 @@ class ApiIntegrationPipelineTest extends TestCase
             ]);
 
         $apiPayload = [
-            'fixture' => ['id' => 555, 'status' => ['short' => 'FT']],
+            'fixture' => ['id' => 555, 'status' => ['short' => 'NS']],
             'teams' => ['home' => ['id' => 123, 'name' => 'Home'], 'away' => ['id' => 456, 'name' => 'Away']],
-            'events' => [['time' => ['elapsed' => 15], 'team' => ['name' => 'Home'], 'player' => ['name' => 'P1'], 'assist' => ['name' => 'A1'], 'type' => 'Goal', 'detail' => 'Normal Goal']],
+            'events' => [['time' => ['elapsed' => 15], 'team' => ['name' => 'Home'], 'player' => ['name' => 'P1'], 'assist' => ['name' => 'A1'], 'type' => 'Card', 'detail' => 'Yellow Card']],
             'lineups' => [['team' => ['name' => 'Home'], 'formation' => '4-3-3', 'startXI' => [['player' => ['name' => 'P1']]], 'substitutes' => [], 'coach' => ['name' => 'Coach']]],
             'statistics' => [['team' => ['name' => 'Home'], 'statistics' => [['type' => 'Shots on Goal', 'value' => 5]]]],
             'players' => [['team' => ['name' => 'Home'], 'players' => [['player' => ['id' => 11, 'name' => 'P1'], 'statistics' => [['games' => ['minutes' => 90]]]]]]],
         ];
 
         $apiFootballConnector = Mockery::mock(ApiFootballConnector::class);
+        $apiFootballConnector->shouldReceive('resetMetrics')->once();
+        $apiFootballConnector->shouldReceive('metrics')->once()->andReturn(['requests' => 2, 'failures' => 0]);
         $apiFootballConnector
             ->shouldReceive('resolveFixtureIds')
             ->once()
@@ -114,6 +117,11 @@ class ApiIntegrationPipelineTest extends TestCase
 
         $result = app(SyncWorldCupMatchDetailsService::class)->syncBatch(1, 'BSA', 2026, 'REGULAR_SEASON');
 
+        $this->assertSame(
+            0,
+            $result['errors'],
+            (string) FootballMatchDetail::query()->where('football_match_id', $match->id)->value('last_error')
+        );
         $this->assertSame(1, $result['updated']);
         $this->assertSame(1, $result['enriched']);
 
@@ -152,6 +160,8 @@ class ApiIntegrationPipelineTest extends TestCase
             ]);
 
         $apiFootballConnector = Mockery::mock(ApiFootballConnector::class);
+        $apiFootballConnector->shouldReceive('resetMetrics')->once();
+        $apiFootballConnector->shouldReceive('metrics')->once()->andReturn(['requests' => 2, 'failures' => 0]);
         $apiFootballConnector
             ->shouldReceive('resolveFixtureIds')
             ->once()
@@ -175,7 +185,7 @@ class ApiIntegrationPipelineTest extends TestCase
 
     private function rebuildMinimalSchema(): void
     {
-        $schema = Schema::connection('mysql');
+        $schema = Schema::connection(config('database.default'));
 
         foreach (['match_player_statistics','match_team_statistics','match_lineups','match_events','match_provider_refs','football_match_details','football_matches','team_provider_refs','teams','competition_seasons','competitions'] as $table) {
             $schema->dropIfExists($table);
@@ -229,10 +239,13 @@ class ApiIntegrationPipelineTest extends TestCase
             $table->dateTime('utc_date');
             $table->dateTime('local_date')->nullable();
             $table->string('status');
+            $table->unsignedSmallInteger('home_score_full_time')->nullable();
+            $table->unsignedSmallInteger('away_score_full_time')->nullable();
             $table->unsignedSmallInteger('matchday')->nullable();
             $table->string('stage')->nullable();
             $table->unsignedInteger('live_clock_accumulated_seconds')->default(0);
             $table->timestamp('live_clock_anchor_at')->nullable();
+            $table->timestamp('last_updated_by_provider_at')->nullable();
             $table->json('raw_payload')->nullable();
             $table->timestamps();
         });
@@ -261,14 +274,25 @@ class ApiIntegrationPipelineTest extends TestCase
             $table->id();
             $table->foreignId('football_match_id')->constrained('football_matches')->cascadeOnDelete();
             $table->string('provider', 40)->default('api_football');
+            $table->string('provider_event_id', 120)->nullable();
+            $table->unsignedBigInteger('provider_fixture_id')->nullable();
             $table->unsignedSmallInteger('minute')->nullable();
             $table->unsignedSmallInteger('extra_minute')->nullable();
+            $table->unsignedBigInteger('team_id')->nullable();
             $table->string('team_name')->nullable();
+            $table->unsignedBigInteger('player_id')->nullable();
             $table->string('player_name')->nullable();
+            $table->unsignedBigInteger('assist_player_id')->nullable();
             $table->string('assist_name')->nullable();
             $table->string('event_type', 40)->nullable();
             $table->string('event_detail')->nullable();
+            $table->unsignedSmallInteger('home_score')->nullable();
+            $table->unsignedSmallInteger('away_score')->nullable();
+            $table->unsignedSmallInteger('team_goal_number')->nullable();
+            $table->unsignedSmallInteger('player_goal_number')->nullable();
             $table->json('raw_payload')->nullable();
+            $table->string('fingerprint', 128)->nullable()->unique();
+            $table->timestamp('notified_at')->nullable();
             $table->timestamps();
         });
 
@@ -350,7 +374,7 @@ class ApiIntegrationPipelineTest extends TestCase
             'away_team_id' => $away->id,
             'utc_date' => now()->utc()->subHour(),
             'local_date' => now()->subHour(),
-            'status' => 'FINISHED',
+            'status' => 'TIMED',
             'stage' => 'REGULAR_SEASON',
             'matchday' => 1,
         ]);

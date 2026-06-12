@@ -12,6 +12,12 @@ class Team extends Model
 
     public function getLocalizedNameAttribute(): string
     {
+        $tla = strtoupper(trim((string) $this->tla));
+        $localizedByCode = $tla !== '' ? config('country_names.by_tla.'.$tla) : null;
+        if (is_string($localizedByCode) && $localizedByCode !== '') {
+            return $localizedByCode;
+        }
+
         $raw = $this->canonical_name_br ?: $this->short_name ?: $this->name ?: 'Equipe';
 
         $map = [
