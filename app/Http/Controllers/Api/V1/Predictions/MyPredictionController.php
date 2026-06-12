@@ -129,10 +129,13 @@ class MyPredictionController extends Controller
             $matchesQuery->where('status', strtoupper((string) $validated['status']));
         }
         if (! empty($validated['date_from'])) {
-            $matchesQuery->where('utc_date', '>=', (string) $validated['date_from'].' 00:00:00');
+            // Interpreta a data como fuso Brasil e converte para UTC para capturar jogos de 23h BRT corretamente.
+            $dateFromUtc = \Carbon\Carbon::parse($validated['date_from'], 'America/Sao_Paulo')->startOfDay()->utc();
+            $matchesQuery->where('utc_date', '>=', $dateFromUtc->format('Y-m-d H:i:s'));
         }
         if (! empty($validated['date_to'])) {
-            $matchesQuery->where('utc_date', '<=', (string) $validated['date_to'].' 23:59:59');
+            $dateToUtc = \Carbon\Carbon::parse($validated['date_to'], 'America/Sao_Paulo')->endOfDay()->utc();
+            $matchesQuery->where('utc_date', '<=', $dateToUtc->format('Y-m-d H:i:s'));
         }
         // Filtra apenas jogos que ainda podem receber palpite (exclui encerrados/cancelados)
         if ($request->boolean('open_only')) {

@@ -890,7 +890,14 @@ class PoolShow extends Component
         match ($type) {
             'matchday' => $query->where('matchday', (int) $value),
             'group' => $query->where('group_name', $value),
-            'date' => $query->whereDate('utc_date', $value),
+            'date' => (function () use ($query, $value): void {
+                // $value é uma data no fuso Brasil (ex: "2026-06-11").
+                // utc_date armazena em UTC, então um jogo de 23h BRT tem utc_date no dia seguinte UTC.
+                // Convertemos os limites do dia Brasil para UTC para capturar esses jogos corretamente.
+                $startUtc = \Carbon\Carbon::parse($value, 'America/Sao_Paulo')->startOfDay()->utc();
+                $endUtc   = \Carbon\Carbon::parse($value, 'America/Sao_Paulo')->endOfDay()->utc();
+                $query->whereBetween('utc_date', [$startUtc->format('Y-m-d H:i:s'), $endUtc->format('Y-m-d H:i:s')]);
+            })(),
             default => null,
         };
     }

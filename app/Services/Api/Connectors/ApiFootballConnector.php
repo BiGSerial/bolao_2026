@@ -83,10 +83,42 @@ class ApiFootballConnector
                 }
             }
 
+            $prevDateItems = null;
             foreach ($dateMatches as $match) {
                 $id = $this->resolveFixtureIdForMatch($match, $responseItems);
                 if ($id > 0) {
                     $fixtureIdByMatch[(int) $match->id] = $id;
+                    continue;
+                }
+
+                // Jogo não encontrado na data UTC. A API pode indexá-lo pela data local
+                // (dia anterior ao UTC para jogos noturnos BRT). Buscamos o dia anterior
+                // uma única vez por data e tentamos resolver o jogo nele.
+                if ($prevDateItems === null) {
+                    $prevDate = Carbon::parse($date)->subDay()->format('Y-m-d');
+                    try {
+                        $this->requestCount++;
+                        $prevFixtures = $this->client->fixturesByDate($leagueId, $season, $prevDate, 'UTC');
+                        $prevDateItems = (array) data_get($prevFixtures, 'response', []);
+                        if ($prevDateItems !== []) {
+                            logger()->info('[af-resolver] per-match fallback to previous day', [
+                                'league_id' => $leagueId,
+                                'queried'   => $date,
+                                'fallback'  => $prevDate,
+                                'found'     => count($prevDateItems),
+                            ]);
+                        }
+                    } catch (\Throwable $e) {
+                        $this->failureCount++;
+                        $prevDateItems = [];
+                    }
+                }
+
+                if ($prevDateItems !== []) {
+                    $id = $this->resolveFixtureIdForMatch($match, $prevDateItems);
+                    if ($id > 0) {
+                        $fixtureIdByMatch[(int) $match->id] = $id;
+                    }
                 }
             }
         }

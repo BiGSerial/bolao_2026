@@ -192,7 +192,15 @@ class ConsolidateDailySportsResults extends Command
             return Carbon::createFromFormat('Y-m-d', $rawDate, $timezone);
         }
 
-        return now($timezone);
+        $now = now($timezone);
+
+        // Quando executado de madrugada (00h–05h59), consolida o dia anterior.
+        // Isso garante que jogos iniciados às 23h BRT (que terminam após meia-noite) sejam incluídos.
+        if ($now->hour < 6) {
+            return $now->copy()->subDay();
+        }
+
+        return $now;
     }
 
     private function logConsolidation(

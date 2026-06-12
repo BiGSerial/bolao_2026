@@ -14,9 +14,11 @@ Schedule::command('mail:stats:sync')
     ->hourly()
     ->name('mail:stats:hourly-sync')
     ->withoutOverlapping(55);
+// Executa às 02:30h BRT para garantir que jogos de 23h já tenham terminado antes da consolidação.
+// O comando detecta automaticamente que está rodando de madrugada e consolida o dia anterior.
 Schedule::command('sports:consolidate-daily-results --timezone=America/Sao_Paulo')
     ->timezone('America/Sao_Paulo')
-    ->dailyAt('23:59')
+    ->dailyAt('02:30')
     ->name('sports:daily-consolidation')
     ->withoutOverlapping(120);
 
