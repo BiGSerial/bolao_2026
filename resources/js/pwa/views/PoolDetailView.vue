@@ -155,18 +155,19 @@
             </div>
 
             <!-- Lista infinita -->
-            <div v-else-if="openPredictions.length" class="pwa-section space-y-3 pt-2">
-                <!-- Action toolbar -->
-                <div class="flex gap-2 justify-end">
-                    <button class="bulk-action-btn" :disabled="savingBulk" @click="openBulkModal">
-                        <i class="ti ti-layout-grid-add text-[13px]"></i>
-                        {{ savingBulk ? 'Aplicando...' : 'Palpite em massa' }}
-                    </button>
-                    <button class="bulk-action-btn" :disabled="savingApplyAll" @click="openApplyAllModal">
-                        <i class="ti ti-copy text-[13px]"></i>
-                        {{ savingApplyAll ? 'Replicando...' : 'Replicar' }}
-                    </button>
-                </div>
+            <div v-else class="space-y-5">
+                <div v-if="openPredictions.length" class="pwa-section space-y-3 pt-2">
+                    <!-- Action toolbar -->
+                    <div class="flex gap-2 justify-end">
+                        <button class="bulk-action-btn" :disabled="savingBulk" @click="openBulkModal">
+                            <i class="ti ti-layout-grid-add text-[13px]"></i>
+                            {{ savingBulk ? 'Aplicando...' : 'Palpite em massa' }}
+                        </button>
+                        <button class="bulk-action-btn" :disabled="savingApplyAll" @click="openApplyAllModal">
+                            <i class="ti ti-copy text-[13px]"></i>
+                            {{ savingApplyAll ? 'Replicando...' : 'Replicar' }}
+                        </button>
+                    </div>
 
                 <div v-if="pool?.closed_predictions" class="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-[11px] text-amber-200">
                     <i class="ti ti-lock text-[11px] mr-1"></i>
@@ -204,14 +205,34 @@
                 <div v-else class="text-center py-3 text-[11px] text-bolao-muted2">
                     {{ openPredictions.length }} jogo(s) disponíveis para palpitar
                 </div>
-            </div>
+                </div>
 
-            <!-- Sem jogos abertos -->
-            <div v-else class="pwa-section text-center py-14">
-                <i class="ti ti-calendar-check text-4xl text-bolao-muted2 mb-3 block"></i>
-                <p class="text-sm text-bolao-muted">
-                    Nenhum jogo aberto para palpitar no momento.
-                </p>
+                <div v-if="finishedPredictions.length" class="pwa-section space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-bc text-lg font-bold uppercase text-white">Seus palpites encerrados</p>
+                            <p class="text-[11px] text-bolao-muted2">Histórico somente para consulta</p>
+                        </div>
+                        <span class="rounded-full bg-white/[0.06] px-2 py-1 text-[10px] font-bold text-bolao-muted">
+                            {{ finishedPredictions.length }}
+                        </span>
+                    </div>
+
+                    <PredictionCard
+                        v-for="item in finishedPredictions"
+                        :key="`finished-${item.match.id}`"
+                        :item="item"
+                        :pool-id="poolId"
+                    />
+                </div>
+
+                <!-- Sem jogos ou palpites encerrados -->
+                <div v-if="!openPredictions.length && !finishedPredictions.length" class="pwa-section text-center py-14">
+                    <i class="ti ti-calendar-check text-4xl text-bolao-muted2 mb-3 block"></i>
+                    <p class="text-sm text-bolao-muted">
+                        Nenhum jogo aberto ou palpite encerrado no momento.
+                    </p>
+                </div>
             </div>
         </div>
 
@@ -672,6 +693,15 @@ const openPredictions = computed(() =>
 );
 const visibleOpenPredictions = computed(() => openPredictions.value.slice(0, visibleCount.value));
 const hasMoreToShow = computed(() => visibleCount.value < openPredictions.value.length);
+const finishedPredictions = computed(() =>
+    [...predictions.value]
+        .filter(i => ['FINISHED', 'AWARDED'].includes(i.match?.status) && i.prediction != null)
+        .sort((a, b) => {
+            const ta = a.match?.local_date ? new Date(a.match.local_date).getTime() : 0;
+            const tb = b.match?.local_date ? new Date(b.match.local_date).getTime() : 0;
+            return tb - ta;
+        })
+);
 
 const openCount = computed(() => openPredictions.value.filter((i) => i.prediction == null).length);
 
@@ -921,12 +951,11 @@ async function loadPredictions() {
     visibleCount.value = 15;
     const all = [];
     try {
-        // Carrega apenas jogos abertos (open_only=1) em páginas de 200
-        // Isso resolve leagues com muitas rodadas (ex: Brasileirão tem 380 jogos)
+        // Carrega todo o escopo para manter visíveis os palpites de jogos encerrados.
         let page = 1;
         let totalPages = 1;
         do {
-            const res = await getPoolPredictions(poolId.value, { per_page: 200, page, open_only: 1 });
+            const res = await getPoolPredictions(poolId.value, { per_page: 200, page });
             const items = res.data.data?.items ?? [];
             all.push(...items);
             totalPages = Number(res.data.meta?.pagination?.total_pages ?? 1) || 1;

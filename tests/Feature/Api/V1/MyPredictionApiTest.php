@@ -7,8 +7,10 @@ use App\Models\CompetitionSeason;
 use App\Models\FootballMatch;
 use App\Models\Pool;
 use App\Models\PoolMember;
+use App\Models\Prediction;
 use App\Models\Team;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -114,7 +116,36 @@ class MyPredictionApiTest extends TestCase
             ->assertJsonPath('error.code', 'POOL_FORBIDDEN');
     }
 
-    private function baseScenario(?\Carbon\Carbon $matchDate = null): array
+    public function test_user_can_list_saved_prediction_after_match_is_finished(): void
+    {
+        [$user, $pool, $match] = $this->baseScenario(now()->utc()->subHours(2));
+        $match->update([
+            'status' => 'FINISHED',
+            'home_score_full_time' => 2,
+            'away_score_full_time' => 1,
+        ]);
+        Prediction::query()->create([
+            'pool_id' => $pool->id,
+            'football_match_id' => $match->id,
+            'user_id' => $user->id,
+            'home_score' => 1,
+            'away_score' => 0,
+            'last_changed_at' => now(),
+        ]);
+        $token = $user->createToken('test-device')->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson("/api/v1/pools/{$pool->id}/predictions/me?per_page=10");
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.items.0.match.status', 'FINISHED')
+            ->assertJsonPath('data.items.0.match.score.home', 2)
+            ->assertJsonPath('data.items.0.prediction.home_score', 1)
+            ->assertJsonPath('data.items.0.lock.is_locked', true);
+    }
+
+    private function baseScenario(?Carbon $matchDate = null): array
     {
         $user = User::factory()->create();
 

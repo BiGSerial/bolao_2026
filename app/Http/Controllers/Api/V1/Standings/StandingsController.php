@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api\V1\Standings;
 
 use App\Http\Controllers\Controller;
 use App\Models\Competition;
+use App\Models\FootballMatch;
 use App\Models\Standing;
 use App\Support\ApiResponse;
+use App\Support\Standings\StandingRowsSorter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -84,11 +86,7 @@ class StandingsController extends Controller
             ->where('competition_season_id', (int) $seasonId)
             ->with([
                 'rows' => fn ($q) => $q->with('team:id,name,canonical_name_br,short_name,tla,crest')
-                    ->orderByRaw('case when position is null then 1 else 0 end')
-                    ->orderBy('position')
-                    ->orderByDesc('points')
-                    ->orderByDesc('goal_difference')
-                    ->orderByDesc('goals_for'),
+                    ->orderBy('id'),
             ])
             ->orderByRaw('case when group_name is null then 1 else 0 end')
             ->orderBy('group_name');
@@ -97,6 +95,7 @@ class StandingsController extends Controller
             $standings = (clone $standingsQuery)
                 ->whereNotNull('group_name')
                 ->where('group_name', '!=', '')
+                ->where('type', 'TOTAL')
                 ->get();
 
             if ($standings->isEmpty()) {
@@ -110,12 +109,16 @@ class StandingsController extends Controller
                 ->get();
         }
 
-        $groups = $standings->map(function (Standing $standing): array {
+        $competitionCode = strtoupper((string) ($selectedCompetition?->code ?? ''));
+
+        $groups = $standings->map(function (Standing $standing) use ($competitionCode): array {
+            $rows = StandingRowsSorter::sort($standing->rows, $competitionCode);
+
             return [
-                'name' => $standing->group_name ?: 'Classificação Geral',
+                'name' => StandingRowsSorter::groupLabel($standing->group_name),
                 'stage' => (string) ($standing->stage ?? ''),
-                'rows' => $standing->rows->map(fn ($row): array => [
-                    'position' => $row->position ? (int) $row->position : null,
+                'rows' => $rows->map(fn ($row, int $index): array => [
+                    'position' => $index + 1,
                     'team' => [
                         'id' => $row->team?->id,
                         'name' => $row->team?->localized_name,
@@ -135,32 +138,50 @@ class StandingsController extends Controller
             ];
         })->values()->all();
 
-        // Fallback para Copa quando o provedor retorna só uma tabela geral no stage de grupos.
+        // Fallback para Copa quando o provedor retorna uma tabela geral:
+        // associa cada seleção ao grupo registrado nos jogos, sem dividir a lista em blocos.
         if ($isCup && count($groups) === 1) {
             $single = $groups[0] ?? null;
             $rows = is_array($single['rows'] ?? null) ? $single['rows'] : [];
             $stage = strtoupper((string) ($single['stage'] ?? ''));
 
-            if ($stage === 'GROUP_STAGE' && count($rows) >= 8 && count($rows) % 4 === 0) {
-                $chunks = array_chunk($rows, 4);
-                $letters = range('A', 'Z');
-                $rebuilt = [];
+            if ($stage === 'GROUP_STAGE' && count($rows) >= 4) {
+                $teamGroupMap = [];
+                FootballMatch::query()
+                    ->where('competition_id', $selectedCompetitionId)
+                    ->where('competition_season_id', (int) $seasonId)
+                    ->whereNotNull('group_name')
+                    ->where('group_name', '!=', '')
+                    ->get(['home_team_id', 'away_team_id', 'group_name'])
+                    ->each(function (FootballMatch $match) use (&$teamGroupMap): void {
+                        if ($match->home_team_id) {
+                            $teamGroupMap[(int) $match->home_team_id] = (string) $match->group_name;
+                        }
+                        if ($match->away_team_id) {
+                            $teamGroupMap[(int) $match->away_team_id] = (string) $match->group_name;
+                        }
+                    });
 
-                foreach ($chunks as $idx => $chunk) {
-                    $label = $letters[$idx] ?? (string) ($idx + 1);
-                    $rebuiltRows = array_map(function (array $row, int $pos): array {
-                        $row['position'] = $pos + 1;
-                        return $row;
-                    }, array_values($chunk), array_keys($chunk));
+                $rebuilt = collect($rows)
+                    ->groupBy(fn (array $row): string => $teamGroupMap[(int) data_get($row, 'team.id')] ?? 'Classificação Geral')
+                    ->map(function ($groupRows, string $groupName): array {
+                        return [
+                            'name' => StandingRowsSorter::groupLabel($groupName),
+                            'stage' => 'GROUP_STAGE',
+                            'rows' => $groupRows->values()->map(function (array $row, int $index): array {
+                                $row['position'] = $index + 1;
 
-                    $rebuilt[] = [
-                        'name' => "Grupo {$label}",
-                        'stage' => 'GROUP_STAGE',
-                        'rows' => $rebuiltRows,
-                    ];
+                                return $row;
+                            })->all(),
+                        ];
+                    })
+                    ->sortBy('name', SORT_NATURAL)
+                    ->values()
+                    ->all();
+
+                if (count($rebuilt) > 1) {
+                    $groups = $rebuilt;
                 }
-
-                $groups = $rebuilt;
             }
         }
 

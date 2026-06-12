@@ -496,7 +496,7 @@
             <h2 class="font-bc font-bold text-base uppercase tracking-wide text-white">Fase de Grupos</h2>
             <span class="text-[10px] text-bolao-muted uppercase tracking-widest">{{ $standingsCriteriaLabel }}</span>
         </div>
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid grid-cols-1 2xl:grid-cols-2 gap-3">
             @foreach($groupStandings as $standing)
             @php $rows = $standing->rows instanceof \Illuminate\Support\Collection ? $standing->rows : collect($standing->rows ?? []); @endphp
             <div class="bg-bolao-bg2 border border-white/[0.07] rounded-xl overflow-hidden">
@@ -504,14 +504,47 @@
                     <span class="font-bc font-bold text-xs uppercase tracking-wider text-slate-300">{{ $standing->group_name }}</span>
                     <span class="text-[9px] text-bolao-green font-semibold">1º e 2º ↑</span>
                 </div>
-                @foreach($rows->take(4) as $i => $row)
-                <div class="flex items-center gap-2 px-3 py-1.5 border-b border-white/[0.04] last:border-0 {{ $i < 2 ? 'bg-bolao-green/[0.04]' : '' }}">
-                    <span class="text-[11px] font-bold font-bc w-3 text-center {{ $i < 2 ? 'text-bolao-green' : 'text-bolao-muted2' }}">{{ $i + 1 }}</span>
-                    <x-match-team-logo :team="$row->team" size="xs" />
-                    <span class="flex-1 text-[11px] font-medium text-slate-200 truncate">{{ $row->team?->abbr3 ?? $row->team?->short_name ?? '—' }}</span>
-                    <span class="font-bc font-bold text-sm {{ $i < 2 ? 'text-white' : 'text-bolao-muted' }}">{{ $row->points }}</span>
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[570px] text-center">
+                        <thead>
+                            <tr class="border-b border-white/[0.07] text-[9px] uppercase tracking-wider text-bolao-muted2">
+                                <th class="w-7 px-2 py-2 font-semibold">#</th>
+                                <th class="px-2 py-2 text-left font-semibold">Time</th>
+                                <th class="px-1 py-2 font-semibold" title="Partidas jogadas">PJ</th>
+                                <th class="px-1 py-2 font-semibold" title="Vitórias">V</th>
+                                <th class="px-1 py-2 font-semibold" title="Empates">E</th>
+                                <th class="px-1 py-2 font-semibold" title="Derrotas">D</th>
+                                <th class="px-1 py-2 font-semibold" title="Gols pró">GP</th>
+                                <th class="px-1 py-2 font-semibold" title="Gols contra">GC</th>
+                                <th class="px-1 py-2 font-semibold" title="Saldo de gols">SG</th>
+                                <th class="px-2 py-2 font-semibold">PTS</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($rows->take(4) as $i => $row)
+                            <tr class="border-b border-white/[0.04] last:border-0 text-[11px] {{ $i < 2 ? 'bg-bolao-green/[0.04]' : '' }}">
+                                <td class="px-2 py-2 font-bc font-bold {{ $i < 2 ? 'text-bolao-green' : 'text-bolao-muted2' }}">{{ $i + 1 }}</td>
+                                <td class="px-2 py-2">
+                                    <div class="flex min-w-0 items-center gap-2 text-left">
+                                        <x-match-team-logo :team="$row->team" size="xs" />
+                                        <span class="truncate font-medium text-slate-200">{{ $row->team?->localized_name ?? $row->team?->short_name ?? '—' }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-1 py-2 text-bolao-muted">{{ $row->played_games }}</td>
+                                <td class="px-1 py-2 text-bolao-muted">{{ $row->won }}</td>
+                                <td class="px-1 py-2 text-bolao-muted">{{ $row->draw }}</td>
+                                <td class="px-1 py-2 text-bolao-muted">{{ $row->lost }}</td>
+                                <td class="px-1 py-2 text-bolao-muted">{{ $row->goals_for }}</td>
+                                <td class="px-1 py-2 text-bolao-muted">{{ $row->goals_against }}</td>
+                                <td class="px-1 py-2 {{ $row->goal_difference >= 0 ? 'text-bolao-green' : 'text-red-400' }}">
+                                    {{ $row->goal_difference > 0 ? '+' : '' }}{{ $row->goal_difference }}
+                                </td>
+                                <td class="px-2 py-2 font-bc text-sm font-bold {{ $i < 2 ? 'text-white' : 'text-bolao-muted' }}">{{ $row->points }}</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </div>
-                @endforeach
             </div>
             @endforeach
         </div>

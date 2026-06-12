@@ -11,6 +11,7 @@ use App\Models\Standing;
 use App\Models\StandingRow;
 use App\Services\Pools\LivePoolRankingService;
 use App\Services\Predictions\PredictionService;
+use App\Support\Standings\StandingRowsSorter;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Collection;
@@ -277,11 +278,7 @@ class Home extends Component
             ->where('type', 'TOTAL')
             ->with([
                 'rows' => fn ($q) => $q->with('team:id,name,canonical_name_br,short_name,tla,crest')
-                    ->orderByRaw('case when position is null then 1 else 0 end')
-                    ->orderBy('position')
-                    ->orderByDesc('points')
-                    ->orderByDesc('goal_difference')
-                    ->orderByDesc('goals_for'),
+                    ->orderBy('id'),
             ])
             ->orderByRaw('case when group_name is null then 1 else 0 end')
             ->orderBy('group_name')
@@ -290,6 +287,12 @@ class Home extends Component
         $groupStandings = $standings
             ->groupBy(fn (Standing $s) => $s->group_name ?: 'Classificação Geral')
             ->map(fn ($items) => $items->first())
+            ->map(function (Standing $standing) use ($currentCompetitionCode): Standing {
+                $standing->group_name = StandingRowsSorter::groupLabel($standing->group_name);
+                $standing->setRelation('rows', StandingRowsSorter::sort($standing->rows, $currentCompetitionCode));
+
+                return $standing;
+            })
             ->values();
 
         // WC fallback: split single "Geral" standing by group from match data
@@ -305,8 +308,12 @@ class Home extends Component
                 ->where('group_name', '!=', '')
                 ->get(['home_team_id', 'away_team_id', 'group_name'])
                 ->each(function ($gm) use (&$teamGroupMap) {
-                    if ($gm->home_team_id) $teamGroupMap[$gm->home_team_id] ??= $gm->group_name;
-                    if ($gm->away_team_id) $teamGroupMap[$gm->away_team_id] ??= $gm->group_name;
+                    if ($gm->home_team_id) {
+                        $teamGroupMap[$gm->home_team_id] ??= $gm->group_name;
+                    }
+                    if ($gm->away_team_id) {
+                        $teamGroupMap[$gm->away_team_id] ??= $gm->group_name;
+                    }
                 });
 
             $rows = $groupStandings->first()?->rows ?? collect();
@@ -315,15 +322,12 @@ class Home extends Component
                 $groupStandings = $rows
                     ->groupBy(fn (StandingRow $row) => $teamGroupMap[$row->team_id] ?? 'Classificação Geral')
                     ->map(function ($groupRows, string $groupName) {
-                        $sorted = $groupRows->sortBy([
-                            fn (StandingRow $r) => is_null($r->position) ? 1 : 0,
-                            fn (StandingRow $r) => (int) ($r->position ?? PHP_INT_MAX),
-                            fn (StandingRow $r) => -(int) $r->points,
-                            fn (StandingRow $r) => -(int) $r->goal_difference,
-                            fn (StandingRow $r) => -(int) $r->goals_for,
-                        ])->values();
+                        $sorted = StandingRowsSorter::sort($groupRows, 'WC');
 
-                        return (object) ['group_name' => $groupName, 'rows' => $sorted];
+                        return (object) [
+                            'group_name' => StandingRowsSorter::groupLabel($groupName),
+                            'rows' => $sorted,
+                        ];
                     })
                     ->sortBy('group_name')
                     ->values();

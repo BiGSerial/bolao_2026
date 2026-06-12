@@ -276,7 +276,7 @@
                     <div class="pwa-section pt-3">
                         <div class="section-head">
                             <h2 class="panel-title">Classificação</h2>
-                            <span class="text-[10px] uppercase tracking-wider text-bolao-muted2">Pontos · Vitórias · SG · GP</span>
+                            <span class="text-[10px] uppercase tracking-wider text-bolao-muted2">Pontos · SG · GP · critério oficial</span>
                         </div>
                     </div>
 
@@ -286,22 +286,28 @@
                                 <template v-if="shouldUseCupLayout">
                                     <div v-for="group in standingsGroups" :key="group.name" class="cup-group-card">
                                         <p class="text-[10px] text-bolao-muted2 uppercase tracking-wider mb-1 px-1">{{ group.name }}</p>
-                                        <div class="standings-head">
-                                            <span>#</span><span>Time</span><span>PJ</span><span>V</span><span>E</span><span>D</span><span>SG</span><span>PTS</span>
-                                        </div>
-                                        <div class="space-y-0.5">
-                                            <div v-for="row in group.rows" :key="`${group.name}-${row.team?.id}`" class="standings-row">
-                                                <span class="stand-col-pos">{{ row.position ?? '-' }}</span>
-                                                <span class="stand-col-team">
-                                                    <img v-if="row.team?.crest" :src="row.team.crest" class="stand-crest" alt="">
-                                                    <span class="truncate">{{ row.team?.short_name ?? row.team?.name }}</span>
-                                                </span>
-                                                <span>{{ row.played_games }}</span>
-                                                <span>{{ row.won }}</span>
-                                                <span>{{ row.draw }}</span>
-                                                <span>{{ row.lost }}</span>
-                                                <span :class="row.goal_difference >= 0 ? 'text-emerald-400' : 'text-rose-400'">{{ row.goal_difference > 0 ? `+${row.goal_difference}` : row.goal_difference }}</span>
-                                                <span class="text-white font-bold">{{ row.points }}</span>
+                                        <div class="standings-table-scroll">
+                                            <div class="standings-table">
+                                                <div class="standings-head">
+                                                    <span>#</span><span>Time</span><span>PJ</span><span>V</span><span>E</span><span>D</span><span>GP</span><span>GC</span><span>SG</span><span>PTS</span>
+                                                </div>
+                                                <div class="space-y-0.5">
+                                                    <div v-for="row in group.rows" :key="`${group.name}-${row.team?.id}`" class="standings-row">
+                                                        <span class="stand-col-pos">{{ row.position ?? '-' }}</span>
+                                                        <span class="stand-col-team">
+                                                            <img v-if="row.team?.crest" :src="row.team.crest" class="stand-crest" alt="">
+                                                            <span class="truncate">{{ row.team?.short_name ?? row.team?.name }}</span>
+                                                        </span>
+                                                        <span>{{ row.played_games }}</span>
+                                                        <span>{{ row.won }}</span>
+                                                        <span>{{ row.draw }}</span>
+                                                        <span>{{ row.lost }}</span>
+                                                        <span>{{ row.goals_for }}</span>
+                                                        <span>{{ row.goals_against }}</span>
+                                                        <span :class="row.goal_difference >= 0 ? 'text-emerald-400' : 'text-rose-400'">{{ row.goal_difference > 0 ? `+${row.goal_difference}` : row.goal_difference }}</span>
+                                                        <span class="text-white font-bold">{{ row.points }}</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -309,22 +315,28 @@
                                 <template v-else>
                                     <div v-for="group in standingsGroups" :key="group.name">
                                         <p class="text-[10px] text-bolao-muted2 uppercase tracking-wider mb-1 px-1">{{ group.name }}</p>
-                                        <div class="standings-head">
-                                            <span>#</span><span>Time</span><span>PJ</span><span>V</span><span>E</span><span>D</span><span>SG</span><span>PTS</span>
-                                        </div>
-                                        <div class="space-y-0.5">
-                                            <div v-for="row in group.rows" :key="`${group.name}-${row.team?.id}`" class="standings-row">
-                                                <span class="stand-col-pos">{{ row.position ?? '-' }}</span>
-                                                <span class="stand-col-team">
-                                                    <img v-if="row.team?.crest" :src="row.team.crest" class="stand-crest" alt="">
-                                                    <span class="truncate">{{ row.team?.short_name ?? row.team?.name }}</span>
-                                                </span>
-                                                <span>{{ row.played_games }}</span>
-                                                <span>{{ row.won }}</span>
-                                                <span>{{ row.draw }}</span>
-                                                <span>{{ row.lost }}</span>
-                                                <span :class="row.goal_difference >= 0 ? 'text-emerald-400' : 'text-rose-400'">{{ row.goal_difference > 0 ? `+${row.goal_difference}` : row.goal_difference }}</span>
-                                                <span class="text-white font-bold">{{ row.points }}</span>
+                                        <div class="standings-table-scroll">
+                                            <div class="standings-table">
+                                                <div class="standings-head">
+                                                    <span>#</span><span>Time</span><span>PJ</span><span>V</span><span>E</span><span>D</span><span>GP</span><span>GC</span><span>SG</span><span>PTS</span>
+                                                </div>
+                                                <div class="space-y-0.5">
+                                                    <div v-for="row in group.rows" :key="`${group.name}-${row.team?.id}`" class="standings-row">
+                                                        <span class="stand-col-pos">{{ row.position ?? '-' }}</span>
+                                                        <span class="stand-col-team">
+                                                            <img v-if="row.team?.crest" :src="row.team.crest" class="stand-crest" alt="">
+                                                            <span class="truncate">{{ row.team?.short_name ?? row.team?.name }}</span>
+                                                        </span>
+                                                        <span>{{ row.played_games }}</span>
+                                                        <span>{{ row.won }}</span>
+                                                        <span>{{ row.draw }}</span>
+                                                        <span>{{ row.lost }}</span>
+                                                        <span>{{ row.goals_for }}</span>
+                                                        <span>{{ row.goals_against }}</span>
+                                                        <span :class="row.goal_difference >= 0 ? 'text-emerald-400' : 'text-rose-400'">{{ row.goal_difference > 0 ? `+${row.goal_difference}` : row.goal_difference }}</span>
+                                                        <span class="text-white font-bold">{{ row.points }}</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1069,7 +1081,9 @@ onBeforeUnmount(() => {
 .standings-card { border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); background: #13161b; }
 .standings-scroll { max-height: min(62dvh, 560px); overflow-y: auto; padding-right: 2px; }
 .cup-group-card { border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); background: #121823; padding: 8px; }
-.standings-head, .standings-row { display: grid; grid-template-columns: 22px minmax(0,1fr) 24px 20px 20px 20px 28px 30px; align-items: center; gap: 6px; }
+.standings-table-scroll { overflow-x: auto; }
+.standings-table { min-width: 560px; }
+.standings-head, .standings-row { display: grid; grid-template-columns: 22px minmax(110px,1fr) 24px 20px 20px 20px 24px 24px 28px 30px; align-items: center; gap: 6px; }
 .standings-head { color: #7a8394; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; border-bottom: 1px solid rgba(255,255,255,0.08); padding: 6px 8px; }
 .standings-row { font-size: 12px; color: #cbd5e1; padding: 7px 8px; border-bottom: 1px solid rgba(255,255,255,0.05); }
 .standings-row:last-child { border-bottom: 0; }
