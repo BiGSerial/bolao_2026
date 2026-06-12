@@ -103,13 +103,29 @@ Schedule::call(function (): void {
              * live_full_events (cada 2 min): eventos, lineups, stats + MatchDetailUpdated
              * Proporção 2:1 (score:full) — sem Football-Data neste bloco.
              */
-            if (shouldDispatchForWindow("scheduler:af-score:$code:$season:$stage", 1, 1)) {
+            $scoreDispatched  = shouldDispatchForWindow("scheduler:af-score:$code:$season:$stage", 1, 1);
+            $eventsDispatched = shouldDispatchForWindow("scheduler:af-events:$code:$season:$stage", 2, 2);
+
+            if ($scoreDispatched) {
                 RunCompetitionMatchDetailsSyncJob::dispatch($code, $season, $stage, $detailsLimit, 'live_score_quick');
             }
 
-            if (shouldDispatchForWindow("scheduler:af-events:$code:$season:$stage", 2, 2)) {
+            if ($eventsDispatched) {
                 RunCompetitionMatchDetailsSyncJob::dispatch($code, $season, $stage, $detailsLimit, 'live_full_events');
             }
+
+            Log::channel('smart_sync')->info('[smart-sync] live', [
+                'code'                               => $code,
+                'season'                             => $season,
+                'stage'                              => $stage,
+                'now'                                => $now->toDateTimeString(),
+                'hasLive'                            => $hasLive,
+                'hasLikelyInProgressByKickoffWindow' => $hasLikelyInProgressByKickoffWindow,
+                'liveCount'                          => $liveCount,
+                'detailsLimit'                       => $detailsLimit,
+                'scoreDispatched'                    => $scoreDispatched,
+                'eventsDispatched'                   => $eventsDispatched,
+            ]);
         } else {
             /*
              * ── Fora de ao vivo ──────────────────────────────────────────
