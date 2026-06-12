@@ -28,6 +28,16 @@
                     <i class="ti ti-edit text-[10px]"></i>
                     {{ openCount }} palpite{{ openCount !== 1 ? 's' : '' }} pendente{{ openCount !== 1 ? 's' : '' }}
                 </span>
+                <button
+                    v-if="pool.membership.status === 'active'"
+                    type="button"
+                    class="text-[10px] font-bold px-2 py-1 rounded-full border border-white/10 text-slate-300 flex items-center gap-1 disabled:opacity-50"
+                    :disabled="downloadingPdf"
+                    @click="downloadPredictionsPdf"
+                >
+                    <i class="ti" :class="downloadingPdf ? 'ti-loader-2 animate-spin' : 'ti-file-type-pdf'"></i>
+                    {{ downloadingPdf ? 'Gerando...' : 'Baixar PDF' }}
+                </button>
             </div>
         </div>
 
@@ -553,7 +563,7 @@ import { useRoute, useRouter } from 'vue-router';
 import Swal from 'sweetalert2';
 import { useAuthStore } from '../store/auth';
 import { getPools, getPool, updatePool, deletePool } from '../api/pools';
-import { getPoolPredictions, savePrediction } from '../api/predictions';
+import { downloadPoolPredictionsPdf, getPoolPredictions, savePrediction } from '../api/predictions';
 import { getRanking } from '../api/rankings';
 import { getPoolMembers, updatePoolMember, removePoolMember, inviteToPool } from '../api/pool-members';
 import SkeletonBlock from '../components/ui/SkeletonBlock.vue';
@@ -609,6 +619,7 @@ const inviteLoading = ref(false);
 const inviteCodeCopied = ref(false);
 const savingConfig = ref(false);
 const deletingPool = ref(false);
+const downloadingPdf = ref(false);
 const newTieBreaker = ref('');
 const newSector = ref('');
 const draggedTieBreakerIndex = ref(null);
@@ -711,6 +722,35 @@ const predictionEditingBlockedReason = computed(() => {
     return '';
 });
 const hasBatchChanges = computed(() => Object.keys(predictionDrafts.value).length > 0);
+
+async function downloadPredictionsPdf() {
+    downloadingPdf.value = true;
+    try {
+        const response = await downloadPoolPredictionsPdf(poolId.value);
+        const blob = new Blob([response.data], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const disposition = String(response.headers?.['content-disposition'] ?? '');
+        const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+        link.href = url;
+        link.download = encodedName ? decodeURIComponent(encodedName) : `palpites-${pool.value?.slug ?? poolId.value}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    } catch {
+        await Swal.fire({
+            icon: 'error',
+            title: 'Não foi possível gerar o PDF',
+            text: 'Tente novamente em alguns instantes.',
+            background: '#0f172a',
+            color: '#e2e8f0',
+            confirmButtonColor: '#f59e0b',
+        });
+    } finally {
+        downloadingPdf.value = false;
+    }
+}
 
 const myRow = computed(() => {
     if (!auth.user) return null;

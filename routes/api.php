@@ -116,6 +116,7 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/pools/{pool}/chat/read', [App\Http\Controllers\Api\V1\Pools\PoolChatController::class, 'markRead']);
         });
         Route::get('/pools/{pool}/predictions/me', [MyPredictionController::class, 'indexByPool']);
+        Route::get('/pools/{pool}/predictions/me.pdf', App\Http\Controllers\Pools\PoolPredictionsPdfController::class);
         Route::get('/pools/{pool}/matches/{match}/predictions', App\Http\Controllers\Api\V1\Pools\PoolMatchPredictionsController::class);
         Route::get('/pools/{pool}/matches/{match}/predictions/me', [MyPredictionController::class, 'show']);
         Route::put('/pools/{pool}/matches/{match}/predictions/me', [MyPredictionController::class, 'update']);

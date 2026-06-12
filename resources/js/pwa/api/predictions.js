@@ -3,6 +3,9 @@ import client from './client';
 export const getPoolPredictions = (poolId, params = {}) =>
     client.get(`/pools/${poolId}/predictions/me`, { params });
 
+export const downloadPoolPredictionsPdf = (poolId) =>
+    client.get(`/pools/${poolId}/predictions/me.pdf`, { responseType: 'blob' });
+
 export const getPrediction = (poolId, matchId) =>
     client.get(`/pools/${poolId}/matches/${matchId}/predictions/me`);
 

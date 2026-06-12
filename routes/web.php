@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\UserModerationController;
 use App\Http\Controllers\Admin\LegalAuditExportController;
 use App\Http\Controllers\Legal\LegalAcceptanceController;
 use App\Http\Controllers\Pools\PoolInviteController;
+use App\Http\Controllers\Pools\PoolPredictionsPdfController;
 use App\Http\Controllers\Legal\LegalPageController;
 use App\Livewire\Admin\ApiSyncDashboard;
 use App\Livewire\Admin\LegalDocumentsManager;
@@ -171,6 +172,7 @@ Route::middleware(['auth', 'user.active', 'password.changed', 'legal.accepted'])
     Route::get('/boloes/criar', PoolCreate::class)->name('pools.create');
     Route::get('/gerenciar', MyPoolsManager::class)->name('management.pools');
     Route::get('/boloes/{pool:slug}', PoolShow::class)->name('pools.show');
+    Route::get('/boloes/{pool:slug}/palpites.pdf', PoolPredictionsPdfController::class)->name('pools.predictions.pdf');
     Route::get('/boloes/{pool:slug}/jogos/{match}', PoolMatchShow::class)->name('pools.matches.show');
     Route::get('/boloes/{pool:slug}/membros', PoolMembers::class)->name('pools.members');
     Route::get('/boloes/{pool:slug}/configuracoes', PoolSettings::class)->name('pools.settings');

@@ -47,32 +47,39 @@
     </div>
 
     <div class="mx-3 sm:mx-6 lg:mx-8 mt-3">
-        <div class="inline-flex rounded-xl border border-white/10 bg-slate-900/60 p-1 shadow-sm">
-            <button type="button"
-                    wire:click="setTab('jogos')"
-                    class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'jogos' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
-                Palpites
-            </button>
-            <button type="button"
-                    wire:click="setTab('ranking')"
-                    class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'ranking' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
-                Ranking
-            </button>
-            <button type="button"
-                    wire:click="setTab('chat')"
-                    class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'chat' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
-                Chat
-            </button>
-            <button type="button"
-                    wire:click="setTab('resumo')"
-                    class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'resumo' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
-                Meu resumo
-            </button>
-            <button type="button"
-                    wire:click="setTab('info')"
-                    class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'info' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
-                Regras
-            </button>
+        <div class="flex flex-wrap items-center gap-2">
+            <div class="inline-flex rounded-xl border border-white/10 bg-slate-900/60 p-1 shadow-sm">
+                <button type="button"
+                        wire:click="setTab('jogos')"
+                        class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'jogos' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
+                    Palpites
+                </button>
+                <button type="button"
+                        wire:click="setTab('ranking')"
+                        class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'ranking' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
+                    Ranking
+                </button>
+                <button type="button"
+                        wire:click="setTab('chat')"
+                        class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'chat' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
+                    Chat
+                </button>
+                <button type="button"
+                        wire:click="setTab('resumo')"
+                        class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'resumo' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
+                    Meu resumo
+                </button>
+                <button type="button"
+                        wire:click="setTab('info')"
+                        class="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors {{ $activeTab === 'info' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200' }}">
+                    Regras
+                </button>
+            </div>
+            <a href="{{ route('pools.predictions.pdf', ['pool' => $pool->slug]) }}"
+               class="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-300 transition-colors hover:bg-amber-500/20">
+                <i class="ti ti-file-type-pdf text-base"></i>
+                Baixar meus palpites
+            </a>
         </div>
     </div>
 
