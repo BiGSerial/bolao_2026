@@ -699,13 +699,13 @@ class SyncWorldCupMatchDetailsService
         }
 
         // Live: sem filtro de stage — qualquer jogo IN_PLAY da competição deve ser sincronizado.
+        // Sem limite: todos os jogos ao vivo sempre recebem atualização de status/placar.
         $liveStatuses = ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'];
         $livePriority = (clone $baseQueryNoStage)
             ->whereIn('status', $liveStatuses)
             ->orderByRaw("case football_matches.status when 'IN_PLAY' then 0 when 'PAUSED' then 1 when 'EXTRA_TIME' then 2 when 'PENALTY_SHOOTOUT' then 3 else 4 end")
             ->orderBy('football_matches.utc_date')
             ->select('football_matches.*')
-            ->limit($safeLimit)
             ->get();
 
         if ($livePriority->isNotEmpty()) {
