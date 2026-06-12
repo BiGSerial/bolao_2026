@@ -28,16 +28,6 @@
                     <i class="ti ti-edit text-[10px]"></i>
                     {{ openCount }} palpite{{ openCount !== 1 ? 's' : '' }} pendente{{ openCount !== 1 ? 's' : '' }}
                 </span>
-                <button
-                    v-if="pool.membership.status === 'active'"
-                    type="button"
-                    class="text-[10px] font-bold px-2 py-1 rounded-full border border-white/10 text-slate-300 flex items-center gap-1 disabled:opacity-50"
-                    :disabled="downloadingPdf"
-                    @click="downloadPredictionsPdf"
-                >
-                    <i class="ti" :class="downloadingPdf ? 'ti-loader-2 animate-spin' : 'ti-file-type-pdf'"></i>
-                    {{ downloadingPdf ? 'Gerando...' : 'Baixar PDF' }}
-                </button>
             </div>
         </div>
 
@@ -159,6 +149,28 @@
 
         <!-- ─── PALPITES tab ─── -->
         <div v-show="activeTab === 'predictions'">
+            <div v-if="pool?.membership?.status === 'active'" class="pwa-section pt-3 pb-1">
+                <button
+                    type="button"
+                    class="w-full rounded-xl border border-bolao-accent/30 bg-bolao-accent/10 px-4 py-3 text-left text-bolao-accent flex items-center gap-3 disabled:opacity-50"
+                    :disabled="downloadingPdf"
+                    @click="downloadPredictionsPdf"
+                >
+                    <span class="h-9 w-9 shrink-0 rounded-lg bg-bolao-accent/15 flex items-center justify-center">
+                        <i class="ti text-xl" :class="downloadingPdf ? 'ti-loader-2 animate-spin' : 'ti-file-type-pdf'"></i>
+                    </span>
+                    <span class="min-w-0 flex-1">
+                        <span class="block text-sm font-bold">
+                            {{ downloadingPdf ? 'Gerando documento...' : 'Baixar tabela de palpites' }}
+                        </span>
+                        <span class="block text-[10px] text-slate-400 mt-0.5">
+                            PDF com todos os jogos, seus palpites, resultados e pontos
+                        </span>
+                    </span>
+                    <i class="ti ti-download text-lg"></i>
+                </button>
+            </div>
+
             <!-- Loading inicial -->
             <div v-if="loadingPredictions" class="pwa-section space-y-3 pt-2">
                 <SkeletonCard v-for="i in 4" :key="i" />
