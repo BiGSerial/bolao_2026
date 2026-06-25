@@ -187,11 +187,28 @@
                                     </div>
                                     <div class="mt-2 text-[11px]">
                                         <template v-if="liveTab === 'mine'">
-                                            <span v-if="livePredictionMap[m.id]" class="text-slate-300">
-                                                Palpite: <span class="text-bolao-accent font-bc font-bold">{{ livePredictionMap[m.id].home_score }}x{{ livePredictionMap[m.id].away_score }}</span>
-                                                · <span class="text-amber-300">{{ livePointsForMatch(m) }} pts</span>
-                                            </span>
-                                            <span v-else class="text-bolao-muted">Sem palpite seu neste jogo.</span>
+                                            <div v-if="liveMatchPredictionsWindow(m.id).length" class="space-y-1">
+                                                <div
+                                                    v-for="pred in liveMatchPredictionsWindow(m.id)"
+                                                    :key="pred.user?.id"
+                                                    class="flex items-center gap-1.5"
+                                                    :class="pred.user?.id === auth.user?.id ? 'text-bolao-accent font-bold' : 'text-slate-300'"
+                                                >
+                                                    <span class="w-5 font-bc font-bold shrink-0">{{ pred.position }}º</span>
+                                                    <span class="flex-1 truncate">{{ pred.user?.name }}</span>
+                                                    <template v-if="pred.prediction && pred.prediction !== 'hidden'">
+                                                        <span class="font-bc font-bold shrink-0">{{ pred.prediction.home_score }}×{{ pred.prediction.away_score }}</span>
+                                                        <span class="text-amber-300 shrink-0 min-w-[32px] text-right">{{ pointsForMatchPrediction(pred, m) ?? 0 }} pts</span>
+                                                    </template>
+                                                    <template v-else-if="pred.prediction === 'hidden'">
+                                                        <i class="ti ti-lock text-bolao-muted2 shrink-0"></i>
+                                                    </template>
+                                                    <template v-else>
+                                                        <span class="text-bolao-muted2 shrink-0 italic text-[10px]">sem palpite</span>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                            <span v-else class="text-bolao-muted">Carregando palpites...</span>
                                         </template>
                                         <template v-else>
                                             <div v-if="liveRankingWindow.length" class="space-y-1">
@@ -396,7 +413,7 @@ import { useAuthStore } from '../store/auth';
 import { useAppStore } from '../store/app';
 import { getDashboard } from '../api/dashboard';
 import { getLiveRanking } from '../api/rankings';
-import { getPoolPredictions } from '../api/predictions';
+import { getPoolPredictions, getMatchPredictions } from '../api/predictions';
 import { getStandings } from '../api/standings';
 import { getMatches } from '../api/matches';
 import { getPool } from '../api/pools';
@@ -430,6 +447,7 @@ const rankingMoveDirections = ref({});
 let rankingMoveTimer = null;
 const poolPredictions = ref([]);
 const selectedPoolDetail = ref(null);
+const liveMatchPredictions = ref({});
 const standingsGroups = ref([]);
 const dayMatches = ref([]);
 
@@ -628,6 +646,40 @@ function centeredUserWindow(rows, userId, size = 5) {
 
 const liveRankingWindow = computed(() => centeredUserWindow(liveRankingRows.value, auth.user?.id));
 
+function liveMatchPredictionsWindow(matchId) {
+    const all = liveMatchPredictions.value[matchId] ?? [];
+    return centeredUserWindow(all, auth.user?.id);
+}
+
+function pointsForMatchPrediction(pred, match) {
+    if (!pred || pred.prediction === 'hidden' || !pred.prediction) return null;
+    return pointsForScores(
+        pred.prediction.home_score,
+        pred.prediction.away_score,
+        match.score?.home,
+        match.score?.away,
+    );
+}
+
+async function loadLiveMatchPredictions() {
+    const poolId = normalizePoolId(selectedPoolId.value);
+    if (!poolId) return;
+    const liveMatches = filteredLiveMatches.value;
+    if (!liveMatches.length) return;
+    await Promise.all(liveMatches.map(async (m) => {
+        if (liveMatchPredictions.value[m.id]) return;
+        try {
+            const res = await getMatchPredictions(poolId, m.id);
+            liveMatchPredictions.value = {
+                ...liveMatchPredictions.value,
+                [m.id]: res.data.data?.predictions ?? [],
+            };
+        } catch {
+            liveMatchPredictions.value = { ...liveMatchPredictions.value, [m.id]: [] };
+        }
+    }));
+}
+
 function rankingMoveClass(row) {
     const key = String(row?.user?.id ?? '');
     const direction = rankingMoveDirections.value[key];
@@ -710,6 +762,7 @@ async function loadPoolData() {
         applyLiveRankingRows([]);
         poolPredictions.value = [];
         selectedPoolDetail.value = null;
+        liveMatchPredictions.value = {};
         return;
     }
 
@@ -1038,6 +1091,7 @@ watch(panelIndex, (idx) => {
 watch(liveTab, (tab) => {
     const normalized = tab === 'ranking' ? 'ranking' : 'mine';
     localStorage.setItem(DASHBOARD_LIVE_TAB_KEY, normalized);
+    if (tab === 'mine') loadLiveMatchPredictions();
 });
 
 watch(selectedCompetition, (comp) => {
@@ -1057,8 +1111,8 @@ onMounted(async () => {
     
     await loadDashboard();
     await loadPoolData();
-    await loadStandings();
-    await loadDayMatches();
+    await Promise.all([loadStandings(), loadDayMatches()]);
+    if (liveTab.value === 'mine') loadLiveMatchPredictions();
     startRealtime();
 });
 

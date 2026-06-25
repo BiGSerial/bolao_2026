@@ -9,6 +9,9 @@ export const getPoolUserPredictions = (poolId, userId, params = {}) =>
 export const downloadPoolPredictionsPdf = (poolId) =>
     client.get(`/pools/${poolId}/predictions/me.pdf`, { responseType: 'blob' });
 
+export const getMatchPredictions = (poolId, matchId) =>
+    client.get(`/pools/${poolId}/matches/${matchId}/predictions`);
+
 export const getPrediction = (poolId, matchId) =>
     client.get(`/pools/${poolId}/matches/${matchId}/predictions/me`);
 
