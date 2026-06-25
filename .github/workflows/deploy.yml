@@ -173,11 +173,18 @@ jobs:
                   echo "Instalando dependências front-end:"
                   npm ci --include=dev
 
+                  echo "Limpando build anterior do Vite:"
+                  rm -rf public/build
+
                   echo "Rodando Vite build:"
                   npm run build
 
                   echo "Validando manifest:"
                   test -f public/build/manifest.json
+
+                  echo "Validando chunk atualizado da tela de palpites:"
+                  grep -R "Filtrar hoje" public/build/assets/PoolDetailView-*.js
+                  grep -R "prediction-filter-chip" public/build/assets/PoolDetailView-*.js
                 '
 
               echo "== Validando manifest do Vite no host =="
