@@ -55,7 +55,7 @@ Route::get('/health', function () {
 
     return response()->json([
         'status' => $ok ? 'ok' : 'error',
-        'version' => env('APP_VERSION'),
+        'version' => config('app.version'),
         'checks' => $checks,
         'time' => now()->toIso8601String(),
     ], $ok ? 200 : 503);

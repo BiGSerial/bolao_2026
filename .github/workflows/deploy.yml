@@ -126,6 +126,12 @@ jobs:
                 echo "APP_VERSION=$APP_VERSION" >> .env
               fi
 
+              if grep -q '^PWA_BUILD_ID=' .env; then
+                sed -i "s|^PWA_BUILD_ID=.*|PWA_BUILD_ID=$APP_VERSION|" .env
+              else
+                echo "PWA_BUILD_ID=$APP_VERSION" >> .env
+              fi
+
               echo "== Acessando compose externo =="
               cd "$PROJECT_ROOT"
 
