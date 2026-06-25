@@ -45,18 +45,21 @@
                     <div class="pwa-section pt-3">
                         <div class="card p-3">
                             <p class="text-[11px] text-bolao-muted2 uppercase tracking-wider mb-2">Ranking completo</p>
-                            <div v-if="liveRankingRows.length" class="space-y-1.5">
+                            <TransitionGroup v-if="liveRankingRows.length" name="rank-move" tag="div" class="space-y-1.5">
                                 <div
                                     v-for="row in liveRankingRows"
                                     :key="row.user?.id"
                                     class="rank-row"
-                                    :class="{ me: row.user?.id === auth.user?.id }"
+                                    :class="[
+                                        { me: row.user?.id === auth.user?.id },
+                                        rankingMoveClass(row),
+                                    ]"
                                 >
                                     <span class="w-6 font-bc font-bold">{{ row.position }}º</span>
                                     <span class="flex-1 truncate">{{ row.user?.name }}</span>
                                     <span class="w-10 text-right font-bc font-bold text-amber-300">{{ row.points_total }}</span>
                                 </div>
-                            </div>
+                            </TransitionGroup>
                             <p v-else class="text-xs text-bolao-muted">Sem dados de ranking.</p>
                         </div>
                     </div>
@@ -413,6 +416,9 @@ const DASHBOARD_PANEL_INDEX_KEY = 'pwa_dashboard_panel_index';
 const DASHBOARD_LIVE_TAB_KEY = 'pwa_dashboard_live_tab';
 
 const liveRankingRows = ref([]);
+const previousRankingPositions = ref({});
+const rankingMoveDirections = ref({});
+let rankingMoveTimer = null;
 const poolPredictions = ref([]);
 const selectedPoolDetail = ref(null);
 const standingsGroups = ref([]);
@@ -602,6 +608,43 @@ function localDateYmd(d) {
     return `${y}-${m}-${day}`;
 }
 
+function rankingMoveClass(row) {
+    const key = String(row?.user?.id ?? '');
+    const direction = rankingMoveDirections.value[key];
+    if (direction === 'up') return 'rank-row-up';
+    if (direction === 'down') return 'rank-row-down';
+    return '';
+}
+
+function applyLiveRankingRows(rows) {
+    const nextRows = Array.isArray(rows) ? rows : [];
+    const previous = previousRankingPositions.value;
+    const directions = {};
+    const nextPositions = {};
+
+    for (const row of nextRows) {
+        const key = String(row?.user?.id ?? '');
+        const position = Number(row?.position ?? 0);
+        if (!key || !Number.isFinite(position) || position <= 0) continue;
+
+        const oldPosition = Number(previous[key] ?? 0);
+        if (oldPosition > 0 && oldPosition !== position) {
+            directions[key] = position < oldPosition ? 'up' : 'down';
+        }
+        nextPositions[key] = position;
+    }
+
+    liveRankingRows.value = nextRows;
+    previousRankingPositions.value = nextPositions;
+    rankingMoveDirections.value = directions;
+
+    if (rankingMoveTimer) clearTimeout(rankingMoveTimer);
+    rankingMoveTimer = setTimeout(() => {
+        rankingMoveDirections.value = {};
+        rankingMoveTimer = null;
+    }, 700);
+}
+
 function detectCompetitionTitle(payload) {
     if (selectedCompetition.value?.name) return selectedCompetition.value.name;
     return payload?.upcoming_matches?.[0]?.competition?.name
@@ -644,7 +687,7 @@ async function loadPoolData() {
     const poolId = normalizePoolId(selectedPoolId.value);
     if (!poolId) {
         selectedPoolId.value = null;
-        liveRankingRows.value = [];
+        applyLiveRankingRows([]);
         poolPredictions.value = [];
         selectedPoolDetail.value = null;
         return;
@@ -656,7 +699,7 @@ async function loadPoolData() {
     ]);
     const predictions = await loadAllPoolPredictions(poolId);
 
-    liveRankingRows.value = rankRes.data.data.items ?? [];
+    applyLiveRankingRows(rankRes.data.data.items ?? []);
     poolPredictions.value = predictions;
     selectedPoolDetail.value = poolRes.data.data ?? null;
 }
@@ -1001,6 +1044,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
     stopRealtime();
+    if (rankingMoveTimer) clearTimeout(rankingMoveTimer);
 });
 </script>
 
@@ -1031,8 +1075,23 @@ onBeforeUnmount(() => {
 .panel-sub { font-size: 12px; color: #7a8394; margin-top: 2px; }
 
 .card { border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); background: #13161b; }
-.rank-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07); background: #171d28; font-size: 11px; }
+.rank-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07); background: #171d28; font-size: 11px; transition: transform .28s ease, opacity .2s ease, background-color .28s ease, border-color .28s ease; }
 .rank-row.me { border-color: rgba(245,166,35,0.35); background: rgba(245,166,35,0.1); }
+.rank-row-up { animation: rankPulseUp .7s ease; }
+.rank-row-down { animation: rankPulseDown .7s ease; }
+.rank-move-move { transition: transform .32s cubic-bezier(.2,.8,.2,1); }
+.rank-move-enter-active,
+.rank-move-leave-active { transition: opacity .2s ease, transform .2s ease; }
+.rank-move-enter-from,
+.rank-move-leave-to { opacity: 0; transform: translateY(8px); }
+@keyframes rankPulseUp {
+    0%, 100% { border-color: rgba(255,255,255,0.07); background-color: #171d28; }
+    35% { border-color: rgba(34,197,94,.45); background-color: rgba(34,197,94,.14); }
+}
+@keyframes rankPulseDown {
+    0%, 100% { border-color: rgba(255,255,255,0.07); background-color: #171d28; }
+    35% { border-color: rgba(239,68,68,.38); background-color: rgba(239,68,68,.10); }
+}
 
 .pool-chip { border-radius: 999px; border: 1px solid rgba(255,255,255,0.08); background: #1a1f2c; color: #7a8394; padding: 6px 12px; font-size: 12px; font-weight: 700; }
 .pool-chip.active { background: rgba(245,166,35,0.14); border-color: rgba(245,166,35,0.35); color: #f5a623; }

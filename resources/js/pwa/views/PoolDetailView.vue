@@ -178,9 +178,28 @@
 
             <!-- Lista infinita -->
             <div v-else class="space-y-5">
-                <div v-if="openPredictions.length" class="pwa-section space-y-3 pt-2">
-                    <!-- Action toolbar -->
-                    <div class="flex gap-2 justify-end">
+                <div v-if="openPredictions.length || finishedPredictions.length" class="pwa-section space-y-3 pt-2">
+                    <div class="prediction-filter-row" role="tablist" aria-label="Filtrar palpites">
+                        <button
+                            v-for="option in predictionFilterOptions"
+                            :key="option.value"
+                            type="button"
+                            class="prediction-filter-chip"
+                            :class="{ active: predictionFilter === option.value }"
+                            :disabled="option.count === 0"
+                            @click="setPredictionFilter(option.value)"
+                        >
+                            <i class="ti" :class="option.icon"></i>
+                            <span>{{ option.label }}</span>
+                            <strong>{{ option.count }}</strong>
+                        </button>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2 justify-end">
+                        <button class="bulk-action-btn" :disabled="!todayPredictions.length" @click="setPredictionFilter('today')">
+                            <i class="ti ti-calendar-event text-[13px]"></i>
+                            {{ todayPredictions.length ? 'Filtrar hoje' : 'Sem jogos hoje' }}
+                        </button>
                         <button class="bulk-action-btn" :disabled="savingBulk" @click="openBulkModal">
                             <i class="ti ti-layout-grid-add text-[13px]"></i>
                             {{ savingBulk ? 'Aplicando...' : 'Palpite em massa' }}
@@ -190,30 +209,37 @@
                             {{ savingApplyAll ? 'Replicando...' : 'Replicar' }}
                         </button>
                     </div>
+                </div>
 
-                <div v-if="pool?.closed_predictions" class="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-[11px] text-amber-200">
+                <div v-if="filteredOpenPredictions.length" class="pwa-section space-y-3">
+
+                <div v-if="showBatchPredictionSubmit" class="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-[11px] text-amber-200">
                     <i class="ti ti-lock text-[11px] mr-1"></i>
                     Palpite único ativo — preencha todos os jogos e toque em "Salvar palpites". Após envio, não é possível alterar.
                 </div>
-                <div v-if="pool?.closed_predictions" class="flex justify-end">
-                    <button class="pwa-btn-primary" :disabled="savingBatchPredictions || !hasBatchChanges" @click="saveBatchPredictions">
+                <div v-if="showBatchPredictionSubmit" class="flex justify-end">
+                    <button class="pwa-btn-primary" :disabled="savingBatchPredictions" @click="saveBatchPredictions">
                         {{ savingBatchPredictions ? 'Salvando...' : `Salvar palpites (${Object.keys(predictionDrafts).length})` }}
                     </button>
                 </div>
 
-                <PredictionCard
+                <div
                     v-for="item in visibleOpenPredictions"
                     :key="item.match.id"
-                    :item="item"
-                    :pool-id="poolId"
-                    :editing-blocked-reason="predictionEditingBlockedReason"
-                    :batch-mode="!!pool?.closed_predictions"
-                    :batch-home-score="predictionDrafts[item.match.id]?.home_score"
-                    :batch-away-score="predictionDrafts[item.match.id]?.away_score"
-                    :batch-saving="savingBatchPredictions"
-                    @changed="onPredictionDraftChanged"
-                    @saved="onPredictionSaved"
-                />
+                    :id="matchCardId(item.match.id)"
+                >
+                    <PredictionCard
+                        :item="item"
+                        :pool-id="poolId"
+                        :editing-blocked-reason="predictionEditingBlockedReason"
+                        :batch-mode="!!pool?.closed_predictions"
+                        :batch-home-score="predictionDrafts[item.match.id]?.home_score"
+                        :batch-away-score="predictionDrafts[item.match.id]?.away_score"
+                        :batch-saving="savingBatchPredictions"
+                        @changed="onPredictionDraftChanged"
+                        @saved="onPredictionSaved"
+                    />
+                </div>
 
                 <!-- Sentinel de scroll infinito -->
                 <div ref="sentinelEl" class="h-4"></div>
@@ -225,34 +251,38 @@
 
                 <!-- Fim da lista -->
                 <div v-else class="text-center py-3 text-[11px] text-bolao-muted2">
-                    {{ openPredictions.length }} jogo(s) disponíveis para palpitar
+                    {{ filteredOpenPredictions.length }} jogo(s) nesta lista
                 </div>
                 </div>
 
-                <div v-if="finishedPredictions.length" class="pwa-section space-y-3">
+                <div v-if="filteredFinishedPredictions.length" class="pwa-section space-y-3">
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="font-bc text-lg font-bold uppercase text-white">Seus palpites encerrados</p>
                             <p class="text-[11px] text-bolao-muted2">Histórico somente para consulta</p>
                         </div>
                         <span class="rounded-full bg-white/[0.06] px-2 py-1 text-[10px] font-bold text-bolao-muted">
-                            {{ finishedPredictions.length }}
+                            {{ filteredFinishedPredictions.length }}
                         </span>
                     </div>
 
-                    <PredictionCard
-                        v-for="item in finishedPredictions"
+                    <div
+                        v-for="item in filteredFinishedPredictions"
                         :key="`finished-${item.match.id}`"
-                        :item="item"
-                        :pool-id="poolId"
-                    />
+                        :id="matchCardId(item.match.id)"
+                    >
+                        <PredictionCard
+                            :item="item"
+                            :pool-id="poolId"
+                        />
+                    </div>
                 </div>
 
                 <!-- Sem jogos ou palpites encerrados -->
-                <div v-if="!openPredictions.length && !finishedPredictions.length" class="pwa-section text-center py-14">
+                <div v-if="!filteredOpenPredictions.length && !filteredFinishedPredictions.length" class="pwa-section text-center py-14">
                     <i class="ti ti-calendar-check text-4xl text-bolao-muted2 mb-3 block"></i>
                     <p class="text-sm text-bolao-muted">
-                        Nenhum jogo aberto ou palpite encerrado no momento.
+                        Nenhum jogo encontrado neste filtro.
                     </p>
                 </div>
             </div>
@@ -268,7 +298,7 @@
                 <!-- Header -->
                 <div class="flex items-center justify-between mb-2">
                     <p class="text-[10px] text-bolao-muted2">
-                        Atualizado {{ rankingCalcAt }}
+                        Ranking ao vivo · atualizado {{ rankingCalcAt }}
                     </p>
                     <button class="text-[10px] text-bolao-accent font-bold flex items-center gap-1" @click="loadRanking">
                         <i class="ti ti-refresh text-xs"></i> Atualizar
@@ -283,9 +313,11 @@
                 </div>
 
                 <RankingRow
-                    v-for="row in ranking"
+                    v-for="row in rankingWindow"
                     :key="row.user?.id"
                     :row="row"
+                    clickable
+                    @select="openUserPredictions"
                 />
             </div>
 
@@ -566,17 +598,107 @@
             </div>
         </div>
 
+        <div v-if="selectedRankingUser" class="fixed inset-0 z-50 flex items-end bg-black/70" @click.self="closeUserPredictions">
+            <div class="user-predictions-sheet">
+                <div class="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3">
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-bolao-muted2">Palpites de</p>
+                        <h2 class="truncate text-base font-bold text-white">{{ selectedRankingUser.user?.name ?? selectedUserPredictions?.user?.name ?? 'Participante' }}</h2>
+                        <p class="mt-1 text-[11px] text-bolao-muted">
+                            {{ selectedUserPredictions?.visibility?.all_matches
+                                ? 'Palpite fechado: futuros liberados'
+                                : 'Apenas jogos fechados ou passados' }}
+                        </p>
+                    </div>
+                    <button class="user-predictions-close" @click="closeUserPredictions">
+                        <i class="ti ti-x"></i>
+                    </button>
+                </div>
+
+                <div class="max-h-[70dvh] overflow-y-auto px-4 py-3">
+                    <div v-if="loadingUserPredictions" class="space-y-2">
+                        <SkeletonCard v-for="i in 4" :key="i" />
+                    </div>
+
+                    <div v-else-if="selectedUserPredictionItems.length" class="space-y-2">
+                        <div class="prediction-filter-row pb-1" role="tablist" aria-label="Filtrar palpites do participante">
+                            <button
+                                v-for="option in selectedUserPredictionFilterOptions"
+                                :key="option.value"
+                                type="button"
+                                class="prediction-filter-chip compact"
+                                :class="{ active: selectedUserPredictionFilter === option.value }"
+                                :disabled="option.count === 0"
+                                @click="setSelectedUserPredictionFilter(option.value)"
+                            >
+                                <i class="ti" :class="option.icon"></i>
+                                <span>{{ option.label }}</span>
+                                <strong>{{ option.count }}</strong>
+                            </button>
+                        </div>
+
+                        <router-link
+                            v-for="item in filteredSelectedUserPredictionItems"
+                            :key="item.match.id"
+                            :to="{ name: 'pool-match-detail', params: { poolId: poolId, matchId: item.match.id } }"
+                            :id="userPredictionCardId(item.match.id)"
+                            class="user-prediction-row"
+                        >
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-bolao-muted2">
+                                    <span>{{ matchStatusLabel(item.match.status) }}</span>
+                                    <span v-if="item.match.matchday">Rodada {{ item.match.matchday }}</span>
+                                    <span>{{ formatMatchDateTime(item.match.local_date) }}</span>
+                                </div>
+                                <div class="mt-1 flex min-w-0 items-center gap-1.5 text-sm font-bold text-white">
+                                    <img v-if="item.match.home_team?.crest" :src="item.match.home_team.crest" class="user-prediction-flag" alt="">
+                                    <span class="truncate">{{ displayTeamName(item.match.home_team, 'Casa') }}</span>
+                                    <span class="shrink-0 text-bolao-muted2">x</span>
+                                    <img v-if="item.match.away_team?.crest" :src="item.match.away_team.crest" class="user-prediction-flag" alt="">
+                                    <span class="truncate">{{ displayTeamName(item.match.away_team, 'Fora') }}</span>
+                                </div>
+                            </div>
+
+                            <div class="shrink-0 text-right">
+                                <div v-if="item.prediction" class="user-prediction-score">
+                                    {{ item.prediction.home_score }}×{{ item.prediction.away_score }}
+                                </div>
+                                <div v-else class="text-[10px] font-bold uppercase text-bolao-muted2">Sem palpite</div>
+                                <div class="mt-1 flex items-center justify-end gap-1.5 text-[10px] font-bold">
+                                    <span v-if="hasRealScore(item)" class="text-slate-400">
+                                        Real {{ item.match.score.home }}×{{ item.match.score.away }}
+                                    </span>
+                                    <span v-if="item.prediction?.points !== null && item.prediction?.points !== undefined" class="user-prediction-points">
+                                        {{ item.prediction.points }} pts
+                                    </span>
+                                </div>
+                            </div>
+                        </router-link>
+
+                        <div v-if="!filteredSelectedUserPredictionItems.length" class="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-8 text-center text-sm text-bolao-muted">
+                            Nenhum palpite encontrado neste filtro.
+                        </div>
+                    </div>
+
+                    <div v-else class="py-10 text-center">
+                        <i class="ti ti-lock text-3xl text-bolao-muted2"></i>
+                        <p class="mt-2 text-sm text-bolao-muted">Nenhum palpite visível ainda.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount, computed, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Swal from 'sweetalert2';
 import { useAuthStore } from '../store/auth';
 import { getPools, getPool, updatePool, deletePool } from '../api/pools';
-import { downloadPoolPredictionsPdf, getPoolPredictions, savePrediction } from '../api/predictions';
-import { getRanking } from '../api/rankings';
+import { downloadPoolPredictionsPdf, getPoolPredictions, getPoolUserPredictions, savePrediction } from '../api/predictions';
+import { getLiveRanking } from '../api/rankings';
 import { getPoolMembers, updatePoolMember, removePoolMember, inviteToPool } from '../api/pool-members';
 import SkeletonBlock from '../components/ui/SkeletonBlock.vue';
 import SkeletonCard from '../components/ui/SkeletonCard.vue';
@@ -615,6 +737,7 @@ const loadingPredictions = ref(true);
 const visibleCount       = ref(15);
 const sentinelEl         = ref(null);
 const predictionDrafts   = ref({});
+const predictionFilter   = ref('all');
 let   infiniteObserver   = null;
 const savingBatchPredictions = ref(false);
 const savingBulk     = ref(false);
@@ -622,6 +745,10 @@ const savingApplyAll = ref(false);
 const ranking       = ref([]);
 const loadingRanking = ref(true);
 const rankingCalcAt = ref('');
+const selectedRankingUser = ref(null);
+const selectedUserPredictions = ref(null);
+const loadingUserPredictions = ref(false);
+const selectedUserPredictionFilter = ref('all');
 const members = ref([]);
 const loadingMembers = ref(false);
 const manageBusyMemberId = ref(null);
@@ -703,19 +830,18 @@ function copyInviteCode() {
     inviteCodeCopiedTimer = setTimeout(() => { inviteCodeCopied.value = false; }, 2000);
 }
 
-// Jogos abertos para palpitar: não bloqueados, status válido, ordenados por data
+// Jogos futuros/em andamento visiveis na aba de palpites. Se ja estiverem
+// bloqueados, o card fica somente leitura, mas continuam aparecendo em "Todos".
 const OPEN_STATUSES = ['TIMED', 'SCHEDULED', 'PRE_MATCH'];
 const openPredictions = computed(() =>
     [...predictions.value]
-        .filter(i => OPEN_STATUSES.includes(i.match?.status) && !i.lock?.is_locked)
+        .filter(i => [...OPEN_STATUSES, 'IN_PLAY', 'PAUSED', 'HALFTIME'].includes(i.match?.status))
         .sort((a, b) => {
             const ta = a.match?.local_date ? new Date(a.match.local_date).getTime() : 0;
             const tb = b.match?.local_date ? new Date(b.match.local_date).getTime() : 0;
             return ta - tb;
         })
 );
-const visibleOpenPredictions = computed(() => openPredictions.value.slice(0, visibleCount.value));
-const hasMoreToShow = computed(() => visibleCount.value < openPredictions.value.length);
 const finishedPredictions = computed(() =>
     [...predictions.value]
         .filter(i => ['FINISHED', 'AWARDED'].includes(i.match?.status) && i.prediction != null)
@@ -725,8 +851,53 @@ const finishedPredictions = computed(() =>
             return tb - ta;
         })
 );
+const todayPredictions = computed(() =>
+    [...openPredictions.value, ...finishedPredictions.value].filter((item) => isTodayMatch(item.match)),
+);
+const filteredOpenPredictions = computed(() => {
+    if (predictionFilter.value === 'today') {
+        return openPredictions.value.filter((item) => isTodayMatch(item.match));
+    }
+    if (predictionFilter.value === 'finished') return [];
+    return openPredictions.value;
+});
+const filteredFinishedPredictions = computed(() => {
+    if (predictionFilter.value === 'today') {
+        return finishedPredictions.value.filter((item) => isTodayMatch(item.match));
+    }
+    if (predictionFilter.value === 'open') return [];
+    return finishedPredictions.value;
+});
+const visibleOpenPredictions = computed(() => filteredOpenPredictions.value.slice(0, visibleCount.value));
+const hasMoreToShow = computed(() => visibleCount.value < filteredOpenPredictions.value.length);
+const predictionFilterOptions = computed(() => [
+    {
+        value: 'all',
+        label: 'Todos',
+        icon: 'ti-list',
+        count: openPredictions.value.length + finishedPredictions.value.length,
+    },
+    {
+        value: 'today',
+        label: 'Hoje',
+        icon: 'ti-calendar-event',
+        count: todayPredictions.value.length,
+    },
+    {
+        value: 'open',
+        label: 'Próximos',
+        icon: 'ti-pencil',
+        count: openPredictions.value.length,
+    },
+    {
+        value: 'finished',
+        label: 'Encerrados',
+        icon: 'ti-flag-checkered',
+        count: finishedPredictions.value.length,
+    },
+]);
 
-const openCount = computed(() => openPredictions.value.filter((i) => i.prediction == null).length);
+const openCount = computed(() => openPredictions.value.filter((i) => !i.lock?.is_locked && i.prediction == null).length);
 
 const predictionEditingBlockedReason = computed(() => {
     if (!navigator.onLine) return 'Sem conexão. O aplicativo exige validação online de horário para salvar palpite.';
@@ -734,6 +905,7 @@ const predictionEditingBlockedReason = computed(() => {
     return '';
 });
 const hasBatchChanges = computed(() => Object.keys(predictionDrafts.value).length > 0);
+const showBatchPredictionSubmit = computed(() => !!pool.value?.closed_predictions && hasBatchChanges.value);
 
 async function downloadPredictionsPdf() {
     downloadingPdf.value = true;
@@ -768,10 +940,180 @@ const myRow = computed(() => {
     if (!auth.user) return null;
     return ranking.value.find(r => r.user?.id === auth.user.id) ?? null;
 });
+const rankingWindow = computed(() => centeredUserWindow(ranking.value, auth.user?.id));
 const canManage = computed(() => !!pool.value?.permissions?.can_manage);
 const isOwner = computed(() => pool.value?.membership?.role === 'owner');
 const pendingMembers = computed(() => members.value.filter((m) => m.status === 'pending'));
 const activeMembers = computed(() => members.value.filter((m) => m.status === 'active'));
+const selectedUserPredictionItems = computed(() => selectedUserPredictions.value?.items ?? []);
+const selectedUserTodayPredictionItems = computed(() =>
+    selectedUserPredictionItems.value.filter((item) => isTodayMatch(item.match)),
+);
+const selectedUserFinishedPredictionItems = computed(() =>
+    selectedUserPredictionItems.value.filter((item) => ['FINISHED', 'AWARDED'].includes(String(item.match?.status || '').toUpperCase())),
+);
+const filteredSelectedUserPredictionItems = computed(() => {
+    if (selectedUserPredictionFilter.value === 'today') {
+        return selectedUserTodayPredictionItems.value;
+    }
+    if (selectedUserPredictionFilter.value === 'finished') {
+        return selectedUserFinishedPredictionItems.value;
+    }
+    return selectedUserPredictionItems.value;
+});
+const selectedUserPredictionFilterOptions = computed(() => [
+    {
+        value: 'all',
+        label: 'Todos',
+        icon: 'ti-list',
+        count: selectedUserPredictionItems.value.length,
+    },
+    {
+        value: 'today',
+        label: 'Hoje',
+        icon: 'ti-calendar-event',
+        count: selectedUserTodayPredictionItems.value.length,
+    },
+    {
+        value: 'finished',
+        label: 'Encerrados',
+        icon: 'ti-flag-checkered',
+        count: selectedUserFinishedPredictionItems.value.length,
+    },
+]);
+
+function centeredUserWindow(rows, userId, size = 5) {
+    const list = Array.isArray(rows) ? rows : [];
+    if (list.length <= size) return list;
+
+    const index = list.findIndex((row) => Number(row.user?.id) === Number(userId));
+    if (index < 0) return list.slice(0, size);
+
+    const start = Math.max(0, Math.min(index - Math.floor(size / 2), list.length - size));
+    return list.slice(start, start + size);
+}
+
+function matchStatusLabel(status) {
+    return {
+        FINISHED: 'Encerrado',
+        AWARDED: 'Encerrado',
+        IN_PLAY: 'Ao vivo',
+        PAUSED: 'Intervalo',
+        TIMED: 'Agendado',
+        SCHEDULED: 'Agendado',
+        PRE_MATCH: 'Em breve',
+    }[String(status || '').toUpperCase()] ?? String(status || '');
+}
+
+function formatMatchDateTime(value) {
+    if (!value) return '';
+    return new Date(value).toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+function displayTeamName(team, fallback) {
+    const raw = String(team?.name ?? team?.tla ?? fallback ?? '').trim();
+    return raw || fallback;
+}
+
+function matchCardId(matchId) {
+    return `pool-match-card-${matchId}`;
+}
+
+function userPredictionCardId(matchId) {
+    return `user-prediction-card-${matchId}`;
+}
+
+function isTodayMatch(match) {
+    if (!match?.local_date) return false;
+    const matchDate = new Date(match.local_date);
+    const today = new Date();
+
+    return matchDate.getFullYear() === today.getFullYear()
+        && matchDate.getMonth() === today.getMonth()
+        && matchDate.getDate() === today.getDate();
+}
+
+function hasRealScore(item) {
+    return item?.match?.score?.home !== null
+        && item?.match?.score?.home !== undefined
+        && item?.match?.score?.away !== null
+        && item?.match?.score?.away !== undefined;
+}
+
+function setPredictionFilter(value) {
+    predictionFilter.value = ['all', 'today', 'open', 'finished'].includes(value) ? value : 'all';
+    visibleCount.value = 15;
+    nextTick(() => setupInfiniteScroll());
+}
+
+function setSelectedUserPredictionFilter(value) {
+    selectedUserPredictionFilter.value = ['all', 'today', 'finished'].includes(value) ? value : 'all';
+}
+
+async function scrollToTodayGames() {
+    const todayItem = todayPredictions.value[0];
+    if (!todayItem?.match?.id) return;
+
+    activeTab.value = 'predictions';
+
+    const openIndex = openPredictions.value.findIndex((item) => Number(item.match?.id) === Number(todayItem.match.id));
+    if (openIndex >= 0) {
+        visibleCount.value = Math.max(visibleCount.value, openIndex + 1);
+    }
+
+    await nextTick();
+
+    document.getElementById(matchCardId(todayItem.match.id))?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+    });
+}
+
+async function scrollUserModalToTodayGames() {
+    const todayItem = selectedUserTodayPredictionItems.value[0];
+    if (!todayItem?.match?.id) return;
+
+    await nextTick();
+
+    document.getElementById(userPredictionCardId(todayItem.match.id))?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+    });
+}
+
+async function openUserPredictions(row) {
+    const userId = Number(row?.user?.id || 0);
+    if (!userId) return;
+
+    selectedRankingUser.value = row;
+    selectedUserPredictions.value = null;
+    selectedUserPredictionFilter.value = 'all';
+    loadingUserPredictions.value = true;
+
+    try {
+        const res = await getPoolUserPredictions(poolId.value, userId, { per_page: 200 });
+        selectedUserPredictions.value = res.data.data;
+    } catch {
+        selectedUserPredictions.value = {
+            user: row.user,
+            items: [],
+            visibility: { all_matches: false },
+        };
+    } finally {
+        loadingUserPredictions.value = false;
+    }
+}
+
+function closeUserPredictions() {
+    selectedRankingUser.value = null;
+    selectedUserPredictions.value = null;
+    loadingUserPredictions.value = false;
+}
 
 async function loadPool() {
     loadingPool.value = true;
@@ -1035,7 +1377,7 @@ function setupInfiniteScroll() {
 async function loadRanking() {
     loadingRanking.value = true;
     try {
-        const res = await getRanking(poolId.value);
+        const res = await getLiveRanking(poolId.value);
         ranking.value = res.data.data.items ?? [];
         const calcAt = res.data.data.calculated_at;
         rankingCalcAt.value = calcAt
@@ -1478,6 +1820,57 @@ onBeforeUnmount(() => {
 }
 .bulk-action-btn:not(:disabled):active { opacity: .7; }
 .bulk-action-btn:disabled { opacity: .4; }
+.prediction-filter-row {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+}
+.prediction-filter-row::-webkit-scrollbar {
+    display: none;
+}
+.prediction-filter-chip {
+    display: inline-flex;
+    min-height: 38px;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 999px;
+    background: #171d28;
+    color: #94a3b8;
+    padding: 8px 11px;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+}
+.prediction-filter-chip.compact {
+    min-height: 34px;
+    padding: 7px 9px;
+    font-size: 11px;
+}
+.prediction-filter-chip strong {
+    min-width: 20px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.07);
+    padding: 3px 6px;
+    text-align: center;
+    color: #cbd5e1;
+    font-size: 10px;
+}
+.prediction-filter-chip.active {
+    border-color: rgba(245,166,35,0.42);
+    background: rgba(245,166,35,0.13);
+    color: #f5a623;
+}
+.prediction-filter-chip.active strong {
+    background: rgba(245,166,35,0.18);
+    color: #ffd084;
+}
+.prediction-filter-chip:disabled {
+    opacity: .42;
+}
 
 /* Sticky tab bar */
 .pwa-tabs-bar {
@@ -1652,6 +2045,63 @@ onBeforeUnmount(() => {
     background: rgba(245,166,35,0.06);
     padding: 10px 12px;
     margin-bottom: 2px;
+}
+
+.user-predictions-sheet {
+    width: 100%;
+    max-height: 86dvh;
+    overflow: hidden;
+    border-radius: 18px 18px 0 0;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-bottom: 0;
+    background: #0f131b;
+    box-shadow: 0 -18px 48px rgba(0,0,0,0.45);
+}
+.user-predictions-close {
+    display: flex;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.04);
+    color: #cbd5e1;
+}
+.user-prediction-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    background: #141a25;
+    padding: 11px 12px;
+}
+.user-prediction-flag {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    object-fit: contain;
+}
+.user-prediction-score {
+    min-width: 48px;
+    border-radius: 10px;
+    border: 1px solid rgba(245,166,35,0.28);
+    background: rgba(245,166,35,0.1);
+    padding: 6px 8px;
+    text-align: center;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 18px;
+    font-weight: 900;
+    line-height: 1;
+    color: #f8c66d;
+}
+.user-prediction-points {
+    border-radius: 999px;
+    background: rgba(34,197,94,0.14);
+    padding: 2px 6px;
+    color: #86efac;
 }
 
 /* ── Info tab ──────────────────────────────────────────── */

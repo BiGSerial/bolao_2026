@@ -728,14 +728,16 @@
         var html = live.innerHTML;
         var desktop = document.getElementById('rp-desktop-content');
         if (desktop) {
+            var desktopBefore = captureRankingRows(desktop);
             desktop.innerHTML = html;
-            animateRankingRows(desktop);
+            animateRankingRows(desktop, desktopBefore);
         }
         if (isOpen) {
             var mobile = document.getElementById('rp-content');
             if (mobile) {
+                var mobileBefore = captureRankingRows(mobile);
                 mobile.innerHTML = html;
-                animateRankingRows(mobile);
+                animateRankingRows(mobile, mobileBefore);
             }
         }
     }
@@ -744,12 +746,29 @@
         var live = document.getElementById('rp-live-data');
         var dest = document.getElementById('rp-content');
         if (live && dest) {
+            var before = captureRankingRows(dest);
             dest.innerHTML = live.innerHTML;
-            animateRankingRows(dest);
+            animateRankingRows(dest, before);
         }
     }
 
-    function animateRankingRows(root) {
+    function captureRankingRows(root) {
+        var snapshot = new Map();
+        if (!root) return snapshot;
+        root.querySelectorAll('.rp-rank-row[data-rank-key][data-rank-pos]').forEach(function (row) {
+            var key = row.getAttribute('data-rank-key');
+            if (!key) return;
+            var rect = row.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) return;
+            snapshot.set(key, {
+                top: rect.top,
+                pos: parseInt(row.getAttribute('data-rank-pos') || '0', 10),
+            });
+        });
+        return snapshot;
+    }
+
+    function animateRankingRows(root, before) {
         if (!root) return;
         var rows = root.querySelectorAll('.rp-rank-row[data-rank-key][data-rank-pos]');
         rows.forEach(function (row) {
@@ -757,17 +776,18 @@
             var pos = parseInt(row.getAttribute('data-rank-pos') || '0', 10);
             if (!key || !Number.isFinite(pos) || pos <= 0) return;
 
-            var prevPos = rankPositions.get(key);
+            var previous = before && before.get(key);
+            var prevPos = previous && Number.isFinite(previous.pos) ? previous.pos : rankPositions.get(key);
             rankPositions.set(key, pos);
             if (!Number.isFinite(prevPos) || prevPos === pos) return;
 
-            var rowHeight = row.offsetHeight || 34;
-            var deltaY = (prevPos - pos) * rowHeight;
+            var rect = row.getBoundingClientRect();
+            var deltaY = previous ? previous.top - rect.top : 0;
             if (deltaY !== 0) {
                 row.style.transition = 'none';
                 row.style.transform = 'translateY(' + deltaY + 'px)';
                 void row.offsetHeight;
-                row.style.transition = 'transform 260ms cubic-bezier(0.22,1,0.36,1), background-color 220ms ease';
+                row.style.transition = 'transform 320ms cubic-bezier(0.22,1,0.36,1), background-color 220ms ease';
                 row.style.transform = 'translateY(0px)';
             }
 
@@ -778,7 +798,7 @@
                 row.classList.remove('rp-rank-up', 'rp-rank-down');
                 row.style.transition = '';
                 row.style.transform = '';
-            }, 450);
+            }, 520);
         });
     }
 

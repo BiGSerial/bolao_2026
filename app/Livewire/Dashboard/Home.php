@@ -364,7 +364,7 @@ class Home extends Component
                     $myRanking = $liveRankingRows->firstWhere('user_id', $userId);
 
                     if ($myRanking) {
-                        $myRanking->setAttribute('forced_fifth_slot', true);
+                        $myRanking->forced_fifth_slot = true;
                         $selectedPoolTopRankings = $topFour->concat(collect([$myRanking]))->values();
                     }
                 }

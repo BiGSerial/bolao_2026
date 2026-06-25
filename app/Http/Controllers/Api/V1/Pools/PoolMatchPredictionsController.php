@@ -5,14 +5,19 @@ namespace App\Http\Controllers\Api\V1\Pools;
 use App\Http\Controllers\Controller;
 use App\Models\FootballMatch;
 use App\Models\Pool;
-use App\Models\PoolMember;
 use App\Models\Prediction;
+use App\Services\Pools\LivePoolRankingService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 class PoolMatchPredictionsController extends Controller
 {
+    public function __construct(
+        private readonly LivePoolRankingService $livePoolRankingService,
+    ) {}
+
     public function __invoke(Request $request, Pool $pool, FootballMatch $match): JsonResponse
     {
         $user = $request->user();
@@ -24,26 +29,34 @@ class PoolMatchPredictionsController extends Controller
         
         $isLocked = $match->isPredictionLockedFor($pool);
         
-        $members = $pool->members()
-            ->with('user:id,name,display_name')
-            ->where('status', 'active')
-            ->get();
-
         $predictions = Prediction::query()
             ->where('pool_id', $pool->id)
             ->where('football_match_id', $match->id)
             ->get()
             ->keyBy('user_id');
 
-        $items = $members->map(function (PoolMember $member) use ($predictions, $isLocked, $user) {
-            $prediction = $predictions->get($member->user_id);
-            $isOwn = (int) $member->user_id === (int) $user->id;
+        $rankingRows = $this->rankingWindow(
+            $this->livePoolRankingService->build($pool)->values(),
+            (int) $user->id,
+        );
+
+        $items = $rankingRows->map(function (object $row) use ($predictions, $isLocked, $user) {
+            $userId = (int) ($row->user_id ?? 0);
+            $prediction = $predictions->get($userId);
+            $isOwn = $userId === (int) $user->id;
 
             return [
+                'position' => (int) ($row->position ?? 0),
                 'user' => [
-                    'id' => $member->user_id,
-                    'name' => $member->user?->public_name ?? $member->user?->display_name ?? $member->user?->name,
+                    'id' => $userId,
+                    'name' => $row->user?->public_name ?? $row->user?->display_name ?? $row->user?->name,
                 ],
+                'points_total' => (int) ($row->points_total ?? 0),
+                'exact_scores' => (int) ($row->exact_scores ?? 0),
+                'correct_results' => (int) ($row->correct_results ?? 0),
+                'correct_home_goals' => (int) ($row->correct_home_goals ?? 0),
+                'correct_away_goals' => (int) ($row->correct_away_goals ?? 0),
+                'predictions_counted' => (int) ($row->predictions_counted ?? 0),
                 'prediction' => ($isLocked || $isOwn) ? ($prediction ? [
                     'home_score' => $prediction->home_score,
                     'away_score' => $prediction->away_score,
@@ -72,5 +85,22 @@ class PoolMatchPredictionsController extends Controller
             'is_locked' => $isLocked,
             'predictions' => $items,
         ]);
+    }
+
+    private function rankingWindow(Collection $rankingRows, int $userId): Collection
+    {
+        $total = $rankingRows->count();
+        if ($total <= 5) {
+            return $rankingRows;
+        }
+
+        $index = $rankingRows->search(fn (object $row): bool => (int) ($row->user_id ?? 0) === $userId);
+        if ($index === false) {
+            return $rankingRows->take(5);
+        }
+
+        $start = max(0, min((int) $index - 2, $total - 5));
+
+        return $rankingRows->slice($start, 5)->values();
     }
 }

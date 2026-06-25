@@ -117,11 +117,21 @@
                             class="pwa-card p-3 flex items-center justify-between"
                             :class="{ 'border-bolao-accent/40 bg-bolao-accent/5': isMe(item.user.id) }"
                         >
-                            <div class="flex items-center gap-3">
+                            <div class="flex items-center gap-3 min-w-0">
                                 <div class="w-8 h-8 rounded-full bg-bolao-bg4 flex items-center justify-center text-[10px] font-black text-bolao-muted shrink-0">
                                     {{ getInitials(item.user.name) }}
                                 </div>
-                                <span class="text-sm font-bold text-white">{{ item.user.name }}</span>
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-1.5 min-w-0">
+                                        <span class="text-[11px] font-bc font-extrabold shrink-0" :class="isMe(item.user.id) ? 'text-bolao-accent' : 'text-bolao-muted2'">
+                                            {{ item.position }}º
+                                        </span>
+                                        <span class="text-sm font-bold text-white truncate">{{ item.user.name }}</span>
+                                    </div>
+                                    <p class="text-[10px] text-bolao-muted mt-0.5">
+                                        {{ item.points_total ?? 0 }} pts
+                                    </p>
+                                </div>
                             </div>
                             <div class="flex items-center gap-2">
                                 <template v-if="item.prediction === 'hidden'">
@@ -380,11 +390,7 @@ const hasGoalScorers = computed(() => {
 });
 
 const sortedPredictions = computed(() => {
-    return [...(predictions.value || [])].sort((a, b) => {
-        if (isMe(a.user.id)) return -1;
-        if (isMe(b.user.id)) return 1;
-        return a.user.name.localeCompare(b.user.name);
-    });
+    return predictions.value || [];
 });
 
 // ── Methods ───────────────────────────────────────────────────────────────

@@ -145,6 +145,85 @@ class MyPredictionApiTest extends TestCase
             ->assertJsonPath('data.items.0.lock.is_locked', true);
     }
 
+    public function test_user_can_view_other_member_predictions_only_for_locked_or_finished_matches(): void
+    {
+        [$viewer, $pool, $openMatch] = $this->baseScenario(now()->utc()->addHours(2));
+        $target = User::factory()->create(['name' => 'Target User', 'display_name' => 'Target']);
+        PoolMember::query()->create([
+            'pool_id' => $pool->id,
+            'user_id' => $target->id,
+            'role' => 'member',
+            'status' => 'active',
+        ]);
+
+        $lockedMatch = $this->createMatchLike($openMatch, now()->utc()->addMinutes(10), 'TIMED', 50001);
+        $finishedMatch = $this->createMatchLike($openMatch, now()->utc()->subHours(2), 'FINISHED', 50002, 2, 1);
+
+        foreach ([$openMatch, $lockedMatch, $finishedMatch] as $index => $match) {
+            Prediction::query()->create([
+                'pool_id' => $pool->id,
+                'football_match_id' => $match->id,
+                'user_id' => $target->id,
+                'home_score' => $index,
+                'away_score' => 0,
+                'last_changed_at' => now(),
+            ]);
+        }
+
+        $token = $viewer->createToken('test-device')->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson("/api/v1/pools/{$pool->id}/predictions/users/{$target->id}?per_page=10");
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.visibility.all_matches', false)
+            ->assertJsonCount(2, 'data.items')
+            ->assertJsonPath('data.items.0.match.id', $finishedMatch->id)
+            ->assertJsonPath('data.items.0.match.score.home', 2)
+            ->assertJsonPath('data.items.0.prediction.points', 4)
+            ->assertJsonPath('data.items.1.match.id', $lockedMatch->id);
+    }
+
+    public function test_closed_predictions_locked_pool_exposes_future_predictions_from_other_member(): void
+    {
+        [$viewer, $pool, $pastMatch] = $this->baseScenario(now()->utc()->subHours(2));
+        $pool->update(['closed_predictions' => true]);
+        $target = User::factory()->create(['name' => 'Target User', 'display_name' => 'Target']);
+        PoolMember::query()->create([
+            'pool_id' => $pool->id,
+            'user_id' => $target->id,
+            'role' => 'member',
+            'status' => 'active',
+        ]);
+
+        $futureMatch = $this->createMatchLike($pastMatch, now()->utc()->addHours(2), 'TIMED', 50003);
+
+        foreach ([$pastMatch, $futureMatch] as $index => $match) {
+            Prediction::query()->create([
+                'pool_id' => $pool->id,
+                'football_match_id' => $match->id,
+                'user_id' => $target->id,
+                'home_score' => $index + 1,
+                'away_score' => 0,
+                'last_changed_at' => now(),
+            ]);
+        }
+
+        $token = $viewer->createToken('test-device')->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson("/api/v1/pools/{$pool->id}/predictions/users/{$target->id}?per_page=10");
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.visibility.all_matches', true)
+            ->assertJsonCount(2, 'data.items')
+            ->assertJsonPath('data.items.1.match.id', $futureMatch->id)
+            ->assertJsonPath('data.items.1.prediction.home_score', 2)
+            ->assertJsonPath('data.items.1.prediction.points', null);
+    }
+
     private function baseScenario(?Carbon $matchDate = null): array
     {
         $user = User::factory()->create();
@@ -212,5 +291,28 @@ class MyPredictionApiTest extends TestCase
         ]);
 
         return [$user, $pool, $match];
+    }
+
+    private function createMatchLike(
+        FootballMatch $base,
+        Carbon $matchDate,
+        string $status,
+        int $externalId,
+        ?int $homeScore = null,
+        ?int $awayScore = null,
+    ): FootballMatch {
+        return FootballMatch::query()->create([
+            'provider' => 'football_data',
+            'external_id' => $externalId,
+            'competition_id' => $base->competition_id,
+            'competition_season_id' => $base->competition_season_id,
+            'home_team_id' => $base->home_team_id,
+            'away_team_id' => $base->away_team_id,
+            'utc_date' => $matchDate,
+            'status' => $status,
+            'stage' => $base->stage,
+            'home_score_full_time' => $homeScore,
+            'away_score_full_time' => $awayScore,
+        ]);
     }
 }

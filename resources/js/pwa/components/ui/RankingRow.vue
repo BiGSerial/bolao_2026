@@ -1,7 +1,12 @@
 <template>
     <div
         class="rank-row"
-        :class="isMe ? 'rank-me' : 'rank-default'"
+        :class="[isMe ? 'rank-me' : 'rank-default', clickable ? 'rank-clickable' : '']"
+        :role="clickable ? 'button' : undefined"
+        :tabindex="clickable ? 0 : undefined"
+        @click="emitClick"
+        @keydown.enter.prevent="emitClick"
+        @keydown.space.prevent="emitClick"
     >
         <!-- Position -->
         <div class="rank-pos">
@@ -44,9 +49,17 @@
 import { computed } from 'vue';
 import { useAuthStore } from '../../store/auth';
 
-const props = defineProps({ row: { type: Object, required: true } });
+const props = defineProps({
+    row: { type: Object, required: true },
+    clickable: { type: Boolean, default: false },
+});
+const emit = defineEmits(['select']);
 const auth = useAuthStore();
 const isMe = computed(() => props.row.user?.id === auth.user?.id);
+
+function emitClick() {
+    if (props.clickable) emit('select', props.row);
+}
 </script>
 
 <style scoped>
@@ -60,6 +73,8 @@ const isMe = computed(() => props.row.user?.id === auth.user?.id);
 }
 .rank-default { background: #13161b; border-color: rgba(255,255,255,0.06); }
 .rank-me      { background: rgba(245,166,35,0.07); border-color: rgba(245,166,35,0.22); }
+.rank-clickable { cursor: pointer; }
+.rank-clickable:active { transform: scale(0.99); }
 
 .rank-pos {
     width: 28px;
