@@ -194,10 +194,19 @@
                                             <span v-else class="text-bolao-muted">Sem palpite seu neste jogo.</span>
                                         </template>
                                         <template v-else>
-                                            <span class="text-bolao-muted">Sua posição: </span>
-                                            <span class="text-bolao-accent font-bold">{{ myRankingRow?.position ?? '—' }}º</span>
-                                            <span class="text-bolao-muted"> · </span>
-                                            <span class="text-amber-300 font-bold">{{ myRankingRow?.points_total ?? 0 }} pts</span>
+                                            <div v-if="liveRankingWindow.length" class="space-y-1">
+                                                <div
+                                                    v-for="row in liveRankingWindow"
+                                                    :key="row.user?.id"
+                                                    class="flex items-center gap-1.5"
+                                                    :class="row.user?.id === auth.user?.id ? 'text-bolao-accent font-bold' : 'text-slate-300'"
+                                                >
+                                                    <span class="w-5 font-bc font-bold shrink-0 text-[11px]">{{ row.position }}º</span>
+                                                    <span class="flex-1 truncate text-[11px]">{{ row.user?.name }}</span>
+                                                    <span class="font-bc font-bold text-amber-300 text-[11px] shrink-0">{{ row.points_total }} pts</span>
+                                                </div>
+                                            </div>
+                                            <span v-else class="text-bolao-muted">Sem dados de ranking.</span>
                                         </template>
                                     </div>
                                 </div>
@@ -607,6 +616,17 @@ function localDateYmd(d) {
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
 }
+
+function centeredUserWindow(rows, userId, size = 5) {
+    const list = Array.isArray(rows) ? rows : [];
+    if (list.length <= size) return list;
+    const index = list.findIndex((row) => Number(row.user?.id) === Number(userId));
+    if (index < 0) return list.slice(0, size);
+    const start = Math.max(0, Math.min(index - Math.floor(size / 2), list.length - size));
+    return list.slice(start, start + size);
+}
+
+const liveRankingWindow = computed(() => centeredUserWindow(liveRankingRows.value, auth.user?.id));
 
 function rankingMoveClass(row) {
     const key = String(row?.user?.id ?? '');

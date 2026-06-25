@@ -313,7 +313,7 @@
                 </div>
 
                 <RankingRow
-                    v-for="row in rankingWindow"
+                    v-for="row in ranking"
                     :key="row.user?.id"
                     :row="row"
                     clickable

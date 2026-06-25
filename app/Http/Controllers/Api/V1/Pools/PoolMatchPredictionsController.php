@@ -10,7 +10,6 @@ use App\Services\Pools\LivePoolRankingService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 
 class PoolMatchPredictionsController extends Controller
 {
@@ -26,19 +25,16 @@ class PoolMatchPredictionsController extends Controller
         }
 
         $match->load(['homeTeam', 'awayTeam', 'competition']);
-        
+
         $isLocked = $match->isPredictionLockedFor($pool);
-        
+
         $predictions = Prediction::query()
             ->where('pool_id', $pool->id)
             ->where('football_match_id', $match->id)
             ->get()
             ->keyBy('user_id');
 
-        $rankingRows = $this->rankingWindow(
-            $this->livePoolRankingService->build($pool)->values(),
-            (int) $user->id,
-        );
+        $rankingRows = $this->livePoolRankingService->build($pool)->values();
 
         $items = $rankingRows->map(function (object $row) use ($predictions, $isLocked, $user) {
             $userId = (int) ($row->user_id ?? 0);
@@ -85,22 +81,5 @@ class PoolMatchPredictionsController extends Controller
             'is_locked' => $isLocked,
             'predictions' => $items,
         ]);
-    }
-
-    private function rankingWindow(Collection $rankingRows, int $userId): Collection
-    {
-        $total = $rankingRows->count();
-        if ($total <= 5) {
-            return $rankingRows;
-        }
-
-        $index = $rankingRows->search(fn (object $row): bool => (int) ($row->user_id ?? 0) === $userId);
-        if ($index === false) {
-            return $rankingRows->take(5);
-        }
-
-        $start = max(0, min((int) $index - 2, $total - 5));
-
-        return $rankingRows->slice($start, 5)->values();
     }
 }
