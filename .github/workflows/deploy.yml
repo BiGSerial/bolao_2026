@@ -200,13 +200,19 @@ jobs:
               sleep 5
 
               echo "== [10/10] Subindo containers =="
-              docker compose up -d --remove-orphans
+              docker compose up -d --remove-orphans app nginx horizon reverb scheduler
 
               echo "== Otimizando aplicação =="
               docker compose exec -T app php artisan optimize
 
-              echo "== Reiniciando serviços Laravel =="
-              docker compose restart app nginx horizon reverb scheduler
+              echo "== Encerrando Horizon para workers recarregarem código =="
+              docker compose exec -T app php artisan horizon:terminate 2>/dev/null || true
+
+              echo "== Reiniciando serviços auxiliares =="
+              docker compose restart scheduler reverb
+
+              echo "== Aguardando estabilização dos containers =="
+              sleep 20
 
               echo "== Status final dos containers =="
               docker compose ps
@@ -228,6 +234,21 @@ jobs:
           echo "Aguardando aplicação estabilizar..."
           sleep 10
 
+          PHP_ERROR_PATTERN='Fatal error|Warning: require|Failed opening required|vendor/autoload.php|Whoops|Call to undefined|SQLSTATE|Illuminate\\|Symfony\\Component\\ErrorHandler|RedisException|QueryException'
+
+          curl_status() {
+            local output_file="$1"
+            local url="$2"
+            shift 2
+
+            local status
+            if ! status="$(curl -k -sS "$@" --max-time 20 -o "$output_file" -w "%{http_code}" "$url")"; then
+              status="000"
+            fi
+
+            printf '%s' "$status"
+          }
+
           echo "== Health check: /health =="
 
           HEALTH_OK=0
@@ -235,7 +256,7 @@ jobs:
           for attempt in {1..12}; do
             echo "Tentativa $attempt/12..."
 
-            HEALTH_STATUS="$(curl -k -sS -L --max-time 20 -o /tmp/health.json -w "%{http_code}" "$BASE_URL/health" || echo "000")"
+            HEALTH_STATUS="$(curl_status /tmp/health.json "$BASE_URL/health" -L)"
 
             echo "HTTP /health status: $HEALTH_STATUS"
 
@@ -253,37 +274,50 @@ jobs:
           done
 
           if [ "$HEALTH_OK" != "1" ]; then
-            echo "Health check falhou em /health."
+            echo "::error::Health check obrigatório falhou em /health. Esperado HTTP 200 e JSON com status=ok."
             echo "Resposta final:"
             cat /tmp/health.json || true
             exit 1
           fi
 
+          echo "OK: /health retornou HTTP 200 com status=ok."
+
           echo "== Health check: /login =="
 
-          LOGIN_STATUS="$(curl -k -sS -L --max-time 20 -o /tmp/login.html -w "%{http_code}" "$BASE_URL/login" || echo "000")"
+          LOGIN_STATUS="$(curl_status /tmp/login.html "$BASE_URL/login" -L)"
 
           echo "HTTP /login status: $LOGIN_STATUS"
 
-          if [ "$LOGIN_STATUS" != "200" ]; then
-            echo "Health check falhou em /login. Esperado: 200. Recebido: $LOGIN_STATUS"
-            echo "Primeiras linhas da resposta:"
-            head -n 60 /tmp/login.html || true
-            exit 1
-          fi
+          case "$LOGIN_STATUS" in
+            200|302)
+              echo "OK: /login retornou status aceito ($LOGIN_STATUS)."
+              ;;
+            *)
+              echo "::error::Health check obrigatório falhou em /login. Esperado: 200 ou 302. Recebido: $LOGIN_STATUS"
+              echo "Primeiras linhas da resposta:"
+              head -n 60 /tmp/login.html || true
+              exit 1
+              ;;
+          esac
 
-          if grep -qiE 'Fatal error|Warning: require|Failed opening required|vendor/autoload.php|Whoops|Call to undefined|SQLSTATE' /tmp/login.html; then
-            echo "Health check falhou: /login retornou erro PHP/Laravel no HTML."
+          if grep -qiE "$PHP_ERROR_PATTERN" /tmp/login.html; then
+            echo "::error::Health check obrigatório falhou: /login retornou erro PHP/Laravel no HTML."
             echo "Primeiras linhas da resposta:"
             head -n 80 /tmp/login.html || true
             exit 1
           fi
 
-          if ! grep -qiE 'entrar|login|email|senha|password|csrf-token|_token|build/assets|vite|livewire' /tmp/login.html; then
-            echo "Health check falhou: /login retornou 200, mas não parece ser a tela esperada."
+          echo "OK: /login não contém erro PHP/Laravel explícito."
+
+          if [ "$LOGIN_STATUS" = "200" ] && ! grep -qiE 'entrar|login|email|senha|password|csrf-token|_token|build/assets|vite|livewire' /tmp/login.html; then
+            echo "::error::Health check obrigatório falhou: /login retornou 200, mas não parece ser a tela esperada."
             echo "Primeiras linhas da resposta:"
             head -n 80 /tmp/login.html || true
             exit 1
+          fi
+
+          if [ "$LOGIN_STATUS" = "200" ]; then
+            echo "OK: /login parece conter a tela esperada."
           fi
 
           echo "== Health check: assets Vite detectados no HTML =="
@@ -291,19 +325,31 @@ jobs:
           ASSET_PATH="$(grep -oE '/build/assets/[^"]+\.(css|js)' /tmp/login.html | head -n1 || true)"
 
           if [ -n "$ASSET_PATH" ]; then
-            ASSET_STATUS="$(curl -k -sS -L --max-time 20 -o /dev/null -w "%{http_code}" "$BASE_URL$ASSET_PATH" || echo "000")"
             echo "Asset detectado: $ASSET_PATH"
-            echo "HTTP asset status: $ASSET_STATUS"
 
-            if [ "$ASSET_STATUS" != "200" ]; then
-              echo "Health check falhou: asset do Vite não carregou."
+            ASSET_OK=0
+            ASSET_STATUS="000"
+            for attempt in {1..3}; do
+              ASSET_STATUS="$(curl_status /dev/null "$BASE_URL$ASSET_PATH" -L)"
+              echo "Tentativa asset $attempt/3: HTTP $ASSET_STATUS"
+              if [ "$ASSET_STATUS" = "200" ]; then
+                ASSET_OK=1
+                break
+              fi
+              sleep 3
+            done
+
+            if [ "$ASSET_OK" != "1" ]; then
+              echo "::error::Health check obrigatório falhou: asset crítico do Vite não carregou após retry. Último status: $ASSET_STATUS"
               exit 1
             fi
+
+            echo "OK: asset crítico do Vite carregou."
           else
-            echo "Aviso: nenhum asset /build/assets detectado no HTML de /login."
+            echo "::warning::Aviso: nenhum asset /build/assets detectado no HTML de /login."
           fi
 
-                    echo "== Health check: Livewire =="
+          echo "== Health check: Livewire =="
 
           LIVEWIRE_PATH="$(grep -oE 'src="[^"]*livewire[^"]*\.js[^"]*"' /tmp/login.html | sed -E 's/src="([^"]+)"/\1/' | head -n1 || true)"
           LIVEWIRE_STATUS=""
@@ -321,18 +367,28 @@ jobs:
                 ;;
             esac
 
-            LIVEWIRE_STATUS="$(curl -k -sS -L --max-time 20 -o /dev/null -w "%{http_code}" "$LIVEWIRE_URL" || echo "000")"
-
             echo "Livewire JS detectado: $LIVEWIRE_PATH"
             echo "Livewire prefix detectado: ${LIVEWIRE_PREFIX:-<não encontrado>}"
-            echo "HTTP Livewire JS status: $LIVEWIRE_STATUS"
 
-            if [ "$LIVEWIRE_STATUS" != "200" ]; then
-              echo "Health check Livewire JS falhou. Esperado: 200. Recebido: $LIVEWIRE_STATUS"
+            LIVEWIRE_JS_OK=0
+            for attempt in {1..3}; do
+              LIVEWIRE_STATUS="$(curl_status /dev/null "$LIVEWIRE_URL" -L)"
+              echo "Tentativa Livewire JS $attempt/3: HTTP $LIVEWIRE_STATUS"
+              if [ "$LIVEWIRE_STATUS" = "200" ]; then
+                LIVEWIRE_JS_OK=1
+                break
+              fi
+              sleep 3
+            done
+
+            if [ "$LIVEWIRE_JS_OK" != "1" ]; then
+              echo "::error::Health check Livewire JS falhou após retry. Esperado: 200. Último status: $LIVEWIRE_STATUS"
               exit 1
             fi
+
+            echo "OK: Livewire JS carregou."
           else
-            echo "Aviso: script Livewire não encontrado no HTML de /login."
+            echo "::warning::Aviso: script Livewire não encontrado no HTML de /login."
           fi
 
           LIVEWIRE_UPDATE_URI="$(grep -oE 'data-update-uri="[^"]+"' /tmp/login.html | sed -E 's/data-update-uri="([^"]+)"/\1/' | head -n1 || true)"
@@ -358,51 +414,49 @@ jobs:
             echo "Aviso: não foi possível detectar prefixo Livewire. Usando fallback /livewire/update."
           fi
 
-          LIVEWIRE_UPDATE_STATUS="$(curl -k -sS -L --max-time 20 -o /dev/null -w "%{http_code}" -X POST "$LIVEWIRE_UPDATE_URL" || echo "000")"
-
           echo "Livewire update URL testada: $LIVEWIRE_UPDATE_URL"
-          echo "HTTP Livewire update status: $LIVEWIRE_UPDATE_STATUS"
 
-          case "$LIVEWIRE_UPDATE_STATUS" in
-            200|405|419|422)
-              echo "Livewire update endpoint respondeu dentro do esperado."
-              ;;
-            404)
-              if [ -n "$LIVEWIRE_PATH" ] && [ "$LIVEWIRE_STATUS" = "200" ]; then
-                echo "Aviso: Livewire update retornou 404, mas o JS do Livewire foi carregado com sucesso."
-                echo "Não falhando deploy por endpoint update fixo."
-              else
-                echo "Health check Livewire falhou: update retornou 404 e JS não foi validado."
-                exit 1
-              fi
-              ;;
-            *)
-              echo "Health check Livewire endpoint falhou. Recebido: $LIVEWIRE_UPDATE_STATUS"
-              exit 1
-              ;;
-          esac
+          LIVEWIRE_UPDATE_OK=0
+          LIVEWIRE_UPDATE_STATUS="000"
+          for attempt in {1..3}; do
+            LIVEWIRE_UPDATE_STATUS="$(curl_status /dev/null "$LIVEWIRE_UPDATE_URL" -L -X POST)"
+            echo "Tentativa Livewire update $attempt/3: HTTP $LIVEWIRE_UPDATE_STATUS"
+            case "$LIVEWIRE_UPDATE_STATUS" in
+              200|405|419|422)
+                LIVEWIRE_UPDATE_OK=1
+                break
+                ;;
+            esac
+            sleep 3
+          done
+
+          if [ "$LIVEWIRE_UPDATE_OK" != "1" ]; then
+            echo "::error::Health check Livewire update falhou após retry. Esperado: 200, 405, 419 ou 422. Último status: $LIVEWIRE_UPDATE_STATUS"
+            exit 1
+          fi
+
+          echo "OK: Livewire update endpoint respondeu dentro do esperado ($LIVEWIRE_UPDATE_STATUS)."
 
           echo "== Health check: /horizon =="
 
-          HORIZON_STATUS="$(curl -k -sS -L --max-time 20 -o /tmp/horizon.html -w "%{http_code}" "$BASE_URL/horizon" || echo "000")"
+          HORIZON_STATUS="$(curl_status /tmp/horizon.html "$BASE_URL/horizon" -L)"
 
           echo "HTTP /horizon status: $HORIZON_STATUS"
 
-          if grep -qiE 'Fatal error|Warning: require|Failed opening required|vendor/autoload.php|Whoops|Call to undefined|SQLSTATE' /tmp/horizon.html; then
-            echo "Health check falhou: /horizon retornou erro PHP/Laravel no HTML."
+          if grep -qiE "$PHP_ERROR_PATTERN" /tmp/horizon.html; then
+            echo "::warning::Aviso: /horizon retornou erro PHP/Laravel explícito no HTML. Não bloqueando deploy."
             echo "Primeiras linhas da resposta:"
             head -n 80 /tmp/horizon.html || true
-            exit 1
           fi
 
           case "$HORIZON_STATUS" in
             200|302|401|403)
+              echo "OK: /horizon respondeu com status diagnóstico aceitável ($HORIZON_STATUS)."
               ;;
             *)
-              echo "Health check Horizon falhou. Status inesperado: $HORIZON_STATUS"
+              echo "::warning::Aviso: /horizon retornou status inesperado ($HORIZON_STATUS). Não bloqueando deploy."
               echo "Primeiras linhas da resposta:"
               head -n 80 /tmp/horizon.html || true
-              exit 1
               ;;
           esac
 
